@@ -39,6 +39,14 @@ export interface EngineOptions {
 
 const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
 
+/**
+ * Upper bound on retry attempts. Without a cap, a host stuck on 429/503 combined
+ * with the linear backoff (`retryDelayMs * attempt`) makes the total wait grow
+ * quadratically, so a large `--max-retries` (up to MAX_SAFE_INTEGER) would hang
+ * the process for hours. 10 retries is well beyond any realistic transient blip.
+ */
+const MAX_RETRIES_CAP = 10;
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -57,7 +65,7 @@ export class RequestEngine {
     this.transport = options.transport ?? nodeHttpTransport;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
     this.timeoutMs = options.timeoutMs ?? 30_000;
-    this.maxRetries = options.maxRetries ?? 2;
+    this.maxRetries = Math.min(options.maxRetries ?? 2, MAX_RETRIES_CAP);
     this.retryDelayMs = options.retryDelayMs ?? 200;
     this.maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
     this.sleep = options.sleep ?? realSleep;

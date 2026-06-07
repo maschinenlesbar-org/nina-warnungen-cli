@@ -28,7 +28,10 @@ export class NinaApiError extends NinaError {
     detail?: string;
   }) {
     const detailPart = args.detail ? `: ${args.detail}` : "";
-    super(`HTTP ${args.status} for ${args.method} ${args.url}${detailPart}`);
+    // Surface only the request path in the message, not the full URL: the base
+    // URL may carry credentials (userinfo) and is noisy. The complete URL stays
+    // available on the `.url` property for programmatic inspection.
+    super(`HTTP ${args.status} for ${args.method} ${safeTarget(args.url)}${detailPart}`);
     this.status = args.status;
     this.url = args.url;
     this.method = args.method;
@@ -42,8 +45,25 @@ export class NinaApiError extends NinaError {
   }
 }
 
+/**
+ * Reduce a full request URL to a path (+ query) for user-facing messages,
+ * dropping the origin and any embedded credentials. Falls back to the raw string
+ * if it isn't a parseable absolute URL.
+ */
+function safeTarget(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.pathname}${u.search}`;
+  } catch {
+    return url;
+  }
+}
+
 /** A transport-level failure (DNS, connection reset, timeout, ...). */
 export class NinaNetworkError extends NinaError {}
 
 /** The response body could not be parsed as the expected JSON shape. */
 export class NinaParseError extends NinaError {}
+
+/** A local I/O failure, e.g. writing the --output file (no such dir, EISDIR). */
+export class NinaIOError extends NinaError {}

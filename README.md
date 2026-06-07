@@ -35,25 +35,33 @@ nina --help
 
 ## CLI usage
 
-Search/list commands print pretty JSON to stdout; `warning geojson` streams raw
-GeoJSON bytes to stdout or to a file via `-o/--output`. If the server returns a
-body whose `Content-Type` is not JSON (e.g. an HTML error page with a `200`
-status), the CLI prints a warning to stderr before writing it, so a gateway error
-page is not silently saved as `.geojson`.
+Search/list commands print pretty JSON to stdout; `warning geojson` writes the raw
+GeoJSON bytes to stdout or to a file via `-o/--output`. The body is buffered in
+memory (bounded by `--max-response-bytes`), not streamed. As a sanity check, if the
+server returns a body whose `Content-Type` does not contain `json` (e.g. a
+`text/html` gateway error page served with a `200` status), the CLI prints a
+warning to stderr before writing it. This is a `Content-Type`-only check — the live
+API serves GeoJSON as `application/json`, so it does not (and cannot) verify that
+the bytes are actually valid GeoJSON, only that the type string looks JSON-ish.
 
 ### Global options
 
 | Option | Description |
 | --- | --- |
 | `--base-url <url>` | API base URL (default `https://warnung.bund.de`) |
-| `--timeout <ms>` | Per-request timeout (default `30000`) |
+| `--timeout <ms>` | Per-request timeout (default `30000`; `0` disables the timeout — waits indefinitely) |
 | `--user-agent <ua>` | `User-Agent` header value |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`, capped at `10`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | Print JSON on a single line |
 | `-o, --output <file>` | For downloads: write bytes to a file instead of stdout |
 
-Global options go **before** the command, e.g. `nina --compact map-data dwd`.
+Global options may be given **before or after** the command, e.g.
+`nina --compact map-data dwd` and `nina map-data dwd --compact` are equivalent.
+
+An identifier that begins with `-` would otherwise be parsed as an option; pass it
+after a `--` separator so it is treated as a positional, e.g.
+`nina warning get -- -odd.identifier`.
 
 Numeric options (`--timeout`, `--max-retries`, `--max-response-bytes`) accept only
 plain non-negative decimal integers; values like `5.0`, `0x10`, `1e3`, `-1` or a

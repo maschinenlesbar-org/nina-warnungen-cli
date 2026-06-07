@@ -30,7 +30,15 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
     return 0;
   } catch (err) {
     if (err instanceof CommanderError) {
-      // Help/version requests exit 0; genuine parse errors carry their own code.
+      // When commander has displayed help — whether from an explicit --help
+      // (code "commander.helpDisplayed", exitCode 0) or from a bare invocation /
+      // bare command group with no subcommand (code "commander.help", exitCode 1)
+      // — the visible output is the same successful help text, so exit 0 in both
+      // cases for a consistent "showed help" result. Genuine parse errors
+      // (unknown command/option, missing argument) keep their own non-zero code.
+      if (err.code === "commander.help" || err.code === "commander.helpDisplayed") {
+        return 0;
+      }
       return err.exitCode;
     }
     if (err instanceof NinaApiError) {

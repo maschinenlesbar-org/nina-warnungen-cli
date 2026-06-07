@@ -42,6 +42,19 @@ export function assertEnum<T extends string>(
   return value as T;
 }
 
+/**
+ * Validate a required free-form positional (an identifier or region key). An
+ * empty or whitespace-only value would build a path like `dashboard/.json` and
+ * come back as a remote 404 for what is really a local input error; reject it
+ * up front with a clear message (exit 1) instead.
+ */
+export function requireIdentifier(value: string, argName: string): string {
+  if (value.trim() === "") {
+    throw new NinaError(`A non-empty ${argName} is required.`);
+  }
+  return value;
+}
+
 export interface GlobalOptions {
   baseUrl?: string;
   timeout?: number;
@@ -63,10 +76,35 @@ export function toEngineOptions(global: GlobalOptions): EngineOptions {
   return options;
 }
 
-/** Render a JSON value to stdout, pretty by default, compact with --compact. */
+/**
+ * Render a JSON value, pretty by default, compact with --compact. Writes to the
+ * file given by --output when present (so `-o` is honoured for JSON commands, not
+ * only raw downloads), otherwise to stdout. When writing a file we print a short
+ * confirmation to stderr so stdout stays clean for piping.
+ */
 export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown): void {
   const text = global.compact ? JSON.stringify(value) : JSON.stringify(value, null, 2);
-  deps.io.out(text);
+  const output = resolveOutput(global.output);
+  if (output !== undefined) {
+    const data = Buffer.from(text + "\n", "utf8");
+    deps.io.writeFile(output, data);
+    deps.io.err(`Wrote ${data.length} bytes to ${output}`);
+  } else {
+    deps.io.out(text);
+  }
+}
+
+/**
+ * Resolve the --output target. `undefined` means "no -o given" (write to stdout).
+ * An explicitly empty string is a user error (e.g. `--output "$OUT"` with an
+ * unset variable) and must not silently fall through to stdout, so we reject it.
+ */
+function resolveOutput(output: string | undefined): string | undefined {
+  if (output === undefined) return undefined;
+  if (output === "") {
+    throw new NinaError("--output requires a non-empty file path.");
+  }
+  return output;
 }
 
 /**
@@ -91,9 +129,10 @@ export function renderRaw(
         `"${response.contentType || "(none)"}". The body may not be what you expect.`,
     );
   }
-  if (global.output) {
-    deps.io.writeFile(global.output, response.data);
-    deps.io.err(`Wrote ${response.data.length} bytes to ${global.output}`);
+  const output = resolveOutput(global.output);
+  if (output !== undefined) {
+    deps.io.writeFile(output, response.data);
+    deps.io.err(`Wrote ${response.data.length} bytes to ${output}`);
   } else {
     deps.io.outBinary(response.data);
   }

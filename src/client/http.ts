@@ -10,6 +10,27 @@ import http from "node:http";
 import https from "node:https";
 import { NinaNetworkError } from "./errors.js";
 
+/**
+ * Turn an opaque Node transport error into a message that points at the likely
+ * cause (usually a wrong/unreachable --base-url) instead of just echoing the raw
+ * resolver/socket string. Keeps the original text for context.
+ */
+function describeNetworkError(err: NodeJS.ErrnoException, host: string): string {
+  switch (err.code) {
+    case "ECONNREFUSED":
+      return `Could not connect to ${host} (connection refused). Check the host/port and --base-url.`;
+    case "ENOTFOUND":
+    case "EAI_AGAIN":
+      return `Could not resolve host ${host}. Check the --base-url and your network/DNS.`;
+    case "ECONNRESET":
+      return `Connection to ${host} was reset.`;
+    case "ETIMEDOUT":
+      return `Connection to ${host} timed out.`;
+    default:
+      return err.message;
+  }
+}
+
 export interface HttpRequest {
   method: string;
   /** Fully-qualified absolute URL. */
@@ -103,7 +124,12 @@ export const nodeHttpTransport: Transport = (request) =>
 
     req.on("error", (err) => {
       // A timeout destroy already passes an NinaNetworkError; don't double-wrap.
-      reject(err instanceof NinaNetworkError ? err : new NinaNetworkError(err.message, { cause: err }));
+      if (err instanceof NinaNetworkError) {
+        reject(err);
+        return;
+      }
+      const message = describeNetworkError(err as NodeJS.ErrnoException, url.host);
+      reject(new NinaNetworkError(message, { cause: err }));
     });
 
     if (request.body !== undefined) req.write(request.body);

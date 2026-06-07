@@ -4,6 +4,7 @@
 import { writeFileSync } from "node:fs";
 import type { NinaClient } from "../client/client.js";
 import type { EngineOptions } from "../client/engine.js";
+import { NinaIOError } from "../client/errors.js";
 
 export interface CliIO {
   out(text: string): void;
@@ -23,6 +24,16 @@ export interface CliDeps {
 export const defaultIO: CliIO = {
   out: (text) => process.stdout.write(text + "\n"),
   err: (text) => process.stderr.write(text + "\n"),
-  writeFile: (path, data) => writeFileSync(path, data),
+  writeFile: (path, data) => {
+    // A failed file write (no such dir, EISDIR, EACCES) is a routine,
+    // user-caused condition — classify it as a NinaError so run() prints a clean
+    // "Error: ..." rather than the "Unexpected error:" wording for internal bugs.
+    try {
+      writeFileSync(path, data);
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : String(cause);
+      throw new NinaIOError(`Failed to write ${path}: ${reason}`, { cause });
+    }
+  },
   outBinary: (data) => process.stdout.write(data),
 };

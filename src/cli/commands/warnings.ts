@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, assertEnum, renderJson, renderRaw } from "../shared.js";
+import { action, assertEnum, renderJson, renderRaw, requireIdentifier } from "../shared.js";
 import { NinaSourceValues } from "../../client/enums.js";
 
 export function registerWarningCommands(program: Command, deps: CliDeps): void {
@@ -30,7 +30,7 @@ export function registerWarningCommands(program: Command, deps: CliDeps): void {
     .description("Get the full CAP warning for an identifier")
     .action(
       action(deps, async ({ client, global }, [id]) => {
-        renderJson(deps, global, await client.warnings.get(id!));
+        renderJson(deps, global, await client.warnings.get(requireIdentifier(id!, "identifier")));
       }),
     );
 
@@ -39,7 +39,8 @@ export function registerWarningCommands(program: Command, deps: CliDeps): void {
     .description("Download the warning's geometry as GeoJSON (-o to write a file)")
     .action(
       action(deps, async ({ client, global }, [id]) => {
-        renderRaw(deps, global, await client.warnings.geojson(id!), "json");
+        const geojson = await client.warnings.geojson(requireIdentifier(id!, "identifier"));
+        renderRaw(deps, global, geojson, "json");
       }),
     );
 
@@ -48,7 +49,7 @@ export function registerWarningCommands(program: Command, deps: CliDeps): void {
     .description("Warnings affecting a region (Amtlicher Regionalschlüssel / AGS)")
     .action(
       action(deps, async ({ client, global }, [ars]) => {
-        renderJson(deps, global, await client.dashboard(ars!));
+        renderJson(deps, global, await client.dashboard(requireIdentifier(ars!, "region key")));
       }),
     );
 }
