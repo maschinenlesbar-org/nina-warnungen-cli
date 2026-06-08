@@ -12,6 +12,10 @@ und Katastrophenhilfe). It aggregates **MoWaS**, **KATWARN**, **BIWAPP**,
 - **Well tested** — unit tests on Node's built-in test runner (`node --test`), every HTTP response mocked.
 - **Read-only, no auth** — the NINA API needs no key; this client only reads.
 
+New to NINA, or terms like *MoWaS*, *Amtlicher Regionalschlüssel (ARS)* or the
+CAP *Severity* levels? See **[GLOSSARY.md](GLOSSARY.md)** for the domain concepts
+and the project's own vocabulary.
+
 ## Requirements
 
 - Node.js **>= 20** (uses the stable built-in test runner, ESM and top-level `await`).
@@ -113,7 +117,7 @@ Exit codes: `0` success, `4` on a `404` from the API, `1` for any other error, n
 ## Library usage
 
 ```ts
-import { NinaClient, NinaApiError, type NinaSource } from "nina-warnungen-cli";
+import { NinaClient, NinaApiError, type NinaSource } from "@maschinenlesbar.org/nina-warnungen-cli";
 
 const client = new NinaClient(); // defaults to https://warnung.bund.de
 
