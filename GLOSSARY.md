@@ -147,34 +147,6 @@ non-2xx status, avoiding header replay to a redirect target.
 
 ---
 
-## Project / technical terms
-
-**API client.** [`NinaClient`](src/client/client.ts) — the typed,
-resource-grouped wrapper over the API (`client.mapData`, `client.dashboard`,
-`client.warnings`, `client.archive`, `client.reference`). Usable as a library
-independently of the CLI.
-
-**Resource group.** A cohesive set of client methods for one part of the API
-(`client.warnings`, `client.archive`, `client.reference`), and the matching CLI
-command group.
-
-**Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
-([`http.ts`](src/client/http.ts)). The default uses Node's built-in
-`http`/`https`; tests inject a mock. This is the only HTTP seam.
-
-**Request engine.** [`RequestEngine`](src/client/engine.ts) — builds URLs,
-serialises queries, applies retry/backoff, decodes JSON/raw responses and maps
-errors. Sits between the client's resource methods and the transport.
-
-**RawResponse.** The result of a download method: `{ data: Buffer, contentType,
-status }` — raw bytes, never lossily decoded.
-
-**CliDeps / CliIO.** The dependency-injection seam for the CLI
-([`io.ts`](src/cli/io.ts)): a client factory plus an I/O object. Lets the whole
-CLI run in tests with a mocked client and captured output — no subprocess.
-
-**Error types.** [`errors.ts`](src/client/errors.ts): `NinaApiError` (non-2xx,
-carries `status`/`detail`/`isRetryable`), `NinaNetworkError` (transport
-failure/timeout), `NinaParseError` (bad JSON) and `NinaIOError` (local write
-failure), all extending `NinaError`. The CLI maps a `404` to exit code `4`,
-other errors to `1`.
+> **Library & internals.** Terms for the TypeScript client and its internals —
+> `NinaClient`, resource groups, the request engine, transport, retry/backoff,
+> error types, query builder — now live in **[DEVELOPING.md](DEVELOPING.md)**.

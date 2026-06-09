@@ -1,216 +1,186 @@
 # nina-warnungen-cli
 
-A TypeScript **API client** and **command-line interface** for the open
-[NINA API](https://nina.api.bund.dev/) (`warnung.bund.de`) — the federal
-civil-protection warning system run by the **BBK** (Bundesamt für Bevölkerungsschutz
-und Katastrophenhilfe). It aggregates **MoWaS**, **KATWARN**, **BIWAPP**,
-**DWD severe-weather**, **flood (LHP)** and **police** alerts.
+Query Germany's **federal civil-protection warning system** from your terminal.
+`nina` is a command-line tool over the open
+[NINA API](https://nina.api.bund.dev/) (`warnung.bund.de`): fetch current
+warnings by source, look up the full detail or geometry of any alert, check a
+region by its official key, and browse the MoWaS archive — as clean JSON you
+can pipe straight into [`jq`](https://jqlang.github.io/jq/).
 
-- **Zero runtime HTTP dependencies** — built on Node's built-in `http`/`https` (no axios, no fetch polyfill).
-- **One small dependency** for the CLI: [`commander`](https://github.com/tj/commander.js).
-- **Strongly typed** — typed client surface, warning summaries and the source enum.
-- **Well tested** — unit tests on Node's built-in test runner (`node --test`), every HTTP response mocked.
-- **Read-only, no auth** — the NINA API needs no key; this client only reads.
+- **Works out of the box** — no account, no API key, no configuration. Install and query.
+- **All sources in one tool** — MoWaS, KATWARN, BIWAPP, DWD severe-weather, flood (LHP) and police.
+- **Clean JSON output** — pretty-printed by default, `--compact` for one-line/scripting.
+- **GeoJSON support** — download a warning's affected-area geometry directly to a file.
+- **Cheap polling** — a lightweight data-version endpoint tells you whether anything changed without pulling full feeds.
 
-New to NINA, or terms like *MoWaS*, *Amtlicher Regionalschlüssel (ARS)* or the
-CAP *Severity* levels? See **[GLOSSARY.md](GLOSSARY.md)** for the domain concepts
-and the project's own vocabulary.
-
-## Requirements
-
-- Node.js **>= 20** (uses the stable built-in test runner, ESM and top-level `await`).
+> Want to use this as a TypeScript library or understand how it's built?
+> See **[DEVELOPING.md](DEVELOPING.md)**.
 
 ## Install
 
 ```bash
-npm install
-npm run build        # compiles TypeScript to dist/
+npm i -g @maschinenlesbar.org/nina-warnungen-cli
 ```
 
-Run the CLI without a global install:
+This installs the **`nina`** command. Requires **Node.js 20+**.
+
+Check it works:
 
 ```bash
-node dist/src/cli/index.js --help
-# or, after `npm link` / global install:
 nina --help
 ```
 
----
+## Quickstart
 
-## CLI usage
-
-Search/list commands print pretty JSON to stdout; `warning geojson` writes the raw
-GeoJSON bytes to stdout or to a file via `-o/--output`. The body is buffered in
-memory (bounded by `--max-response-bytes`), not streamed. As a sanity check, if the
-server returns a body whose `Content-Type` does not contain `json` (e.g. a
-`text/html` gateway error page served with a `200` status), the CLI prints a
-warning to stderr before writing it. This is a `Content-Type`-only check — the live
-API serves GeoJSON as `application/json`, so it does not (and cannot) verify that
-the bytes are actually valid GeoJSON, only that the type string looks JSON-ish.
-
-### Global options
-
-| Option | Description |
-| --- | --- |
-| `--base-url <url>` | API base URL (default `https://warnung.bund.de`) |
-| `--timeout <ms>` | Per-request timeout (default `30000`; `0` disables the timeout — waits indefinitely) |
-| `--user-agent <ua>` | `User-Agent` header value |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`, capped at `10`) |
-| `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
-| `--compact` | Print JSON on a single line |
-| `-o, --output <file>` | For downloads: write bytes to a file instead of stdout |
-
-Global options may be given **before or after** the command, e.g.
-`nina --compact map-data dwd` and `nina map-data dwd --compact` are equivalent.
-
-An identifier that begins with `-` would otherwise be parsed as an option; pass it
-after a `--` separator so it is treated as a positional, e.g.
-`nina warning get -- -odd.identifier`.
-
-Numeric options (`--timeout`, `--max-retries`, `--max-response-bytes`) accept only
-plain non-negative decimal integers; values like `5.0`, `0x10`, `1e3`, `-1` or a
-leading/trailing space are rejected as usage errors.
-
-> **Note on `--base-url` + `--output`:** the base URL is trusted as given, so
-> `nina --base-url <any-http(s)-host> -o <file> ...` is effectively a general
-> "fetch this URL and write it to a file" tool. Only `http`/`https` are allowed
-> (`file:`/`ftp:` are rejected) and redirects are **never followed**, but point it
-> only at hosts you trust. Setting `--max-response-bytes 0` disables the in-memory
-> response-size guard entirely (including the 100 MiB default).
-
-### Commands
-
-```text
-sources                          list the valid warning sources
-map-data <source>                current warnings from a source
-                                 (mowas | katwarn | biwapp | dwd | lhp | police)
-warning   get <id>               full CAP warning by identifier
-warning   geojson <id>           warning geometry as GeoJSON (-o to save)
-dashboard <ars>                  warnings for a region (Amtlicher Regionalschlüssel / AGS)
-archive   mapping <id> | get <id>   MoWaS archive (history + a past warning)
-reference notfalltipps | event-codes | data-version
-```
-
-### Examples
+No setup needed — the API is open and read-only. Your first query:
 
 ```bash
-# Current severe-weather warnings from the DWD
 nina map-data dwd
+```
 
-# A specific warning (identifier from a map-data entry's `id`)
+Returns the current severe-weather warnings from the DWD (Deutscher
+Wetterdienst). Pull out just the headlines and severity levels with `jq`:
+
+```bash
+nina map-data dwd | jq '.[] | {id, severity: .severity, headline: .i18nTitle.de}'
+```
+
+Take a warning `id` from those results and fetch its full CAP record:
+
+```bash
 nina warning get mow.DE-BY-A-W083-20240101
+```
 
-# Its geometry, saved to a file
-nina -o warn.geojson warning geojson mow.DE-BY-A-W083-20240101
+## Commands
 
-# All warnings affecting a district by its regional key
+```text
+sources                                list the valid warning sources
+map-data <source>                      current warnings from a source
+                                       (mowas | katwarn | biwapp | dwd | lhp | police)
+warning  get <id>                      full CAP warning by identifier
+warning  geojson <id>                  warning geometry as GeoJSON (-o to save)
+dashboard <ars>                        warnings for a region (ARS/AGS key)
+archive  mapping <id>                  MoWaS revision history for an identifier
+archive  get <id>                      a specific archived MoWaS warning
+reference notfalltipps                 emergency-preparedness tips (German)
+reference event-codes                  CAP event-code catalogue
+reference data-version                 current data-version hash (for polling)
+```
+
+### `map-data` sources
+
+| Value | Warning type |
+| --- | --- |
+| `mowas` | MoWaS — modular civil-protection alerts |
+| `katwarn` | KATWARN — municipal/regional alerts |
+| `biwapp` | BIWAPP — municipal alerts |
+| `dwd` | DWD — severe-weather (national met service) |
+| `lhp` | LHP — cross-state flood warnings |
+| `police` | Police incident reports |
+
+The canonical list is always available at runtime via `nina sources`.
+
+## Common tasks
+
+A few recipes to get going — see **[Usage.md](Usage.md)** for the full,
+use-case-driven set.
+
+```bash
+# Current flood warnings
+nina map-data lhp
+
+# Filter to only Severe or Extreme warnings across a source
+nina map-data mowas | jq '[.[] | select(.severity == "Severe" or .severity == "Extreme")]'
+
+# Full detail for one warning (id from a map-data entry)
+nina warning get mow.DE-SL-SLS-W038-20260113-000
+
+# Save the affected-area geometry as a GeoJSON file
+nina warning geojson mow.DE-SL-SLS-W038-20260113-000 -o warn.geojson
+
+# All warnings currently affecting a district (regional key ARS/AGS)
 nina dashboard 055150000000
 
-# Poll for changes cheaply
+# Cheap polling — only fetch full feeds when the version hash changes
 nina --compact reference data-version
 ```
 
-Exit codes: `0` success, `4` on a `404` from the API, `1` for any other error, non-zero for usage errors.
+## Output & scripting
 
----
-
-## Library usage
-
-```ts
-import { NinaClient, NinaApiError, type NinaSource } from "@maschinenlesbar.org/nina-warnungen-cli";
-
-const client = new NinaClient(); // defaults to https://warnung.bund.de
-
-const alerts = await client.mapData("dwd");          // MapWarning[]
-const full = await client.warnings.get(alerts[0]!.id);
-const region = await client.dashboard("055150000000");
-
-const geo = await client.warnings.geojson(alerts[0]!.id); // raw bytes
-await import("node:fs/promises").then((fs) => fs.writeFile("warn.geojson", geo.data));
-
-try {
-  await client.warnings.get("DOES-NOT-EXIST");
-} catch (err) {
-  if (err instanceof NinaApiError) console.error(err.status, err.detail);
-}
-```
-
-### Client options
-
-```ts
-new NinaClient({
-  baseUrl: "https://warnung.bund.de",
-  timeoutMs: 15_000,
-  maxRetries: 3,              // 429 / 503 are retried with linear backoff
-  maxResponseBytes: 50 << 20, // abort responses larger than 50 MiB (0 = unlimited)
-  userAgent: "my-app/1.0",
-  transport: customTransport, // inject your own HTTP transport
-});
-```
-
-### Resource groups
-
-`client.mapData(source)`, `client.dashboard(ars)`, `client.warnings` (`.get` / `.geojson`),
-`client.archive` (`.mapping` / `.get`), `client.reference` (`.notfalltipps` / `.eventCodes` / `.dataVersion`).
-
----
-
-## Architecture
-
-```
-src/
-  client/
-    enums.ts     # NinaSource + severity value sets (runtime + type)
-    types.ts     # response interfaces (typed summaries; full warnings as JsonObject)
-    query.ts     # dependency-free query-string builder
-    http.ts      # the Transport interface + default node:http/https transport
-    engine.ts    # URL building, retry/backoff, JSON/raw decoding, error mapping
-    errors.ts    # NinaError / NinaApiError / NinaNetworkError / NinaParseError
-    client.ts    # NinaClient — resource groups over the engine
-  cli/
-    io.ts        # injectable I/O seam (stdout/stderr/file)
-    shared.ts    # option parsers, global-option resolver, JSON/raw renderers
-    commands/    # warnings + archive/reference (misc) command groups
-    program.ts   # assembles the commander program from injectable deps
-    run.ts       # parses argv -> exit code (no process.exit; testable)
-    index.ts     # #! bin shim
-```
-
-**Design notes**
-
-- The HTTP layer is a single `Transport` function (`(req) => Promise<HttpResponse>`). The default
-  uses `node:http`/`node:https`; tests inject a mock. This keeps the client free of any HTTP framework.
-- The CLI is built around injectable `CliDeps` (client factory + I/O), so the whole program can be
-  driven in-process by tests with a mocked client and captured output — no subprocesses.
-- Full CAP warning payloads are deeply nested and standard-specific, so they are returned as
-  faithful raw `JsonObject`s rather than partially-guessed types.
-- The transport issues exactly one request and **does not follow 3xx redirects** — a redirect is
-  surfaced as a `NinaApiError` like any other non-2xx status. This avoids replaying headers to a
-  redirect target (no cross-host header leak / SSRF via `Location`).
-
----
-
-## Testing
+Every command prints **pretty JSON to stdout**. Errors and diagnostics go to
+stderr, so piping stdout into `jq` stays clean.
 
 ```bash
-npm test          # builds, then runs `node --test` over dist/test
+# Count warnings for a region
+nina dashboard 055150000000 | jq 'length'
+
+# Extract severity + headline from all DWD entries
+nina map-data dwd | jq '.[] | {severity, title: .i18nTitle.de}'
 ```
 
-- **`query.test.ts`** — query-string serialisation.
-- **`http.test.ts`** — the default transport against a real loopback `http.createServer` (GET, unsupported protocol, size cap, timeout, no-redirect-follow).
-- **`engine.test.ts`** — URL building, JSON/raw decoding, error mapping, 429/503 retry, redirect-as-error, size-cap forwarding — mocked transport.
-- **`client.test.ts`** — every endpoint's method/URL mapping, including identifier URL-encoding — mocked transport.
-- **`cli.test.ts`** — end-to-end command parsing, rendering, file output and exit codes, plus negative paths (network/parse/API errors, write failures, content-type warning) — mocked client.
-- **`shared.test.ts`** — the `parseIntArg` value parser (accepts plain decimals, rejects everything else).
+Use `--compact` for single-line JSON in pipelines and logs:
 
-## Continuous integration
+```bash
+nina --compact map-data dwd | jq -c '.[]'
+```
 
-GitHub Actions workflows under `.github/workflows/`:
+`--compact` (and every global option) works **before or after** the command —
+both `nina --compact map-data dwd` and `nina map-data dwd --compact` do the same
+thing.
 
-- **ci.yml** — type-check, build and test on Node 20/22/24 for every push and PR.
-- **release.yml** — on a `v*` tag: verify the tag matches `package.json`, test, `npm pack`, and create a GitHub Release with the tarball.
-- **publish.yml** — manual dispatch: publish to npm via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
-- **docs.yml** — build TypeDoc API docs and deploy to GitHub Pages on each `v*` tag.
+An identifier that begins with `-` would be parsed as an option; pass it after a
+`--` separator: `nina warning get -- -odd.identifier`.
+
+**Exit codes** make the CLI easy to use in scripts:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | success (also `--help` / `--version`) |
+| `1` | error — network failure, parse error, unexpected problem |
+| `4` | warning not found (`404`) |
+| non-zero | bad usage / invalid argument (commander parse error) |
+
+## Troubleshooting
+
+- **`command not found: nina`** — the global npm bin directory isn't on your
+  `PATH`. Run `npm bin -g` to find it and add it, or run via
+  `npx @maschinenlesbar.org/nina-warnungen-cli …`.
+- **Exit `4` / "not found"** — the warning identifier doesn't exist or has
+  expired. Re-fetch it from a fresh `map-data` or `dashboard` result; identifiers
+  change as warnings are issued and cancelled.
+- **Exit `1` / network error** — connectivity, DNS, or a timeout. Try again, or
+  raise the limit with `--timeout 60000`. For flaky networks increase retries:
+  `--max-retries 5`.
+- **Empty result from `map-data`** — the source has no active warnings right now.
+  Try a different source or come back later.
+- **`warning geojson` prints non-JSON content-type warning** — the API returned
+  an unexpected content-type (e.g. a gateway error page). The bytes are still
+  written, but check whether the identifier is valid.
+
+## Global options
+
+These apply to every command and may be given before *or* after it:
+
+| Option | Description |
+| --- | --- |
+| `-V, --version` | Print the version number |
+| `-h, --help` | Show help for the program or a command |
+| `--compact` | Print JSON on a single line instead of pretty-printed |
+| `-o, --output <file>` | For downloads: write bytes to a file instead of stdout |
+| `--base-url <url>` | API base URL (default `https://warnung.bund.de`) |
+| `--timeout <ms>` | Per-request timeout (default `30000`; `0` waits indefinitely) |
+| `--user-agent <ua>` | `User-Agent` header value |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`, capped at `10`) |
+| `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
+
+Numeric options accept only plain non-negative decimal integers — values like
+`5.0`, `0x10`, `1e3`, or `-1` are rejected as usage errors.
+
+## Learn more
+
+- **[Usage.md](Usage.md)** — full use-case-driven cookbook.
+- **[GLOSSARY.md](GLOSSARY.md)** — every command, source, domain term and exit code explained.
+- **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
 
 ## License
 
