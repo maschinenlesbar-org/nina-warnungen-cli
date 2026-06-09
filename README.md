@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/maschinenlesbar-org/nina-warnungen-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/maschinenlesbar-org/nina-warnungen-cli/actions/workflows/ci.yml)
 [![Release](https://github.com/maschinenlesbar-org/nina-warnungen-cli/actions/workflows/release.yml/badge.svg)](https://github.com/maschinenlesbar-org/nina-warnungen-cli/actions/workflows/release.yml)
-[![GitHub release](https://img.shields.io/github/v/release/maschinenlesbar-org/nina-warnungen-cli)](https://github.com/maschinenlesbar-org/nina-warnungen-cli/releases/latest)
 [![npm](https://img.shields.io/npm/v/@maschinenlesbar.org/nina-warnungen-cli)](https://www.npmjs.com/package/@maschinenlesbar.org/nina-warnungen-cli)
 
 Query Germany's **federal civil-protection warning system** from your terminal.
