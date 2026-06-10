@@ -1,0 +1,39 @@
+{
+  "name": "nina-skills",
+  "owner": {
+    "name": "Sebastian Schürmann",
+    "email": "sebs@2xs.org"
+  },
+  "metadata": {
+    "description": "Live German civil-protection warning skills powered by the nina-warnungen-cli (NINA / warnung.bund.de API)"
+  },
+  "plugins": [
+    {
+      "name": "nina",
+      "source": "./",
+      "description": "Brief Germany's live civil-protection warnings across all NINA sources, watch a specific region by its ARS/AGS key, and export a warning's affected area as GeoJSON — all over the open, key-free NINA API via the nina-warnungen-cli.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Sebastian Schürmann",
+        "email": "sebs@2xs.org"
+      },
+      "license": "AGPL-3.0-or-later",
+      "repository": "https://github.com/maschinenlesbar-org/nina-warnungen-cli",
+      "homepage": "https://github.com/maschinenlesbar-org/nina-warnungen-cli#readme",
+      "category": "civic",
+      "keywords": [
+        "nina",
+        "warnung",
+        "bbk",
+        "mowas",
+        "katwarn",
+        "dwd",
+        "civil-protection",
+        "alerts",
+        "geojson",
+        "germany",
+        "bund.dev"
+      ]
+    }
+  ]
+}

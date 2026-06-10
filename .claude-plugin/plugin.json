@@ -1,0 +1,25 @@
+{
+  "name": "nina",
+  "version": "0.1.0",
+  "description": "Live German civil-protection warning skills powered by the nina-warnungen-cli (NINA / warnung.bund.de API).",
+  "author": {
+    "name": "Sebastian Schürmann",
+    "email": "sebs@2xs.org"
+  },
+  "license": "AGPL-3.0-or-later",
+  "repository": "https://github.com/maschinenlesbar-org/nina-warnungen-cli",
+  "homepage": "https://github.com/maschinenlesbar-org/nina-warnungen-cli#readme",
+  "keywords": [
+    "nina",
+    "warnung",
+    "bbk",
+    "mowas",
+    "katwarn",
+    "dwd",
+    "civil-protection",
+    "alerts",
+    "geojson",
+    "germany",
+    "bund.dev"
+  ]
+}

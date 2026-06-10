@@ -182,6 +182,7 @@ Numeric options accept only plain non-negative decimal integers — values like
 
 ## Learn more
 
+- **[SKILLS.md](SKILLS.md)** — Claude Code Agent Skills that drive this CLI for live warning briefings, region watches and GeoJSON maps.
 - **[Usage.md](Usage.md)** — full use-case-driven cookbook.
 - **[GLOSSARY.md](GLOSSARY.md)** — every command, source, domain term and exit code explained.
 - **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
