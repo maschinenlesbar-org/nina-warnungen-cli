@@ -187,6 +187,16 @@ Numeric options accept only plain non-negative decimal integers — values like
 - **[GLOSSARY.md](GLOSSARY.md)** — every command, source, domain term and exit code explained.
 - **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
 
+## Data license
+
+This CLI is a **client** — it accesses data it does not own or redistribute. The
+upstream data is © its provider and licensed **separately from this tool's code**.
+See **[DATA_LICENSE.md](DATA_LICENSE.md)**.
+
+> **BBK** — official federal warnings are amtliche Werke (§ 5 Abs. 2 UrhG): may be
+> redistributed **unaltered** with a source credit. Aggregates third-party sources
+> (DWD, Länder flood portals) that carry their own terms.
+
 ## License
 
 **Dual-licensed** — use it under **either**:
