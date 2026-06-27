@@ -142,8 +142,10 @@ serialiser: omits `undefined`/`null`, repeats keys for arrays, renders booleans
 as `true`/`false`, dates as ISO-8601, and encodes spaces as `%20` (not `+`).
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
-retried automatically with linear backoff, up to `--max-retries` (capped at
-`10`). `NinaApiError` exposes `isRetryable` (true for `429`/`503`).
+retried automatically with linear backoff, up to `--max-retries`. The engine
+clamps the count to `10` as a safety bound for direct library callers; the CLI
+goes further and *rejects* a `--max-retries` above `10` as a usage error.
+`NinaApiError` exposes `isRetryable` (true for `429`/`503`).
 
 **maxResponseBytes.** A cap on the response body size in bytes (`0` = unlimited;
 default 100 MiB), guarding against unbounded responses. Setting

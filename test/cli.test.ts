@@ -205,3 +205,60 @@ test("--timeout rejects a non-integer value with a usage error", async () => {
   assert.equal(cli.mt.calls.length, 0);
   assert.match(cli.err.join("\n"), /non-negative integer/);
 });
+
+test("a bare invocation prints help to stdout (not stderr) and exits 0", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  const code = await run([], cli.deps);
+  assert.equal(code, 0);
+  assert.equal(cli.mt.calls.length, 0);
+  assert.equal(cli.err.length, 0); // help went to stdout, not stderr
+  assert.match(cli.out.join("\n"), /Usage: nina/);
+});
+
+test("a global flag with no command prints help to stdout, exit 0", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  const code = await run(["--compact"], cli.deps);
+  assert.equal(code, 0);
+  assert.equal(cli.err.length, 0);
+  assert.match(cli.out.join("\n"), /Usage: nina/);
+});
+
+test("a bare command group prints its help to stdout, exit 0", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  const code = await run(["warning"], cli.deps);
+  assert.equal(code, 0);
+  assert.equal(cli.err.length, 0);
+  assert.match(cli.out.join("\n"), /get|geojson/);
+});
+
+test("an unknown command still errors on stderr with exit 1", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  const code = await run(["boguscmd"], cli.deps);
+  assert.equal(code, 1);
+  assert.equal(cli.out.length, 0);
+  assert.match(cli.err.join("\n"), /unknown command 'boguscmd'/);
+});
+
+test("--version prints to stdout and exits 0", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  const code = await run(["--version"], cli.deps);
+  assert.equal(code, 0);
+  assert.equal(cli.err.length, 0);
+  assert.match(cli.out.join("\n"), /\d+\.\d+\.\d+/);
+});
+
+test("--max-retries rejects a value above 10 as a usage error", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  const code = await run(["--max-retries", "11", "map-data", "dwd"], cli.deps);
+  assert.notEqual(code, 0);
+  assert.equal(cli.mt.calls.length, 0);
+  assert.match(cli.err.join("\n"), /between 0 and 10/);
+});
+
+test("an identifier containing a path separator is rejected before any request", async () => {
+  const cli = makeCli(() => jsonResponse({}));
+  const code = await run(["warning", "get", "--", "../../etc/passwd"], cli.deps);
+  assert.notEqual(code, 0);
+  assert.equal(cli.mt.calls.length, 0);
+  assert.match(cli.err.join("\n"), /must not contain a path separator/);
+});

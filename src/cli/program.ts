@@ -8,7 +8,7 @@ import { Command } from "commander";
 import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { NinaClient } from "../client/client.js";
-import { parseIntArg } from "./shared.js";
+import { parseIntArg, parseMaxRetries } from "./shared.js";
 import { registerWarningCommands } from "./commands/warnings.js";
 import { registerMiscCommands } from "./commands/misc.js";
 
@@ -55,8 +55,8 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .option("--user-agent <ua>", "User-Agent header value")
     .option(
       "--max-retries <n>",
-      "retries for transient 429/503 responses (capped at 10)",
-      parseIntArg,
+      "retries for transient 429/503 responses (default 2, max 10)",
+      parseMaxRetries,
     )
     .option(
       "--max-response-bytes <n>",
@@ -64,7 +64,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
       parseIntArg,
     )
     .option("--compact", "print JSON on a single line instead of pretty-printed")
-    .option("-o, --output <file>", "for downloads: write bytes to this file instead of stdout")
+    .option("-o, --output <file>", "write the command's output to this file instead of stdout")
     .showHelpAfterError();
 
   registerWarningCommands(program, deps);

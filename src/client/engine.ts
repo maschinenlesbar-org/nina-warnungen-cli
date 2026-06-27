@@ -4,7 +4,7 @@
 
 import { nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { NinaApiError, NinaParseError } from "./errors.js";
+import { NinaApiError, NinaNetworkError, NinaParseError } from "./errors.js";
 
 export const DEFAULT_BASE_URL = "https://warnung.bund.de";
 const DEFAULT_USER_AGENT = "nina-warnungen-cli";
@@ -73,6 +73,15 @@ export class RequestEngine {
 
   /** Build a fully-qualified URL from a path and optional query parameters. */
   buildUrl(path: string, query?: QueryParams): string {
+    // Validate the base URL up front so a malformed `baseUrl` (e.g. a stray
+    // `--base-url notaurl`) yields a clear message naming the offending value,
+    // instead of an opaque "Invalid URL" that carries the full request path and
+    // reads as if the path were at fault.
+    try {
+      new URL(this.baseUrl);
+    } catch {
+      throw new NinaNetworkError(`Invalid base URL: ${JSON.stringify(this.baseUrl)}`);
+    }
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const qs = query ? buildQueryString(query) : "";
     return `${this.baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;

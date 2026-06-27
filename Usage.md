@@ -153,10 +153,10 @@ These flags apply to every command (real flags only):
 | `--base-url <url>` | API base URL (default `https://warnung.bund.de`) |
 | `--timeout <ms>` | Per-request timeout in ms (`0` disables; waits indefinitely) |
 | `--user-agent <ua>` | `User-Agent` header value |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses (capped at 10) |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`, max `10` — higher is rejected) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `-o, --output <file>` | For downloads: write bytes to a file instead of stdout |
+| `-o, --output <file>` | Write the command's output to a file instead of stdout (JSON commands and downloads alike) |
 | `-h, --help` | Display help for a command |
 
 Notes: numeric options accept only plain non-negative decimal integers. An

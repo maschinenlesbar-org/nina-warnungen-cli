@@ -27,6 +27,24 @@ export function parseIntArg(value: string): number {
 }
 
 /**
+ * The most retries the engine will ever perform. Mirrors the engine's internal
+ * `MAX_RETRIES_CAP` (which still clamps as a defence for direct library users);
+ * surfacing it here lets the CLI *reject* an out-of-range value with a clear
+ * message rather than silently clamping it, matching the rest of the CLI's
+ * validate-and-reject style.
+ */
+export const MAX_RETRIES_LIMIT = 10;
+
+/** commander value-parser for `--max-retries`: a non-negative integer, max 10. */
+export function parseMaxRetries(value: string): number {
+  const n = parseIntArg(value);
+  if (n > MAX_RETRIES_LIMIT) {
+    throw new InvalidArgumentError(`Expected a value between 0 and ${MAX_RETRIES_LIMIT}.`);
+  }
+  return n;
+}
+
+/**
  * Validate a positional argument against an allowed set (commander does not
  * support .choices() on positional args). Throws a NinaError so run() prints a
  * clear message and exits 1.
@@ -43,14 +61,20 @@ export function assertEnum<T extends string>(
 }
 
 /**
- * Validate a required free-form positional (an identifier or region key). An
- * empty or whitespace-only value would build a path like `dashboard/.json` and
- * come back as a remote 404 for what is really a local input error; reject it
- * up front with a clear message (exit 1) instead.
+ * Validate a required free-form positional (an identifier or region key). Both
+ * are single path segments, so two inputs can only ever produce a remote 404 (or
+ * a confusing parse error) for what is really a local input mistake — reject them
+ * up front with a clear message (exit 1) instead:
+ *   - empty/whitespace-only (would build a path like `dashboard/.json`);
+ *   - one containing a path separator (`/` or `\`), e.g. a `../../etc/passwd`
+ *     traversal attempt — these are percent-encoded and can never match a real id.
  */
 export function requireIdentifier(value: string, argName: string): string {
   if (value.trim() === "") {
     throw new NinaError(`A non-empty ${argName} is required.`);
+  }
+  if (/[/\\]/.test(value)) {
+    throw new NinaError(`Invalid ${argName} "${value}": must not contain a path separator.`);
   }
   return value;
 }

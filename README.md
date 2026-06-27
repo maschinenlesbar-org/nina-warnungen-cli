@@ -170,11 +170,11 @@ These apply to every command and may be given before *or* after it:
 | `-V, --version` | Print the version number |
 | `-h, --help` | Show help for the program or a command |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `-o, --output <file>` | For downloads: write bytes to a file instead of stdout |
+| `-o, --output <file>` | Write the command's output to a file instead of stdout (JSON commands and downloads alike) |
 | `--base-url <url>` | API base URL (default `https://warnung.bund.de`) |
 | `--timeout <ms>` | Per-request timeout (default `30000`; `0` waits indefinitely) |
 | `--user-agent <ua>` | `User-Agent` header value |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`, capped at `10`) |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`, max `10` — higher is rejected) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 
 Numeric options accept only plain non-negative decimal integers — values like
