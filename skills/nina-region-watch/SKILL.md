@@ -3,8 +3,8 @@ name: nina-region-watch
 description: >
   Check or monitor civil-protection warnings for a specific German region using
   the nina-warnungen-cli. Trigger when the user asks "are there warnings in
-  <town/district>?", "any alerts for my area / Landkreis / Kreis?", "warnings
-  near me", "is it safe in <region>?", or wants ongoing monitoring of one place.
+  Heidelberg?", "any alerts for my area / Landkreis / Kreis?", "warnings
+  near me", "is it safe in the Ahrtal?", or wants ongoing monitoring of one place.
   Resolves the place to its ARS/AGS regional key, pulls the per-region dashboard
   feed, and can poll the cheap data-version hash so it only re-checks when
   something actually changed.

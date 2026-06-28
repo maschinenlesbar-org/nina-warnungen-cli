@@ -75,7 +75,9 @@ order.
 
 ## Step 4 — Output
 
-Report the saved path and feature/polygon count, and offer to:
+Report the saved path and feature/polygon count. If the `-o` name the user supplied already
+exists, confirm before overwriting it (re-running with the default name to refresh is fine).
+Offer to:
 - open it at https://geojson.io (drag the file in), or
 - enrich it: merge in `headline`/`severity` from `warning get` as feature properties so the
   map has readable labels (do this only if asked — the raw export is otherwise complete).
