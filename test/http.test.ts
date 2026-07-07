@@ -61,10 +61,42 @@ test("a slow server triggers a timeout NinaNetworkError", async () => {
     async (baseUrl) => {
       await assert.rejects(
         () => nodeHttpTransport({ method: "GET", url: baseUrl, timeoutMs: 50 }),
-        (err) => err instanceof NinaNetworkError && /timed out/.test(err.message),
+        // Either the idle-socket timeout or the wall-clock deadline can win this
+        // race (both are armed at timeoutMs, and the server sends nothing); both
+        // are the correct outcome — a NinaNetworkError that ends the hung request.
+        (err) => err instanceof NinaNetworkError && /timed out|deadline/.test(err.message),
       );
     },
   );
+});
+
+test("a slow-drip response is bounded by the wall-clock deadline", async () => {
+  // The server dribbles one byte every 20ms and never ends. Each byte resets the
+  // idle-socket timeout, so without a separate wall-clock deadline the request
+  // would hang forever while staying under maxResponseBytes. The deadline must
+  // still fire and surface a NinaNetworkError naming the deadline (not the idle
+  // timeout) as the cause.
+  const timers: NodeJS.Timeout[] = [];
+  await withServer(
+    (_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      const t = setInterval(() => res.write("x"), 20);
+      timers.push(t);
+      res.on("close", () => clearInterval(t));
+    },
+    async (baseUrl) => {
+      await assert.rejects(
+        () => nodeHttpTransport({ method: "GET", url: baseUrl, timeoutMs: 80 }),
+        (err: unknown) => {
+          assert.ok(err instanceof NinaNetworkError);
+          // The wall-clock deadline, not the idle timeout, is what caught it.
+          assert.match(err.message, /deadline/);
+          return true;
+        },
+      );
+    },
+  );
+  for (const t of timers) clearInterval(t);
 });
 
 test("a 302 redirect is returned as-is and never followed", async () => {
