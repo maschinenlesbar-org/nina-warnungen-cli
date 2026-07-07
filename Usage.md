@@ -156,7 +156,7 @@ These flags apply to every command (real flags only):
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`, max `10` — higher is rejected) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `-o, --output <file>` | Write the command's output to a file instead of stdout (JSON commands and downloads alike) |
+| `-o, --output <file>` | Write the command's output to a file instead of stdout (JSON commands and downloads alike). An existing file at that path is **overwritten silently** — there is no prompt or `--force`, so point `-o` at a fresh path or one you intend to replace |
 | `-h, --help` | Display help for a command |
 
 Notes: numeric options accept only plain non-negative decimal integers. An
