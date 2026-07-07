@@ -60,7 +60,7 @@ new NinaClient({
   baseUrl: "https://warnung.bund.de",
   timeoutMs: 15_000,
   maxRetries: 3,              // 429 / 503 are retried with linear backoff
-  maxResponseBytes: 50 << 20, // abort responses larger than 50 MiB (0 = unlimited)
+  maxResponseBytes: 50 << 20, // example: abort over 50 MiB; the default is 100 MiB (0 = unlimited)
   userAgent: "my-app/1.0",
   transport: customTransport, // inject your own HTTP transport
 });
