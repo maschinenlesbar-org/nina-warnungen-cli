@@ -47,6 +47,28 @@ const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
  */
 const MAX_RETRIES_CAP = 10;
 
+/**
+ * Strip control characters (all C0/C1 except tab and newline, plus DEL) out of a
+ * string that originates in an attacker-controlled response — the error `detail`
+ * and the echoed Content-Type. `JSON.parse` decodes an escaped ESC in an error
+ * body into a real ESC byte, so without this a hostile/MITM'd endpoint could
+ * drive ANSI/OSC escape sequences into the user's terminal when the message is
+ * printed to stderr. The success JSON path is already safe (`JSON.stringify`
+ * escapes these), so this only needs to cover text that flows into a message.
+ *
+ * Filtered by code point rather than a regex literal, so no raw control byte ever
+ * appears in this source file.
+ */
+function sanitizeServerText(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    const n = ch.codePointAt(0) ?? 0;
+    if (n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f)) continue;
+    out += ch;
+  }
+  return out;
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -118,7 +140,9 @@ export class RequestEngine {
         continue;
       }
 
-      const contentType = String(response.headers["content-type"] ?? "");
+      // The Content-Type is echoed to stderr (raw-download type-mismatch warning),
+      // so strip control characters at the source before it leaves the engine.
+      const contentType = sanitizeServerText(String(response.headers["content-type"] ?? ""));
       if (status < 200 || status >= 300) {
         throw this.toApiError(method, url, status, response.body);
       }
@@ -153,6 +177,9 @@ export class RequestEngine {
     } catch {
       // Non-JSON error body; leave detail undefined.
     }
+    // `detail` came from the response body; strip control characters so a hostile
+    // endpoint cannot inject terminal escape sequences via the stderr error message.
+    if (detail !== undefined) detail = sanitizeServerText(detail);
     return new NinaApiError({ status, url, method, body: text, detail });
   }
 }
