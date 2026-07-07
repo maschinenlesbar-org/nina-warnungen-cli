@@ -39,6 +39,19 @@ test("buildUrl rejects a malformed base URL with a clear, base-only message", ()
   );
 });
 
+test("buildUrl rejects a non-http(s) base URL scheme transport-independently", () => {
+  // The scheme guard lives in the engine (not only the default transport), so a
+  // library user with a custom Transport still cannot reach a file:/ftp: driver.
+  for (const bad of ["file:///etc/passwd", "ftp://example.test/x"]) {
+    const e = new RequestEngine({ baseUrl: bad });
+    assert.throws(
+      () => e.buildUrl("/x"),
+      (err: unknown) =>
+        err instanceof NinaNetworkError && /Unsupported base URL scheme/.test(err.message),
+    );
+  }
+});
+
 test("getJson parses a JSON body", async () => {
   const mt = makeMockTransport(() => jsonResponse({ ok: true }));
   const e = new RequestEngine({ transport: mt.transport });

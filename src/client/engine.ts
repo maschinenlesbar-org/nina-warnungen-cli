@@ -99,10 +99,20 @@ export class RequestEngine {
     // `--base-url notaurl`) yields a clear message naming the offending value,
     // instead of an opaque "Invalid URL" that carries the full request path and
     // reads as if the path were at fault.
+    let parsed: URL;
     try {
-      new URL(this.baseUrl);
+      parsed = new URL(this.baseUrl);
     } catch {
       throw new NinaNetworkError(`Invalid base URL: ${JSON.stringify(this.baseUrl)}`);
+    }
+    // Enforce the http(s) scheme here, transport-independently, so the guarantee
+    // holds even for a library user who injects a custom Transport that doesn't
+    // re-check (the default transport rejects non-http(s) too, but a swapped-in
+    // one might not, and could otherwise reach a file:/ftp: driver).
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new NinaNetworkError(
+        `Unsupported base URL scheme "${parsed.protocol}" (only http: and https: are allowed).`,
+      );
     }
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const qs = query ? buildQueryString(query) : "";
