@@ -4,6 +4,8 @@
 [![Release](https://github.com/maschinenlesbar-org/nina-warnungen-cli/actions/workflows/release.yml/badge.svg)](https://github.com/maschinenlesbar-org/nina-warnungen-cli/actions/workflows/release.yml)
 [![npm](https://img.shields.io/npm/v/@maschinenlesbar.org/nina-warnungen-cli)](https://www.npmjs.com/package/@maschinenlesbar.org/nina-warnungen-cli)
 
+**Website:** [English](https://maschinenlesbar-org.github.io/nina-warnungen-cli/) · [Deutsch](https://maschinenlesbar-org.github.io/nina-warnungen-cli/de/) — command reference, guides and API docs
+
 Query Germany's **federal civil-protection warning system** from your terminal.
 `nina` is a command-line tool over the open
 [NINA API](https://nina.api.bund.dev/) (`warnung.bund.de`): fetch current
