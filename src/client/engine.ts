@@ -53,8 +53,9 @@ const MAX_RETRIES_CAP = 10;
  * and the echoed Content-Type. `JSON.parse` decodes an escaped ESC in an error
  * body into a real ESC byte, so without this a hostile/MITM'd endpoint could
  * drive ANSI/OSC escape sequences into the user's terminal when the message is
- * printed to stderr. The success JSON path is already safe (`JSON.stringify`
- * escapes these), so this only needs to cover text that flows into a message.
+ * printed to stderr. The CLI's JSON output is escaped separately
+ * (`escapeControlChars` in cli/shared.ts): `JSON.stringify` alone leaves DEL and
+ * the C1 range raw. So this only needs to cover text that flows into a message.
  *
  * Filtered by code point rather than a regex literal, so no raw control byte ever
  * appears in this source file.
