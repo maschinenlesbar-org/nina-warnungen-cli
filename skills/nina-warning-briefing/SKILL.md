@@ -60,12 +60,12 @@ Each returns an array of warning **summaries** (`MapWarning`). The fields that m
 |---|---|
 | `id` | The warning identifier (e.g. `mow.DE-…`, `dwd…`). Pass to `warning get`/`geojson`. |
 | `severity` | `Minor` < `Moderate` < `Severe` < `Extreme`, plus `Unknown`. **Primary ranking key.** |
-| `urgency` | `Immediate` / `Expected` / `Future` / `Past` — secondary ranking. |
+| `urgency` | `Immediate` / `Expected` / `Future` / `Past`, and **`Unknown`** (seen on KATWARN) — secondary ranking. |
 | `type` | CAP **msgType**: `Alert` (new), `Update` (supersedes), **`Cancel` (all-clear / Entwarnung)**. |
 | `startDate` | When it took effect (ISO, with offset). |
-| `expiresDate` | When it expires — present on `dwd` and some others, **often absent on `mowas`**. |
+| `expiresDate` | When it expires — present on `dwd` and some others, **often absent or `null`** (both seen on `mowas` and `katwarn`). |
 | `i18nTitle` | Localised title map; **use `i18nTitle.de`** for the headline (also `.en` etc.). |
-| `transKeys.event` | Event-code key (e.g. `BBK-EVC-010`); maps only to an icon, not a label — the title already carries the meaning. |
+| `transKeys.event` | Event-code key (e.g. `BBK-EVC-010`); maps only to an icon, not a label — the title already carries the meaning. `transKeys` can be missing (it was on KATWARN). |
 
 ## Step 3 — Filter out the noise
 
@@ -74,8 +74,8 @@ Two filters, both important:
 1. **Drop cancellations.** `type === "Cancel"` is an *Entwarnung* — the warning being
    withdrawn, not an active hazard. A `Cancel` headline literally reads `Entwarnung: …`.
    Never present these as live warnings; at most mention "N recently cleared".
-2. **Drop expired.** If `expiresDate` is present and in the past relative to now, the
-   warning is over — exclude it. Many `mowas` entries have **no** `expiresDate`; treat
+2. **Drop expired.** If `expiresDate` is set and in the past relative to now, the
+   warning is over — exclude it. Many entries have **no** `expiresDate`, or `null`; treat
    those as still active (don't guess an expiry).
 
 A `Cancel` whose original is the only entry for an area means that area is now clear.
@@ -85,7 +85,7 @@ A `Cancel` whose original is the only entry for an area means that area is now c
 Sort the surviving (active, non-cancelled) warnings, most serious first:
 
 1. By `severity`: `Extreme` → `Severe` → `Moderate` → `Minor` → `Unknown`.
-2. Within equal severity, `urgency === "Immediate"` outranks `Expected`/`Future`.
+2. Within equal severity, `urgency === "Immediate"` outranks `Expected`/`Future`/`Unknown`.
 3. Then most recent `startDate` first.
 
 De-duplicate where the same event appears via several sources (match on near-identical
@@ -108,11 +108,15 @@ Rules:
 - **Enumerate only `Severe`/`Extreme`** in full; summarise `Minor`/`Moderate` as a count
   unless the user asked for everything or a source has only low-severity items.
 - Use `i18nTitle.de` as the headline (offer `.en` if the user isn't German-speaking).
-- Show the time window: `startDate` and, when present, `expiresDate`.
+- Show the time window: `startDate` and, when set, `expiresDate`.
 - An empty briefing is a valid, reassuring answer — "No active civil-protection warnings
   from any NINA source right now" — say it plainly when every source returned `[]`.
 - For full detail on one warning (area descriptions, instructions, CAP fields), offer the
-  follow-up `nina warning get <id>` — its `info[].instruction`, `info[].area[].areaDesc`,
-  `info[].description` carry the actionable guidance. Don't dump the full CAP record
-  unless asked.
+  follow-up `nina warning get <id>`. `info[]` has one entry per language (`language`
+  `de`, `en`, …); take `de` unless the user wants another. `info[].area[].areaDesc` is the
+  readable area. The actionable guidance is in `info[].instruction` **and/or**
+  `info[].description`: `instruction` can be missing or `null` (a Severe KATWARN
+  drinking-water warning had its boil-water advice only in `description`), so read both.
+  Both can contain HTML such as `<br/>` — turn it into line breaks, don't print the tags.
+  Don't dump the full CAP record unless asked.
 - Don't invent severity the data doesn't support; `Unknown` severity means unknown.
