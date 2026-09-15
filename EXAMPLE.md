@@ -13,33 +13,37 @@ Skills: [nina-region-watch](#nina-region-watch) · [nina-warning-briefing](#nina
 
 ## nina-region-watch
 
-> Is anything going on in the Vogelsbergkreis? Keep an eye on it for me.
+> There's a strange smell in Bad Oeynhausen tonight. Is there an official warning? Keep an eye on it for me.
 
 ```bash
-nina --compact dashboard 065350000000 > dash-vb.json
-nina --compact reference data-version > ver.json
-nina --compact reference data-version > ver2.json        # five minutes later: same hash
-nina --compact dashboard 065350000000 > dash-vb2.json     # checked anyway: same single entry
+nina --compact dashboard 057700000000 > dash-mi.json                          # 22:43: 1 entry
+nina --compact warning get mow.DE-NW-MI-SE073-20260915-73-000 > mi-warn.json  # areaDesc and advice; no expires
+nina --compact dashboard 057700000000 > dash-mi2.json                         # 22:48: same id, same payload.hash
 ```
 
-The skill resolved Vogelsbergkreis to the district key `065350000000` (Hessen 06, Gießen 5,
-district 35). The dashboard entry had no `onset` or `expires`, and `payload.data.area` was an
-encoded grid (`{"type":"GRID",…}`) rather than a place name. So the skill used `effective` for the
-time and the headline for the place.
+Bad Oeynhausen belongs to Kreis Minden-Lübbecke, so the skill used the district key
+`057700000000` (Nordrhein-Westfalen 05, Detmold 7, district 70). The entry had no `effective`,
+and `payload.data.area` was an encoded reference (`{"type":"ZGEM",…}`), so the time came from
+`sent` and the area and advice from `warning get`, which gave no `expires`. To keep watching,
+the skill fetched the dashboard again five minutes later and compared `id` and `payload.hash`.
 
 ```
-Vogelsbergkreis (ARS 065350000000): 1 active warning
+Kreis Minden-Lübbecke (ARS 057700000000): 1 active warning
 
- SEVERE  Vogelsbergkreis meldet: Warnung Trinkwasserunfall. Gültig ab 14.09.2026, 15:29.
-         KATWARN · Alert · urgency Unknown · effective 14.09. 15:29, no expiry given
-         id kat.6aa7f6b0995efd5eae12108e_public_topics
+ MINOR  Geruchsbelästigung in Bad Oeynhausen / Süd- und Innenstadtbereich - Bad Oeynhausen
+        MOWAS · Alert · urgency Immediate · sent 15.09. 22:26, no expiry given
+        area: Bad Oeynhausen
+        Integrierte Leitstelle Kreis Minden-Lübbecke: an incident is causing an odour in the
+        town, no health risk. Close windows and doors, switch off ventilation and air
+        conditioning, keep the emergency lines free.
+        id mow.DE-NW-MI-SE073-20260915-73-000
 
-Watching via the data-version hash: version 20, hash eab02c0a… stored at 17:46.
-  17:51  hash unchanged: nothing changed anywhere, no new or cleared warnings for the district.
+Watching the dashboard: 1 entry, payload.hash 82b0da27… stored at 22:43.
+  22:48  same id, same payload.hash, msgType still Alert: no new, changed or cleared warnings.
 ```
 
-Next steps offered: `nina warning get kat.6aa7f6b0995efd5eae12108e_public_topics` for the full
-text and `nina warning geojson …` to map the affected area.
+Next steps offered: another check in a few minutes, and
+`nina warning geojson mow.DE-NW-MI-SE073-20260915-73-000` to map the affected area.
 
 ## nina-warning-briefing
 
