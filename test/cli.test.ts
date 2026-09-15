@@ -220,6 +220,17 @@ test("--timeout rejects a non-integer value with a usage error", async () => {
   assert.match(cli.err.join("\n"), /non-negative integer/);
 });
 
+test("--timeout accepts up to the largest timer Node supports", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["--timeout", "2147483647", "map-data", "dwd"], cli.deps), 0);
+  assert.equal(cli.mt.last().timeoutMs, 2_147_483_647);
+
+  const over = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["--timeout", "2147483648", "map-data", "dwd"], over.deps), 1);
+  assert.equal(over.mt.calls.length, 0);
+  assert.match(over.err.join("\n"), /between 0 and 2147483647/);
+});
+
 test("a bare invocation prints help to stdout (not stderr) and exits 0", async () => {
   const cli = makeCli(() => jsonResponse([]));
   const code = await run([], cli.deps);

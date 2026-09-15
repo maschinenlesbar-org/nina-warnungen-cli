@@ -26,6 +26,17 @@ export function parseIntArg(value: string): number {
   return n;
 }
 
+/** commander value-parser factory: a non-negative integer between `min` and `max`. */
+export function parseBoundedInt(min: number, max: number): (value: string) => number {
+  return (value) => {
+    const n = parseIntArg(value);
+    if (n < min || n > max) {
+      throw new InvalidArgumentError(`Expected a value between ${min} and ${max}.`);
+    }
+    return n;
+  };
+}
+
 /**
  * The most retries the engine will ever perform. Mirrors the engine's internal
  * `MAX_RETRIES_CAP` (which still clamps as a defence for direct library users);

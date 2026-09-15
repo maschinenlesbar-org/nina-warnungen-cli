@@ -8,7 +8,8 @@ import { Command } from "commander";
 import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { NinaClient } from "../client/client.js";
-import { parseIntArg, parseMaxRetries } from "./shared.js";
+import { MAX_TIMEOUT_MS } from "../client/http.js";
+import { parseBoundedInt, parseIntArg, parseMaxRetries } from "./shared.js";
 import { registerWarningCommands } from "./commands/warnings.js";
 import { registerMiscCommands } from "./commands/misc.js";
 
@@ -50,7 +51,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .option(
       "--timeout <ms>",
       "per-request timeout in milliseconds (0 disables; waits indefinitely)",
-      parseIntArg,
+      parseBoundedInt(0, MAX_TIMEOUT_MS),
     )
     .option("--user-agent <ua>", "User-Agent header value")
     .option(
