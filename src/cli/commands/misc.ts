@@ -45,7 +45,7 @@ export function registerMiscCommands(program: Command, deps: CliDeps): void {
 
   reference
     .command("data-version")
-    .description("Current data version/hash (useful for change detection)")
+    .description("Version/hash of NINA's labels data (does not change when warnings change)")
     .action(
       action(deps, async ({ client, global }) => {
         renderJson(deps, global, await client.reference.dataVersion());

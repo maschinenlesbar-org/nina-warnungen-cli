@@ -46,7 +46,7 @@ export function registerWarningCommands(program: Command, deps: CliDeps): void {
 
   program
     .command("dashboard <ars>")
-    .description("Warnings affecting a region (Amtlicher Regionalschlüssel / AGS)")
+    .description("Warnings affecting a district, by its district-level ARS (12 digits, last 7 digits 0)")
     .action(
       action(deps, async ({ client, global }, [ars]) => {
         renderJson(deps, global, await client.dashboard(requireIdentifier(ars!, "region key")));

@@ -58,9 +58,9 @@ CLI: `nina warning get <identifier>`.
 Gebiets als GeoJSON (`application/geo+json`), zurückgegeben als rohe Bytes. CLI:
 `nina warning geojson <identifier>` (mit `-o` in eine Datei speichern).
 
-**dashboard (`/dashboard/{ARS}.json`).** Alle Warnungen, die aktuell eine Region
-betreffen, adressiert über ihren Regionalschlüssel (siehe ARS/AGS unten). CLI:
-`nina dashboard <ars>`.
+**dashboard (`/dashboard/{ARS}.json`).** Alle Warnungen, die aktuell einen Kreis
+betreffen, adressiert über seinen Regionalschlüssel auf Kreisebene (siehe ARS unten).
+CLI: `nina dashboard <ars>`.
 
 **archive – MoWaS-Archiv.** Frühere MoWaS-Warnungen und ihr Revisionsverlauf:
 - **mapping (`/archive.mowas/{identifier}-mapping.json`)** – der Revisionsverlauf
@@ -76,9 +76,10 @@ werden:
 - **event-codes (`/appdata/gsb/eventCodes/eventCodes.json`)** – der Katalog der
   CAP-Ereigniscodes, der Ereignisschlüssel Icons und Bezeichnungen zuordnet. CLI:
   `nina reference event-codes`.
-- **data-version (`/dynamic/version/dataVersion.json`)** – die aktuelle Datenversion
-  bzw. der Hash, nützlich für eine günstige Änderungserkennung und Polling. CLI:
-  `nina reference data-version`.
+- **data-version (`/dynamic/version/dataVersion.json`)** – eine Versionsnummer mit
+  Hash, deren einziger Eintrag `labels` ist. Sie ändert sich nicht, wenn sich Warnungen
+  ändern, und ersetzt daher nicht das erneute Abrufen eines Warn-Feeds oder Dashboards.
+  CLI: `nina reference data-version`.
 
 ---
 
@@ -92,8 +93,10 @@ werden:
 Verwaltungseinheit (Land → Kreis → Gemeinde), mit dem der `dashboard`-Endpoint
 angesprochen wird (z. B. `055150000000`).
 
-**AGS – Amtlicher Gemeindeschlüssel.** Der kürzere (8-stellige) Gemeindeschlüssel; der
-Befehl `dashboard` akzeptiert einen Regionalschlüssel in beiden Formen.
+**AGS – Amtlicher Gemeindeschlüssel.** Der kürzere (8-stellige) Gemeindeschlüssel. Der
+Endpoint `dashboard` akzeptiert ihn nicht (HTTP 400) und auch keinen ARS auf
+Gemeindeebene (HTTP 404): Er erwartet den ARS auf Kreisebene, also die ersten fünf
+Stellen gefolgt von `0000000`. Die CLI reicht den Schlüssel unverändert weiter.
 
 ---
 

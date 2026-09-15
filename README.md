@@ -17,7 +17,7 @@ can pipe straight into [`jq`](https://jqlang.github.io/jq/).
 - **All sources in one tool** — MoWaS, KATWARN, BIWAPP, DWD severe-weather, flood (LHP) and police.
 - **Clean JSON output** — pretty-printed by default, `--compact` for one-line/scripting.
 - **GeoJSON support** — download a warning's affected-area geometry directly to a file.
-- **Cheap polling** — a lightweight data-version endpoint tells you whether anything changed without pulling full feeds.
+- **Region check** — one small request lists every warning affecting a district, by its official regional key.
 
 > Want to use this as a TypeScript library or understand how it's built?
 > See **[DEVELOPING.md](DEVELOPING.md)**.
@@ -65,12 +65,12 @@ map-data <source>                      current warnings from a source
                                        (mowas | katwarn | biwapp | dwd | lhp | police)
 warning  get <id>                      full CAP warning by identifier
 warning  geojson <id>                  warning geometry as GeoJSON (-o to save)
-dashboard <ars>                        warnings for a region (ARS/AGS key)
+dashboard <ars>                        warnings for a district (12-digit ARS, last 7 digits 0)
 archive  mapping <id>                  MoWaS revision history for an identifier
 archive  get <id>                      a specific archived MoWaS warning
 reference notfalltipps                 emergency-preparedness tips (German)
 reference event-codes                  CAP event-code catalogue
-reference data-version                 current data-version hash (for polling)
+reference data-version                 version/hash of NINA's labels data (not warnings)
 ```
 
 ### `map-data` sources
@@ -104,10 +104,11 @@ nina warning get mow.DE-SL-SLS-W038-20260113-000
 # Save the affected-area geometry as a GeoJSON file
 nina warning geojson mow.DE-SL-SLS-W038-20260113-000 -o warn.geojson
 
-# All warnings currently affecting a district (regional key ARS/AGS)
+# All warnings currently affecting a district (district-level ARS; 055150000000 = Münster)
 nina dashboard 055150000000
 
-# Cheap polling — only fetch full feeds when the version hash changes
+# Version/hash of NINA's labels data — it does not change when warnings change,
+# so watch a district by re-running `dashboard` and comparing ids instead
 nina --compact reference data-version
 ```
 

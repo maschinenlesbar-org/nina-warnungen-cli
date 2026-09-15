@@ -16,7 +16,7 @@ have to rediscover them each time.
 | Skill | What it does | Ask it… |
 |---|---|---|
 | **nina-warning-briefing** | Merges current warnings across all six NINA sources, drops cancellations and expired entries, and ranks by severity. | "any warnings right now?", "current severe-weather warnings", "what's the BBK alert situation?" |
-| **nina-region-watch** | Pulls the per-region dashboard for a place by its ARS/AGS key, ranks active warnings, and polls the data-version hash for monitoring. | "any alerts for my Landkreis?", "warnings in Rosenheim?", "keep watching my district" |
+| **nina-region-watch** | Pulls the per-region dashboard for a place by its district-level ARS key, ranks active warnings, and re-checks the dashboard for monitoring. | "any alerts for my Landkreis?", "warnings in Rosenheim?", "keep watching my district" |
 | **nina-warning-map** | Resolves a warning and exports its affected-area geometry as a valid GeoJSON `FeatureCollection`. | "map this warning", "what area does this alert cover?", "export the warning as GeoJSON" |
 
 ## Requirements
@@ -87,13 +87,21 @@ encode the non-obvious parts of this API, for example:
   being **withdrawn**, not an active hazard; its headline reads `Entwarnung: …`. Naively
   listing one as a live warning is the most common mistake (see **nina-warning-briefing**);
 - the German headline lives in **`i18nTitle.de`** (the title is a per-language map), and
-  many `mowas` entries carry **no `expiresDate`** — treat those as still active rather than
-  guessing an expiry;
-- the **`dashboard` payload shape differs from `map-data`** — severity/msgType are nested
-  under `payload.data`, and time fields (`onset`/`effective`/`expires`/`sent`) are
-  top-level (see **nina-region-watch**);
-- the `dashboard` endpoint is addressed by **ARS/AGS** regional key, not a place name, and
-  a wrong key silently returns `[]` that reads as a false "all clear";
+  many entries carry **no `expiresDate`** (or `null`) — treat those as still active rather
+  than guessing an expiry;
+- the **`dashboard` payload shape differs from `map-data`** — severity/msgType/urgency are
+  nested under `payload.data`, only `sent` (and sometimes `effective`) are top-level, there
+  is **no `onset`/`expires`**, and `payload.data.area` is an encoded grid reference, not a
+  place name (see **nina-region-watch**);
+- the `dashboard` endpoint takes a **district-level ARS** (12 digits, last seven `0`), not a
+  place name: an 8-digit AGS gets HTTP 400 and a municipality ARS HTTP 404, while a wrong
+  but existing district returns its own list — possibly a `[]` that reads as a false
+  "all clear";
+- `reference data-version` is **not** a warnings change signal (its only entry is
+  `labels`, and it stays the same while warning feeds change) — to watch a region,
+  re-check its dashboard;
+- a full warning's advice can sit only in `info[].description` (HTML with `<br/>`) when
+  `info[].instruction` is missing, and `urgency` can be `Unknown`;
 - `archive mapping` returns `history[].identifier` values **with a `.json` suffix** —
   passing one straight to `archive get` yields `…json.json` → 404; strip the suffix first;
 - a **stale/unknown warning identifier** often comes back as an HTTP **`302`** (surfaced as

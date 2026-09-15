@@ -66,7 +66,10 @@ class ReferenceResource {
     return this.engine.getJson(`${API}/appdata/gsb/eventCodes/eventCodes.json`);
   }
 
-  /** Current data version/hash (useful for change detection / polling). */
+  /**
+   * Version/hash of NINA's `labels` data (its only entry). It does not change
+   * when warnings change, so it is no warnings change signal.
+   */
   dataVersion(): Promise<DataVersion> {
     return this.engine.getJson(`${API}/dynamic/version/dataVersion.json`);
   }
@@ -91,7 +94,11 @@ export class NinaClient {
     return this.engine.getJson(`${API}/${source}/mapData.json`);
   }
 
-  /** Warnings affecting a region, keyed by Amtlicher Regionalschlüssel (ARS/AGS). */
+  /**
+   * Warnings affecting a district, keyed by its district-level Amtlicher
+   * Regionalschlüssel: 12 digits, the last seven `0` (an 8-digit AGS gets HTTP 400,
+   * a municipality-level ARS HTTP 404).
+   */
   dashboard(ars: string): Promise<DashboardEntry[]> {
     return this.engine.getJson(`${API}/dashboard/${enc(ars)}.json`);
   }

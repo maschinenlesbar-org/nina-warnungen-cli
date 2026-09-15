@@ -58,7 +58,8 @@ geometry as GeoJSON (`application/geo+json`), returned as raw bytes. CLI:
 `nina warning geojson <identifier>` (use `-o` to save to a file).
 
 **dashboard (`/dashboard/{ARS}.json`).** All warnings currently affecting a
-region, keyed by its regional key (see ARS/AGS below). CLI: `nina dashboard <ars>`.
+district, keyed by its district-level regional key (see ARS below). CLI:
+`nina dashboard <ars>`.
 
 **archive — MoWaS archive.** Historical MoWaS warnings and their revision
 history:
@@ -74,8 +75,9 @@ history:
 - **event-codes (`/appdata/gsb/eventCodes/eventCodes.json`)** — the CAP
   event-code catalogue mapping event keys to icons/labels. CLI:
   `nina reference event-codes`.
-- **data-version (`/dynamic/version/dataVersion.json`)** — the current data
-  version/hash, useful for cheap change detection and polling. CLI:
+- **data-version (`/dynamic/version/dataVersion.json`)** — a version number and
+  hash whose only entry is `labels`. It does not change when warnings change, so it
+  is no substitute for re-checking a warning feed or dashboard. CLI:
   `nina reference data-version`.
 
 ---
@@ -92,8 +94,10 @@ municipality), used to address the `dashboard` endpoint
 (e.g. `055150000000`).
 
 **AGS — Amtlicher Gemeindeschlüssel** ("official municipality key"). The
-shorter (8-digit) municipality key; the `dashboard` command accepts a regional
-key in either form.
+shorter (8-digit) municipality key. The `dashboard` endpoint does not accept it
+(HTTP 400), and it takes no municipality-level ARS either (HTTP 404): it wants
+the district-level ARS, i.e. the first five digits followed by `0000000`. The CLI
+passes the key through unchanged.
 
 ---
 

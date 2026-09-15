@@ -84,14 +84,17 @@ to stream the GeoJSON to stdout (e.g. for piping into another tool).
 
 ### 6. Region dashboard: everything affecting a district
 
-For a regional operations view, list all warnings currently affecting one region
-by its Amtlicher Regionalschlüssel / Gemeindeschlüssel (ARS/AGS).
+For a regional operations view, list all warnings currently affecting one district
+by its Amtlicher Regionalschlüssel (ARS). The API only accepts district-level keys:
+12 digits with the last seven set to `0`. An 8-digit Gemeindeschlüssel (AGS) gets
+HTTP 400 and a municipality-level ARS HTTP 404 — take the first five digits and
+append `0000000`.
 
 ```bash
 nina dashboard 055150000000
 ```
 
-`055150000000` is the regional key for the Kreis Recklinghausen district. The
+`055150000000` is the regional key for Münster (a kreisfreie Stadt). The
 result aggregates warnings from every source for that area; combine with `jq` to
 count or group them:
 
@@ -114,17 +117,25 @@ each carry an `identifier` for one archived revision (the `…_<timestamp>` form
 Pass one of those revision identifiers (without the `.json` suffix) to
 `archive get` to fetch that specific archived warning.
 
-### 8. Cheap change detection / polling
+### 8. Watching a district for changes
 
-Rather than re-pulling full feeds on a schedule, poll the lightweight data-version
-hash and only fetch warnings when it changes.
+To keep an eye on one district, re-run its dashboard a few minutes apart and compare
+the results: new `id`s are new warnings, missing ones have been cleared, and a changed
+`payload.hash` for the same `id` marks an updated entry.
+
+```bash
+nina --compact dashboard 055150000000 > dash.json
+```
+
+`reference data-version` is not a shortcut for this. Its only entry is `labels`, and it
+does not change when warnings change (checked on 2026-09-15: its file was last modified
+on 12 September, while the warning feeds had changed that day):
 
 ```bash
 nina --compact reference data-version
 ```
 
-`--compact` prints the JSON on a single line, which is convenient to diff or store
-between polls. The other reference datasets are also static:
+The other reference datasets are also static:
 
 ```bash
 nina reference notfalltipps   # emergency-preparedness tips (German)
