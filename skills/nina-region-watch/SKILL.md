@@ -5,9 +5,9 @@ description: >
   the nina-warnungen-cli. Trigger when the user asks "are there warnings in
   Heidelberg?", "any alerts for my area / Landkreis / Kreis?", "warnings
   near me", "is it safe in the Ahrtal?", or wants ongoing monitoring of one place.
-  Resolves the place to its ARS/AGS regional key, pulls the per-region dashboard
-  feed, and can poll the cheap data-version hash so it only re-checks when
-  something actually changed.
+  Resolves the place to its district-level ARS regional key, pulls the
+  per-region dashboard feed, and can re-check it periodically, reporting new,
+  changed and cleared warnings.
 version: 1.0.0
 userInvocable: true
 ---
@@ -15,7 +15,7 @@ userInvocable: true
 # NINA Region Watch
 
 Answer "what's being warned about **in this specific place**?" by querying NINA's
-per-region dashboard, and support lightweight monitoring via the data-version hash —
+per-region dashboard, and support lightweight monitoring by re-checking that dashboard —
 instead of fetching national feeds and filtering by hand.
 
 ## Tooling
@@ -29,21 +29,26 @@ a valid, reassuring answer, not an error.
 > empty read under some Node builds. If `nina … | jq …` returns nothing, redirect to a
 > file first (`nina --compact dashboard <ars> > out.json`) and read the file.
 
-## Step 1 — Resolve the region to an ARS/AGS key
+## Step 1 — Resolve the region to a district ARS
 
-The `dashboard` command is addressed by **ARS** (Amtlicher Regionalschlüssel, 12 digits)
-or **AGS** (Amtlicher Gemeindeschlüssel, 8 digits) — the official German regional key, not
-a place name.
+The `dashboard` command is addressed by a **district-level ARS** (Amtlicher
+Regionalschlüssel): 12 digits, the first five for the district (`SS` state, `R`
+Regierungsbezirk, `KK` Kreis) and the **last seven always `0000000`** — NINA publishes the
+dashboard only per Kreis / kreisfreie Stadt. It is not a place name, and the CLI passes the
+key to the API unchanged.
 
-- If the user already gave a numeric key, use it.
-- If they gave a town/district name, you must map it to its ARS. The structure is
-  `SS RR KK GGGG` (state, Regierungsbezirk, district, municipality), zero-padded to 12,
-  e.g. `091870000000` = Landkreis Rosenheim, `055150000000` = Kreis Recklinghausen.
-  If you can resolve the key confidently, proceed; otherwise **ask the user for the ARS
-  or the exact district name** rather than guessing — a wrong key silently returns `[]`
-  and reads as "all clear" when it isn't.
-- A district-level key (`…0000` municipality digits = 0) covers the whole district and is
-  the safest default for "my area".
+- If the user gave a 12-digit district key, use it.
+- If they gave an **8-digit AGS** (Amtlicher Gemeindeschlüssel) or a 12-digit
+  municipality ARS, keep its **first five digits and append `0000000`** — e.g. AGS
+  `06535011` (Lauterbach (Hessen)) → `065350000000` (Vogelsbergkreis). Passed as is, an
+  8-digit AGS gets HTTP 400 (exit `1`) and a municipality ARS gets HTTP 404 (exit `4`).
+- If they gave a town/district name, map it to its district, e.g. `091870000000` =
+  Landkreis Rosenheim, `055620000000` = Kreis Recklinghausen, `055150000000` = Münster.
+  If you can resolve the key confidently, proceed; otherwise **ask the user for the
+  district** rather than guessing.
+  A key that doesn't exist fails loudly (HTTP 404, exit `4`), but a *wrong existing*
+  district answers with that district's warnings — or `[]`, which reads as "all clear"
+  for the wrong place.
 
 ## Step 2 — Pull the region dashboard
 
@@ -52,25 +57,29 @@ nina --compact dashboard 091870000000 > dash.json
 ```
 
 Returns an array of `DashboardEntry` objects. **Its shape differs from `map-data`** — do
-not assume the summary fields. The fields that matter:
+not assume the summary fields. The fields that matter (checked live on 2026-09-15):
 
 | Field | Meaning |
 |---|---|
 | `id` | The warning identifier — pass to `nina warning get <id>` / `geojson <id>`. |
-| `i18nTitle.de` | The headline for this region (also `.en`, …). |
+| `i18nTitle.de` | The headline for this region (also `.en`, …). `payload.data.headline` can be cut off with `...`. |
 | `payload.data.severity` | `Minor`/`Moderate`/`Severe`/`Extreme`/`Unknown` — **ranking key** (note it's nested under `payload.data`, not top-level). |
-| `payload.data.msgType` | `Alert`/`Update`/**`Cancel`** (all-clear). |
-| `payload.data.urgency` | `Immediate`/`Expected`/… |
-| `payload.data.provider` | Which source it came from (DWD, MOWAS, …). |
-| `payload.data.area` | Human area string for the warning. |
-| `onset` / `effective` / `expires` / `sent` | Time window (top-level ISO timestamps). |
+| `payload.data.msgType` | `Alert`/`Update`/**`Cancel`** (all-clear). (`payload.type` is a different field — it said `ALERT` on an `Update`.) |
+| `payload.data.urgency` | `Immediate`/`Expected`/`Future`/`Past`, and **`Unknown`** (seen on KATWARN). |
+| `payload.data.provider` | Which source it came from (DWD, MOWAS, KATWARN, …). |
+| `payload.data.area` | **Not a readable place.** An encoded area reference, e.g. `{"type":"GRID","data":"268119,268731+1,500001"}` or `{"type":"ZGEM","data":"5981,100001"}`. The readable area is in `nina warning get <id>` → `info[].area[].areaDesc` (e.g. `Teile von Lauterbach`). |
+| `payload.hash` | A per-entry hash — compare it between checks to spot a changed entry (Step 5). |
+| `sent` / `effective` | Top-level ISO timestamps: when the message was sent, and (not on every entry) when it takes effect. **There is no `onset` or `expires` on dashboard entries.** |
 
 ## Step 3 — Filter and rank
 
 Same triage as a national briefing, but scoped to this region:
 
 - **Drop `payload.data.msgType === "Cancel"`** (Entwarnung) — withdrawn, not active.
-- **Drop entries whose `expires` is in the past** relative to now.
+- **Expiry isn't on the dashboard.** If the end time matters, look it up per entry:
+  `nina warning get <id>` → `info[].expires`, or the entry's `expiresDate` in
+  `nina map-data <source>`. Both are often missing or `null` — then say "no expiry given"
+  and treat the warning as active; don't guess one.
 - Rank survivors by `payload.data.severity` (`Extreme`→`Minor`→`Unknown`), then
   `urgency === "Immediate"` first, then most recent `sent`.
 
@@ -80,27 +89,36 @@ Same triage as a national briefing, but scoped to this region:
 Lkr. Rosenheim (091870000000) — ⚠ 1 active warning
 
  🟠 MODERATE  Amtliche WARNUNG vor DAUERREGEN (DWD)
-              onset 09.06 06:00 → expires 11.06 00:00 · Immediate
+              effective 09.06 06:00 · expires 11.06 00:00 (from warning get) · Immediate
 ```
 
 Rules:
 - **Name the region and its key** so the user can confirm you resolved it correctly.
 - Empty `[]` → "No active warnings for <region> right now." Be explicit it's a real
   all-clear, not a lookup failure — and that it depends on the key being right.
-- Lead with severity; show the `onset`→`expires` window and the `provider`.
+- Lead with severity; show `effective` (or `sent`), an expiry only if you looked one up
+  (Step 3), and the `provider`.
+- For a readable area, use `info[].area[].areaDesc` from `nina warning get <id>`, never
+  the encoded `payload.data.area`.
 - Offer `nina warning get <id>` for the full CAP detail (instructions, area descriptions)
   of any entry, and `nina warning geojson <id>` to map its affected area.
 
 ## Step 5 — Monitoring / polling (when asked to "keep watching")
 
-Don't re-pull dashboards on a tight loop. NINA publishes a cheap global change hash:
+Re-check the region's dashboard itself — it is one small file — a few minutes apart, not
+on a tight loop:
 
 ```bash
-nina --compact reference data-version > ver.json   # { "version": N, "hash": "…", "entries":[…] }
+nina --compact dashboard 091870000000 > dash-new.json
 ```
 
-Store the `hash`; on each poll, fetch `data-version` again and **only re-run the
-`dashboard` query when the hash changed**. The hash is global (covers all regions/sources),
-so a change doesn't guarantee *this* region changed — but an unchanged hash guarantees
-nothing changed anywhere, so you can safely skip the dashboard call. Report new/cleared
-warnings between polls by diffing entry `id`s.
+Compare with the previous result: an `id` that is new is a new warning, an `id` that is
+gone has been cleared, and the same `id` with a different `payload.hash` (or a
+`payload.data.msgType` that is now `Update`/`Cancel`) has changed. Report only those
+differences.
+
+> **Don't use `nina reference data-version` as the trigger.** It is not a warnings change
+> hash: its only entry is named `labels` (no warning data), and on 2026-09-15 its file
+> was last modified (HTTP `Last-Modified`) on 12 September, while the `mowas` and `dwd`
+> warning feeds had changed that evening. An unchanged data-version hash says nothing
+> about warnings.
