@@ -8,8 +8,10 @@ description: >
   Resolves the place to its district-level ARS regional key, pulls the
   per-region dashboard feed, and can re-check it periodically, reporting new,
   changed and cleared warnings.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `nina` CLI (npm package @maschinenlesbar.org/nina-warnungen-cli)
+  on PATH, installed by the user; the skill never installs it. Uses jq for JSON
+  filtering. Network access to warnung.bund.de.
 ---
 
 # NINA Region Watch
@@ -21,6 +23,8 @@ instead of fetching national feeds and filtering by hand.
 ## Tooling
 
 This skill drives the `nina` command. **Before anything else, validate it is available** — run `command -v nina` (or `nina --version`). If it is not on your PATH, STOP and inform the user that the `nina` CLI (`@maschinenlesbar.org/nina-warnungen-cli`) is not installed — installing it is their responsibility; never install it yourself, and do not fall back to `npx` or a local `node dist/...` build.
+
+This skill also filters JSON with `jq`. **Validate it too** — run `command -v jq`. If it is missing, inform the user that `jq` is not installed — installing it is their responsibility; never install it yourself — and carry on without it: filter the CLI output with `node -e` instead (Node is already on your PATH, since the CLI runs on it).
 
 Pass `--compact`. An empty `[]` (exit `0`) means **no active warnings for that region** —
 a valid, reassuring answer, not an error.

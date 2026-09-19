@@ -8,8 +8,10 @@ description: >
   warning?", or wants a cross-source alert summary. Merges warnings across MoWaS,
   KATWARN, BIWAPP, DWD, flood and police, drops cancellations and expired noise,
   and ranks by severity — instead of six separate raw feeds.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `nina` CLI (npm package @maschinenlesbar.org/nina-warnungen-cli)
+  on PATH, installed by the user; the skill never installs it. Uses jq for JSON
+  filtering. Network access to warnung.bund.de.
 ---
 
 # NINA Warning Briefing
@@ -21,6 +23,8 @@ and expired entries, and leading with the most severe — instead of six raw JSO
 ## Tooling
 
 This skill drives the `nina` command. **Before anything else, validate it is available** — run `command -v nina` (or `nina --version`). If it is not on your PATH, STOP and inform the user that the `nina` CLI (`@maschinenlesbar.org/nina-warnungen-cli`) is not installed — installing it is their responsibility; never install it yourself, and do not fall back to `npx` or a local `node dist/...` build.
+
+This skill also filters JSON with `jq`. **Validate it too** — run `command -v jq`. If it is missing, inform the user that `jq` is not installed — installing it is their responsibility; never install it yourself — and carry on without it: filter the CLI output with `node -e` instead (Node is already on your PATH, since the CLI runs on it).
 
 All data comes from the `nina` CLI (the `@maschinenlesbar.org/nina-warnungen-cli`
 package). It is read-only, needs **no API key**, and fetches **one source per call**.

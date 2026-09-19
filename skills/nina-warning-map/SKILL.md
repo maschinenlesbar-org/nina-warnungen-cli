@@ -7,8 +7,10 @@ description: >
   area does this alert cover?", or wants the warning geometry for Leaflet /
   geojson.io / QGIS. Resolves a warning (by id, or by finding one first), pulls
   its geometry, and hands back a ready-to-open FeatureCollection.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `nina` CLI (npm package @maschinenlesbar.org/nina-warnungen-cli)
+  on PATH, installed by the user; the skill never installs it. Network access to
+  warnung.bund.de.
 ---
 
 # NINA Warning → GeoJSON Map
