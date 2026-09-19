@@ -287,3 +287,13 @@ test("an identifier containing a path separator is rejected before any request",
   assert.equal(cli.mt.calls.length, 0);
   assert.match(cli.err.join("\n"), /must not contain a path separator/);
 });
+
+test("--base-url rejects a non-http(s) or malformed URL as a usage error", async () => {
+  for (const bad of ["file:///etc/passwd", "ftp://example.org", "notaurl"]) {
+    const cli = makeCli(() => jsonResponse([]));
+    const code = await run(["--base-url", bad, "map-data", "dwd"], cli.deps);
+    assert.notEqual(code, 0, bad);
+    assert.equal(cli.mt.calls.length, 0, bad);
+    assert.match(cli.err.join("\n"), /--base-url/, bad);
+  }
+});

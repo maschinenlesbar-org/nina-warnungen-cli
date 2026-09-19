@@ -56,6 +56,26 @@ export function parseMaxRetries(value: string): number {
 }
 
 /**
+ * commander value-parser for `--base-url`: an absolute http(s) URL. A `file:`,
+ * `ftp:` or malformed value is a usage error at parse time (the engine and the
+ * default transport still enforce the scheme for direct library users).
+ */
+export function parseBaseUrl(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new InvalidArgumentError("Expected an absolute http(s) URL.");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new InvalidArgumentError(
+      `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`,
+    );
+  }
+  return value;
+}
+
+/**
  * Validate a positional argument against an allowed set (commander does not
  * support .choices() on positional args). Throws a NinaError so run() prints a
  * clear message and exits 1.

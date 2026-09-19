@@ -9,7 +9,7 @@ import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { NinaClient } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
-import { parseBoundedInt, parseIntArg, parseMaxRetries } from "./shared.js";
+import { parseBaseUrl, parseBoundedInt, parseIntArg, parseMaxRetries } from "./shared.js";
 import { registerWarningCommands } from "./commands/warnings.js";
 import { registerMiscCommands } from "./commands/misc.js";
 
@@ -47,7 +47,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
         "MoWaS, KATWARN, BIWAPP, DWD severe weather, flood (LHP) and police alerts.",
     )
     .version(VERSION)
-    .option("--base-url <url>", "API base URL", "https://warnung.bund.de")
+    .option("--base-url <url>", "API base URL", parseBaseUrl, "https://warnung.bund.de")
     .option(
       "--timeout <ms>",
       "per-request timeout in milliseconds (0 disables; waits indefinitely)",
