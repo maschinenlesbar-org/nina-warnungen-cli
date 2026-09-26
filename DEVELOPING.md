@@ -72,6 +72,11 @@ new NinaClient({
 `.geojson`), `client.archive` (`.mapping` / `.get`), `client.reference`
 (`.notfalltipps` / `.eventCodes` / `.dataVersion`).
 
+`client.dashboard(ars)` checks the key first with the exported `arsProblem(ars)` (a
+message, or `undefined` for a usable key) and rejects with a `NinaError` before any
+request: a state-level key (digits 3–5 `000`, other than `CITY_STATE_DISTRICT_KEYS`,
+Hamburg and Berlin) would get `[]` from the API, a false all-clear.
+
 ## Architecture
 
 ```

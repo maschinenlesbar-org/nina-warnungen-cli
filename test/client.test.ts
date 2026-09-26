@@ -87,3 +87,9 @@ test("warnings.get/geojson turn the archive redirect into NinaNotFoundError", as
     (err) => err instanceof NinaApiError && err.status === 302,
   );
 });
+
+test("dashboard rejects a state-level key for library callers too", async () => {
+  const mt = constantJson([]);
+  await assert.rejects(() => clientWith(mt).dashboard("050000000000"), /not a district key/);
+  assert.equal(mt.calls.length, 0);
+});

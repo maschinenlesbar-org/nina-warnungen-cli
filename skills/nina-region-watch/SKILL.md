@@ -50,9 +50,12 @@ key to the API unchanged.
   Landkreis Rosenheim, `055620000000` = Kreis Recklinghausen, `055150000000` = Münster.
   If you can resolve the key confidently, proceed; otherwise **ask the user for the
   district** rather than guessing.
-  A key that doesn't exist fails loudly (HTTP 404, exit `4`), but a *wrong existing*
-  district answers with that district's warnings — or `[]`, which reads as "all clear"
-  for the wrong place.
+  A **state-level** key (digits 3–5 `000`, e.g. `050000000000` for NRW) is refused by the
+  CLI (exit `1`, no request), because the API answers it with `[]` even while a district
+  in that state has warnings — pick the district instead. Hamburg (`020000000000`) and
+  Berlin (`110000000000`) are their own district. Most other keys that don't exist fail
+  (HTTP 404, exit `4`), but a *wrong existing* district answers with that district's
+  warnings — or `[]`, which reads as "all clear" for the wrong place.
 
 ## Step 2 — Pull the region dashboard
 

@@ -88,7 +88,10 @@ For a regional operations view, list all warnings currently affecting one distri
 by its Amtlicher Regionalschlüssel (ARS). The API only accepts district-level keys:
 12 digits with the last seven set to `0`. An 8-digit Gemeindeschlüssel (AGS) gets
 HTTP 400 and a municipality-level ARS HTTP 404 — take the first five digits and
-append `0000000`.
+append `0000000`. A **state-level** key (digits 3–5 `000`, e.g. `050000000000` for NRW, or
+`000000000000`) is refused before any request: the API answers it with `[]` even while a
+district in that state has warnings, which would read as an all-clear. Hamburg
+(`020000000000`) and Berlin (`110000000000`) are their own district and are accepted.
 
 ```bash
 nina dashboard 055150000000

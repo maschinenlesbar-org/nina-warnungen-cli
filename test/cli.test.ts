@@ -337,3 +337,19 @@ test("any other 3xx stays exit 1 and names the redirect target", async () => {
   assert.equal(await run(["map-data", "dwd"], bare.deps), 1);
   assert.match(bare.err.join("\n"), /HTTP 302 for GET .*: redirect not followed \(no Location header\)/);
 });
+
+test("dashboard rejects a state-level key (a false all-clear) before any request", async () => {
+  for (const ars of ["050000000000", "100000000000", "040000000000", "000000000000"]) {
+    const cli = makeCli(() => jsonResponse([]));
+    const code = await run(["dashboard", ars], cli.deps);
+    assert.equal(code, 1, ars);
+    assert.equal(cli.mt.calls.length, 0, ars);
+    assert.match(cli.err.join("\n"), new RegExp(`Region key "${ars}" is not a district key`), ars);
+  }
+  // Hamburg and Berlin are their own district.
+  for (const ars of ["020000000000", "110000000000"]) {
+    const cli = makeCli(() => jsonResponse([]));
+    assert.equal(await run(["dashboard", ars], cli.deps), 0, ars);
+    assert.equal(cli.mt.calls.length, 1, ars);
+  }
+});

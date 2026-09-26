@@ -65,7 +65,8 @@ map-data <source>                      current warnings from a source
                                        (mowas | katwarn | biwapp | dwd | lhp | police)
 warning  get <id>                      full CAP warning by identifier
 warning  geojson <id>                  warning geometry as GeoJSON (-o to save)
-dashboard <ars>                        warnings for a district (12-digit ARS, last 7 digits 0)
+dashboard <ars>                        warnings for a district (12-digit ARS, last 7 digits 0;
+                                       a state key is refused, see below)
 archive  mapping <id>                  MoWaS revision history for an identifier
 archive  get <id>                      a specific archived MoWaS warning
 reference notfalltipps                 emergency-preparedness tips (German)
@@ -106,6 +107,9 @@ nina warning geojson mow.DE-SL-SLS-W038-20260113-000 -o warn.geojson
 
 # All warnings currently affecting a district (district-level ARS; 055150000000 = Münster)
 nina dashboard 055150000000
+# A state key (050000000000 = NRW) is refused: the API would answer it with [] even
+# while a district in that state has warnings. Hamburg (020000000000) and Berlin
+# (110000000000) are their own district and work.
 
 # Version/hash of NINA's labels data — it does not change when warnings change,
 # so watch a district by re-running `dashboard` and comparing ids instead

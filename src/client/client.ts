@@ -8,7 +8,8 @@
 
 import { RequestEngine, type EngineOptions, type RawResponse } from "./engine.js";
 import type { NinaSource } from "./enums.js";
-import { NinaApiError, NinaNotFoundError } from "./errors.js";
+import { NinaApiError, NinaError, NinaNotFoundError } from "./errors.js";
+import { arsProblem } from "./ars.js";
 import type {
   MapWarning,
   WarningDetail,
@@ -129,9 +130,13 @@ export class NinaClient {
   /**
    * Warnings affecting a district, keyed by its district-level Amtlicher
    * Regionalschlüssel: 12 digits, the last seven `0` (an 8-digit AGS gets HTTP 400,
-   * a municipality-level ARS HTTP 404).
+   * a municipality-level ARS HTTP 404). A state-level key (digits 3-5 `000`, other
+   * than Hamburg's and Berlin's) is rejected with a `NinaError` before any request:
+   * the API would answer it with `[]`, a false all-clear.
    */
-  dashboard(ars: string): Promise<DashboardEntry[]> {
+  async dashboard(ars: string): Promise<DashboardEntry[]> {
+    const problem = arsProblem(ars);
+    if (problem !== undefined) throw new NinaError(problem);
     return this.engine.getJson(`${API}/dashboard/${enc(ars)}.json`);
   }
 }

@@ -101,7 +101,11 @@ angesprochen wird (z. B. `055150000000`).
 **AGS – Amtlicher Gemeindeschlüssel.** Der kürzere (8-stellige) Gemeindeschlüssel. Der
 Endpoint `dashboard` akzeptiert ihn nicht (HTTP 400) und auch keinen ARS auf
 Gemeindeebene (HTTP 404): Er erwartet den ARS auf Kreisebene, also die ersten fünf
-Stellen gefolgt von `0000000`. Die CLI reicht den Schlüssel unverändert weiter.
+Stellen gefolgt von `0000000`. Die CLI reicht den Schlüssel unverändert weiter, weist aber
+einen Schlüssel auf **Landesebene** (Stellen 3–5 `000`, z. B. `050000000000`, oder
+`000000000000`) vor jeder Anfrage zurück: Die API beantwortet ihn mit `[]` und HTTP 200,
+auch wenn in einem Kreis dieses Landes eine Warnung aktiv ist – eine falsche Entwarnung.
+Hamburg (`020000000000`) und Berlin (`110000000000`) sind selbst ihr Kreis.
 
 ---
 
