@@ -1,6 +1,6 @@
 {
   "name": "nina",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Live German civil-protection warning skills powered by the nina-warnungen-cli (NINA / warnung.bund.de API).",
   "author": {
     "name": "Sebastian Schürmann",
