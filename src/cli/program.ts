@@ -9,7 +9,13 @@ import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { NinaClient } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
-import { parseBaseUrl, parseBoundedInt, parseIntArg, parseMaxRetries } from "./shared.js";
+import {
+  parseBaseUrl,
+  parseBoundedInt,
+  parseHeaderValue,
+  parseIntArg,
+  parseMaxRetries,
+} from "./shared.js";
 import { registerWarningCommands } from "./commands/warnings.js";
 import { registerMiscCommands } from "./commands/misc.js";
 
@@ -53,7 +59,11 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
       "per-request timeout in milliseconds (0 disables; waits indefinitely)",
       parseBoundedInt(0, MAX_TIMEOUT_MS),
     )
-    .option("--user-agent <ua>", "User-Agent header value")
+    .option(
+      "--user-agent <ua>",
+      "User-Agent header value (non-blank; no control characters, Latin-1 only)",
+      parseHeaderValue,
+    )
     .option(
       "--max-retries <n>",
       "retries for transient 429/503 responses (0..10, default 2; each waits the server's " +

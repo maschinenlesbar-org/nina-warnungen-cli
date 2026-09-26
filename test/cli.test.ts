@@ -436,3 +436,24 @@ test("a deeply nested response is a clean error, not an internal one", async () 
   const code = await run(["--compact", "map-data", "dwd"], compact.deps);
   if (code !== 0) assert.match(compact.err.join("\n"), /nested too deeply to print\./);
 });
+
+test("--user-agent rejects blank, control-character and non-Latin-1 values as a usage error", async () => {
+  const cases: Array<[string, RegExp]> = [
+    ["", /Expected a non-empty value\./],
+    ["   ", /Expected a non-empty value\./],
+    ["a\r\nX-Evil: 1", /Value contains control characters\./],
+    ["a" + String.fromCharCode(0x7f), /Value contains control characters\./],
+    ["agent €", /outside Latin-1/],
+  ];
+  for (const [ua, message] of cases) {
+    const cli = makeCli(() => jsonResponse([]));
+    const code = await run(["--user-agent", ua, "map-data", "dwd"], cli.deps);
+    assert.equal(code, 1, JSON.stringify(ua));
+    assert.equal(cli.mt.calls.length, 0, JSON.stringify(ua));
+    assert.match(cli.err.join("\n"), message, JSON.stringify(ua));
+    assert.doesNotMatch(cli.err.join("\n"), /Unexpected error/);
+  }
+  const ok = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["--user-agent", "my\tagent/1.0 (Müller)", "map-data", "dwd"], ok.deps), 0);
+  assert.equal(ok.mt.last().headers?.["User-Agent"], "my\tagent/1.0 (Müller)");
+});
