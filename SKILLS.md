@@ -94,7 +94,8 @@ encode the non-obvious parts of this API, for example:
   is **no `onset`/`expires`**, and `payload.data.area` is an encoded grid reference, not a
   place name (see **nina-region-watch**);
 - the `dashboard` endpoint takes a **district-level ARS** (12 digits, last seven `0`), not a
-  place name: an 8-digit AGS gets HTTP 400 and a municipality ARS HTTP 404, a state key
+  place name: the CLI refuses an 8-digit AGS, a municipality ARS or any other shape
+  before sending (naming the district key where it is clear), a state key
   (`050000000000`) is refused by the CLI because the API would answer it with `[]`, and a
   wrong but existing district returns its own list — possibly a `[]` that reads as a false
   "all clear";

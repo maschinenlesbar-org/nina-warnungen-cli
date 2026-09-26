@@ -101,7 +101,9 @@ municipality), used to address the `dashboard` endpoint
 shorter (8-digit) municipality key. The `dashboard` endpoint does not accept it
 (HTTP 400), and it takes no municipality-level ARS either (HTTP 404): it wants
 the district-level ARS, i.e. the first five digits followed by `0000000`. The CLI
-passes the key through unchanged, except that it refuses a **state-level** key (digits
+checks the key before sending — anything but 12 digits with the last seven `0` is
+refused, naming the district key where it is clear — and it also refuses a
+**state-level** key (digits
 3–5 `000`, e.g. `050000000000`, or `000000000000`) before any request: the API answers
 those with `[]` and HTTP 200 even while a district in that state has warnings, a false
 all-clear. Hamburg (`020000000000`) and Berlin (`110000000000`) are their own district.

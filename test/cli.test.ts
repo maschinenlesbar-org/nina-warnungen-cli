@@ -353,3 +353,21 @@ test("dashboard rejects a state-level key (a false all-clear) before any request
     assert.equal(cli.mt.calls.length, 1, ars);
   }
 });
+
+test("dashboard checks the ARS shape locally and suggests the district key", async () => {
+  const cases: Array<[string, RegExp]> = [
+    ["55150000000", /Invalid region key "55150000000": expected a 12-digit district-level ARS.*try "055150000000"/],
+    [" 055150000000", /Invalid region key " 055150000000": expected a 12-digit/],
+    ["10042", /use "100420000000"/],
+    ["10044000000a", /Invalid region key "10044000000a"/],
+    ["06535011", /AGS .* district "065350000000"/],
+    ["100420111000", /Region key "100420111000" is not a district key: the last seven digits must be 0.*"100420000000"/],
+  ];
+  for (const [ars, message] of cases) {
+    const cli = makeCli(() => jsonResponse([]));
+    const code = await run(["dashboard", ars], cli.deps);
+    assert.equal(code, 1, ars);
+    assert.equal(cli.mt.calls.length, 0, ars);
+    assert.match(cli.err.join("\n"), message, ars);
+  }
+});

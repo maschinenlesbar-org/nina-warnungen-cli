@@ -129,10 +129,11 @@ export class NinaClient {
 
   /**
    * Warnings affecting a district, keyed by its district-level Amtlicher
-   * Regionalschlüssel: 12 digits, the last seven `0` (an 8-digit AGS gets HTTP 400,
-   * a municipality-level ARS HTTP 404). A state-level key (digits 3-5 `000`, other
-   * than Hamburg's and Berlin's) is rejected with a `NinaError` before any request:
-   * the API would answer it with `[]`, a false all-clear.
+   * Regionalschlüssel: 12 digits, the last seven `0`. Any other shape (an 8-digit
+   * AGS, a municipality-level ARS, a lost leading zero) and a state-level key
+   * (digits 3-5 `000`, other than Hamburg's and Berlin's, which the API would answer
+   * with `[]`, a false all-clear) are rejected with a `NinaError` before any request;
+   * see `arsProblem`.
    */
   async dashboard(ars: string): Promise<DashboardEntry[]> {
     const problem = arsProblem(ars);

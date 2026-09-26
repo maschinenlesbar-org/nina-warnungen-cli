@@ -38,14 +38,16 @@ a valid, reassuring answer, not an error.
 The `dashboard` command is addressed by a **district-level ARS** (Amtlicher
 Regionalschlüssel): 12 digits, the first five for the district (`SS` state, `R`
 Regierungsbezirk, `KK` Kreis) and the **last seven always `0000000`** — NINA publishes the
-dashboard only per Kreis / kreisfreie Stadt. It is not a place name, and the CLI passes the
-key to the API unchanged.
+dashboard only per Kreis / kreisfreie Stadt. It is not a place name. The CLI checks the
+shape before sending and refuses anything else (exit `1`, no request), naming the district
+key when it is clear.
 
 - If the user gave a 12-digit district key, use it.
 - If they gave an **8-digit AGS** (Amtlicher Gemeindeschlüssel) or a 12-digit
   municipality ARS, keep its **first five digits and append `0000000`** — e.g. AGS
   `06535011` (Lauterbach (Hessen)) → `065350000000` (Vogelsbergkreis). Passed as is, an
-  8-digit AGS gets HTTP 400 (exit `1`) and a municipality ARS gets HTTP 404 (exit `4`).
+  AGS or a municipality ARS is refused by the CLI (exit `1`, the message names the
+  district key).
 - If they gave a town/district name, map it to its district, e.g. `091870000000` =
   Landkreis Rosenheim, `055620000000` = Kreis Recklinghausen, `055150000000` = Münster.
   If you can resolve the key confidently, proceed; otherwise **ask the user for the
