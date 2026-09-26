@@ -422,3 +422,17 @@ test("warning geojson to a terminal escapes control characters; to a pipe it is 
   assert.equal(written.length, 1);
   assert.ok(written[0]!.equals(body));
 });
+
+test("a deeply nested response is a clean error, not an internal one", async () => {
+  const depth = 200_000;
+  const deep = "[".repeat(depth) + "]".repeat(depth);
+  const cli = makeCli(() => rawResponse(deep, "application/json"));
+  assert.equal(await run(["map-data", "dwd"], cli.deps), 1);
+  assert.match(cli.err.join("\n"), /^Error: The response is nested too deeply to pretty-print; try --compact\.$/m);
+  assert.doesNotMatch(cli.err.join("\n"), /Unexpected error/);
+
+  // Compact output recurses less: it either prints or fails with the compact message.
+  const compact = makeCli(() => rawResponse(deep, "application/json"));
+  const code = await run(["--compact", "map-data", "dwd"], compact.deps);
+  if (code !== 0) assert.match(compact.err.join("\n"), /nested too deeply to print\./);
+});

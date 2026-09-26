@@ -177,13 +177,34 @@ export function escapeTerminalControls(text: string): string {
 }
 
 /**
+ * JSON.stringify, with a clean error for a value nested too deeply to print.
+ * `JSON.parse` reads any depth, but stringify recurses and overflows the stack on
+ * a hostile body (200 000 levels), which would otherwise surface as an
+ * "Unexpected error". Pretty-printing recurses deeper than compact output.
+ */
+export function stringifyJson(value: unknown, compact: boolean): string {
+  try {
+    return compact ? JSON.stringify(value) : JSON.stringify(value, null, 2);
+  } catch (err) {
+    if (err instanceof RangeError) {
+      throw new NinaError(
+        compact
+          ? "The response is nested too deeply to print."
+          : "The response is nested too deeply to pretty-print; try --compact.",
+      );
+    }
+    throw err;
+  }
+}
+
+/**
  * Render a JSON value, pretty by default, compact with --compact. Writes to the
  * file given by --output when present (so `-o` is honoured for JSON commands, not
  * only raw downloads), otherwise to stdout. When writing a file we print a short
  * confirmation to stderr so stdout stays clean for piping.
  */
 export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown): void {
-  const text = escapeControlChars(global.compact ? JSON.stringify(value) : JSON.stringify(value, null, 2));
+  const text = escapeControlChars(stringifyJson(value, global.compact === true));
   const output = resolveOutput(global.output);
   if (output !== undefined) {
     const data = Buffer.from(text + "\n", "utf8");
