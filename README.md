@@ -147,9 +147,8 @@ An identifier that begins with `-` would be parsed as an option; pass it after a
 | Code | Meaning |
 | --- | --- |
 | `0` | success (also `--help` / `--version`) |
-| `1` | error — network failure, parse error, unexpected problem |
+| `1` | error — network failure, parse error, any other API error, and bad usage (an invalid option or argument, rejected before any request) |
 | `4` | not found: a `404`, or a warning id that is no longer live (the API redirects it to its archive) |
-| non-zero | bad usage / invalid argument (commander parse error) |
 
 ## Troubleshooting
 

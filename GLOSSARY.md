@@ -168,6 +168,18 @@ live pointing to its archive, is reported as not found (exit `4`).
 
 ---
 
+## Exit codes
+
+What `nina` returns to the shell, for scripts:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Success — also `--help`, `--version`, and a bare command or group (which prints its help). An empty list (`[]`) is a success too: no active warnings. |
+| `1` | Any error other than "not found": a network failure or timeout, a response that is not valid JSON or is nested too deeply to print, an API error other than `404` (including a `3xx`, which is not followed, and `429`/`503` after the retries), a failed `-o` write, and bad usage — an unknown command or option, an invalid option value, or an argument the CLI refuses before sending (a malformed or state-level region key, an unknown source, an identifier with a path separator). |
+| `4` | Not found: an API `404` (e.g. an unknown archive identifier or region key), or a warning identifier that is no longer live, which the API redirects to its archive instead of answering `404`. |
+
+---
+
 > **Library & internals.** Terms for the TypeScript client and its internals —
 > `NinaClient`, resource groups, the request engine, transport, retry/backoff,
 > error types, query builder — now live in **[DEVELOPING.md](DEVELOPING.md)**.

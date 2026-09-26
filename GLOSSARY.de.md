@@ -170,6 +170,18 @@ schickt – eine nicht mehr aktuelle Warnungskennung, die auf ihr Archiv zeigt �
 
 ---
 
+## Exit-Codes
+
+Was `nina` an die Shell zurückgibt, für Skripte:
+
+| Code | Bedeutung |
+| --- | --- |
+| `0` | Erfolg – auch `--help`, `--version` und ein Befehl oder eine Gruppe ohne Unterbefehl (zeigt die Hilfe). Eine leere Liste (`[]`) ist ebenfalls ein Erfolg: keine aktiven Warnungen. |
+| `1` | Jeder Fehler außer „nicht gefunden“: ein Netzwerkfehler oder Timeout, eine Antwort, die kein gültiges JSON ist oder zu tief verschachtelt zum Ausgeben, ein API-Fehler außer `404` (auch ein `3xx`, dem nicht gefolgt wird, und `429`/`503` nach den Wiederholungen), ein fehlgeschlagenes Schreiben mit `-o` sowie eine falsche Bedienung – ein unbekannter Befehl oder eine unbekannte Option, ein ungültiger Optionswert oder ein Argument, das die CLI vor dem Senden zurückweist (ein fehlerhafter Regionalschlüssel oder einer auf Landesebene, eine unbekannte Quelle, eine Kennung mit Pfadtrenner). |
+| `4` | Nicht gefunden: ein `404` der API (z. B. eine unbekannte Archivkennung oder ein unbekannter Regionalschlüssel) oder eine Warnungskennung, die nicht mehr aktuell ist und die die API auf ihr Archiv weiterleitet, statt `404` zu antworten. |
+
+---
+
 > **Bibliothek & Interna.** Begriffe zum TypeScript-Client und seinen Interna –
 > `NinaClient`, Ressourcengruppen, die Request-Engine, Transport, Retry/Backoff,
 > Fehlertypen, Query-Builder – stehen jetzt in **[DEVELOPING.md](DEVELOPING.md)**.

@@ -183,4 +183,5 @@ Notes: numeric options accept only plain non-negative decimal integers. An
 identifier that starts with `-` must be passed after a `--` separator, e.g.
 `nina warning get -- -odd.identifier`. Exit codes: `0` success, `4` on a `404`
 from the API or for a warning id that is no longer live (the API redirects it to its archive
-instead of answering `404`), `1` for any other error, non-zero for usage errors.
+instead of answering `404`), `1` for any other error, including usage errors (see the
+"Exit codes" table in GLOSSARY.md).
