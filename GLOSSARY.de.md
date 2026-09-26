@@ -150,7 +150,9 @@ Client sendet nie Zugangsdaten.
 
 **GeoJSON-Downloads.** `warning geojson` fordert `application/geo+json` an und liefert
 rohe Bytes (`RawResponse`), statt sie zu parsen, sodass die Geometrie Byte für Byte
-unverändert ankommt.
+unverändert in einer Datei (`-o`) oder Pipe ankommt. Auf einem Terminal werden
+Steuerzeichen maskiert (`\uXXXX`), damit der Inhalt keine Escape-Sequenzen an das
+Terminal schicken kann.
 
 **Rate-Limiting / vorübergehende Fehler.** Die API kann **429** (zu viele Anfragen) oder
 **503** (vorübergehend nicht verfügbar) liefern; der Client behandelt beide als

@@ -395,3 +395,30 @@ test("--base-url with a query or fragment is a usage error", async () => {
   assert.equal(await run(["--base-url", "https://mirror.test/nina/", "map-data", "dwd"], ok.deps), 0);
   assert.equal(ok.mt.last().url, "https://mirror.test/nina/api31/dwd/mapData.json");
 });
+
+test("warning geojson to a terminal escapes control characters; to a pipe it is byte-exact", async () => {
+  const ESC = String.fromCharCode(0x1b);
+  const BEL = String.fromCharCode(0x07);
+  const body = Buffer.from(`{"type":"FeatureCollection","n":"${ESC}]0;TITLE${BEL}${ESC}[31mred${String.fromCharCode(0x9b)}2J"}`, "utf8");
+
+  // Terminal (and the safe default of an I/O without isTerminal): escaped.
+  for (const terminal of [true, undefined]) {
+    const cli = makeCli(() => rawResponse(body, "application/geo+json"));
+    if (terminal !== undefined) cli.deps.io.isTerminal = () => terminal;
+    assert.equal(await run(["warning", "geojson", "x"], cli.deps), 0);
+    const text = cli.out.join("");
+    assert.ok(![...text].some((c) => c.charCodeAt(0) === 0x1b || c.charCodeAt(0) === 0x07 || c.charCodeAt(0) === 0x9b), String(terminal));
+    assert.match(text, /\\u001b\]0;TITLE\\u0007\\u001b\[31mred\\u009b2J/);
+    // Still valid JSON carrying the same value.
+    assert.equal(JSON.parse(text).n, `${ESC}]0;TITLE${BEL}${ESC}[31mred${String.fromCharCode(0x9b)}2J`);
+  }
+
+  // A pipe: the exact bytes.
+  const written: Buffer[] = [];
+  const cli = makeCli(() => rawResponse(body, "application/geo+json"));
+  cli.deps.io.isTerminal = () => false;
+  cli.deps.io.outBinary = (d) => written.push(d);
+  assert.equal(await run(["warning", "geojson", "x"], cli.deps), 0);
+  assert.equal(written.length, 1);
+  assert.ok(written[0]!.equals(body));
+});

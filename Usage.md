@@ -80,7 +80,9 @@ nina warning geojson mow.DE-SL-SLS-W038-20260113-000 -o warn.geojson
 ```
 
 `geojson` writes the raw bytes — use `-o/--output <file>` to save them, or omit it
-to stream the GeoJSON to stdout (e.g. for piping into another tool).
+to stream the GeoJSON to stdout (e.g. for piping into another tool). Piped or redirected,
+stdout gets the bytes exactly as the server sent them; on a terminal, control characters
+are escaped as `\uXXXX` so the body cannot send escape sequences to it.
 
 ### 6. Region dashboard: everything affecting a district
 

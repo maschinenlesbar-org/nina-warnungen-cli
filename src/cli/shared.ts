@@ -157,6 +157,26 @@ export function escapeControlChars(json: string): string {
 }
 
 /**
+ * Escape the control characters in raw text bound for a terminal: C0 except tab,
+ * newline and carriage return, DEL and C1 become `\uXXXX`. Keeps a server's
+ * OSC/CSI sequences (window title, colours, worse) from reaching the terminal, and
+ * a JSON body stays JSON (these characters are only legal escaped inside strings).
+ */
+export function escapeTerminalControls(text: string): string {
+  let result = "";
+  let from = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    const control = (c < 0x20 && c !== 0x09 && c !== 0x0a && c !== 0x0d) || (c >= 0x7f && c <= 0x9f);
+    if (control) {
+      result += text.slice(from, i) + "\\u" + c.toString(16).padStart(4, "0");
+      from = i + 1;
+    }
+  }
+  return from === 0 ? text : result + text.slice(from);
+}
+
+/**
  * Render a JSON value, pretty by default, compact with --compact. Writes to the
  * file given by --output when present (so `-o` is honoured for JSON commands, not
  * only raw downloads), otherwise to stdout. When writing a file we print a short
@@ -189,7 +209,8 @@ function resolveOutput(output: string | undefined): string | undefined {
 
 /**
  * Render a raw (binary/text) download. Writes to the file given by --output, or
- * to stdout otherwise. Prints a short confirmation to stderr when writing a file
+ * to stdout otherwise: byte-for-byte to a pipe or file, with control characters
+ * escaped (`escapeTerminalControls`) to a terminal. Prints a short confirmation to stderr when writing a file
  * so stdout stays clean for piping.
  *
  * `expectContentType` is an optional substring sanity check. A misconfigured
@@ -213,8 +234,12 @@ export function renderRaw(
   if (output !== undefined) {
     deps.io.writeFile(output, response.data);
     deps.io.err(`Wrote ${response.data.length} bytes to ${output}`);
-  } else {
+  } else if (deps.io.isTerminal?.() === false) {
+    // A pipe or file: the bytes exactly as the server sent them.
     deps.io.outBinary(response.data);
+  } else {
+    // A terminal: escape control characters so the body cannot drive it.
+    deps.io.outBinary(Buffer.from(escapeTerminalControls(response.data.toString("utf8")), "utf8"));
   }
 }
 

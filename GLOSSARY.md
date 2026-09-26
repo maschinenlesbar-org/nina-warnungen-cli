@@ -151,7 +151,8 @@ never sends credentials.
 
 **GeoJSON downloads.** `warning geojson` requests `application/geo+json` and
 returns raw bytes (`RawResponse`) rather than parsing them, so the geometry is
-delivered byte-for-byte.
+delivered byte-for-byte to a file (`-o`) or a pipe. Printed on a terminal, control
+characters are escaped (`\uXXXX`) so the body cannot send escape sequences to it.
 
 **Rate limiting / transient errors.** The API may return **429** (too many
 requests) or **503** (temporarily unavailable); the client treats both as
