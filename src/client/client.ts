@@ -7,7 +7,7 @@
 //   client.dashboard(ars)          // alerts for a region (Amtlicher Regionalschlüssel)
 
 import { RequestEngine, type EngineOptions, type RawResponse } from "./engine.js";
-import type { NinaSource } from "./enums.js";
+import { NinaSourceValues, type NinaSource } from "./enums.js";
 import { NinaApiError, NinaError, NinaNotFoundError } from "./errors.js";
 import { arsProblem } from "./ars.js";
 import type {
@@ -128,9 +128,18 @@ export class NinaClient {
     this.reference = new ReferenceResource(this.engine);
   }
 
-  /** Current warnings from one source, e.g. `mapData("dwd")`. */
-  mapData(source: NinaSource): Promise<MapWarning[]> {
-    return this.engine.getJson(`${API}/${source}/mapData.json`);
+  /**
+   * Current warnings from one source, e.g. `mapData("dwd")`. A value outside
+   * `NinaSourceValues` (possible from plain JavaScript or a cast) is rejected with a
+   * `NinaError` before any request.
+   */
+  async mapData(source: NinaSource): Promise<MapWarning[]> {
+    if (!(NinaSourceValues as readonly unknown[]).includes(source)) {
+      throw new NinaError(
+        `Invalid source ${JSON.stringify(source)}. Expected one of: ${NinaSourceValues.join(", ")}.`,
+      );
+    }
+    return this.engine.getJson(`${API}/${enc(source)}/mapData.json`);
   }
 
   /**

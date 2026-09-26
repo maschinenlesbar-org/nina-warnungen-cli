@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NinaClient } from "../src/client/client.js";
-import { NinaApiError, NinaNotFoundError } from "../src/client/errors.js";
+import { NinaApiError, NinaError, NinaNotFoundError } from "../src/client/errors.js";
+import type { NinaSource } from "../src/client/enums.js";
 import { makeMockTransport, jsonResponse, constantJson, rawResponse } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>): NinaClient {
@@ -92,4 +93,29 @@ test("dashboard rejects a state-level key for library callers too", async () => 
   const mt = constantJson([]);
   await assert.rejects(() => clientWith(mt).dashboard("050000000000"), /not a district key/);
   assert.equal(mt.calls.length, 0);
+});
+
+test("mapData rejects a source outside the set before any request (no path escape)", async () => {
+  const mt = constantJson([]);
+  for (const bad of ["../../ok/x?", "DWD", "", "__proto__"]) {
+    await assert.rejects(
+      () => clientWith(mt).mapData(bad as NinaSource),
+      (err) => err instanceof NinaError && /Invalid source/.test(err.message),
+      bad,
+    );
+  }
+  assert.equal(mt.calls.length, 0);
+});
+
+test("a negative or non-integer maxResponseBytes is rejected; 0 means no limit", async () => {
+  for (const bad of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(
+      () => new NinaClient({ maxResponseBytes: bad }),
+      (err) => err instanceof NinaError && /Invalid option maxResponseBytes/.test(err.message),
+      String(bad),
+    );
+  }
+  const mt = constantJson([]);
+  await new NinaClient({ transport: mt.transport, maxResponseBytes: 0 }).mapData("dwd");
+  assert.equal(mt.last().maxResponseBytes, undefined);
 });

@@ -72,6 +72,10 @@ new NinaClient({
 `.geojson`), `client.archive` (`.mapping` / `.get`), `client.reference`
 (`.notfalltipps` / `.eventCodes` / `.dataVersion`).
 
+`client.mapData(source)` rejects a source outside `NinaSourceValues` (possible from
+plain JavaScript or a cast) with a `NinaError` before any request, and encodes it as a
+path segment.
+
 `client.dashboard(ars)` checks the key first with the exported `arsProblem(ars)` (a
 message, or `undefined` for a usable key) and rejects with a `NinaError` before any
 request: anything but 12 digits with the last seven `0` (the API answers an AGS with an
@@ -163,7 +167,9 @@ goes further and *rejects* a `--max-retries` above `10` as a usage error.
 `NinaApiError` exposes `isRetryable` (true for `429`/`503`).
 
 **maxResponseBytes.** A cap on the response body size in bytes (`0` = unlimited;
-default 100 MiB), guarding against unbounded responses. Setting
+default 100 MiB), guarding against unbounded responses. A negative or non-integer
+value is rejected (`NinaError`, `Invalid option maxResponseBytes: …`) rather than
+switching the cap off. Setting
 `--max-response-bytes 0` disables the guard entirely — including for
 `warning geojson` downloads.
 

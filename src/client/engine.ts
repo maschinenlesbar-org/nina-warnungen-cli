@@ -4,7 +4,7 @@
 
 import { nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { NinaApiError, NinaNetworkError, NinaParseError, redactUrl } from "./errors.js";
+import { NinaApiError, NinaError, NinaNetworkError, NinaParseError, redactUrl } from "./errors.js";
 
 export const DEFAULT_BASE_URL = "https://warnung.bund.de";
 const DEFAULT_USER_AGENT = "nina-warnungen-cli";
@@ -34,7 +34,8 @@ export interface EngineOptions {
   retryDelayMs?: number;
   /**
    * Hard cap on response body size in bytes (defends against memory exhaustion
-   * from a hostile/buggy endpoint). Defaults to 100 MiB; set to 0 for no limit.
+   * from a hostile/buggy endpoint). Defaults to 100 MiB; set to 0 for no limit. A
+   * negative or non-integer value throws a `NinaError`.
    */
   maxResponseBytes?: number;
   /** Injectable sleep, primarily for deterministic tests. */
@@ -108,6 +109,19 @@ function sanitizeServerText(text: string): string {
   return out;
 }
 
+/**
+ * A validated integer engine option: `undefined` gives the default; anything but a
+ * safe integer from 0 to `max` throws. (A negative `maxResponseBytes` used to switch
+ * the size cap off, although only 0 means "no limit".)
+ */
+function intOption(name: string, value: number | undefined, fallback: number, max: number): number {
+  if (value === undefined) return fallback;
+  if (!Number.isSafeInteger(value) || value < 0 || value > max) {
+    throw new NinaError(`Invalid option ${name}: expected an integer from 0 to ${max}, got ${String(value)}.`);
+  }
+  return value;
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -128,7 +142,12 @@ export class RequestEngine {
     this.timeoutMs = options.timeoutMs ?? 30_000;
     this.maxRetries = Math.min(options.maxRetries ?? 2, MAX_RETRIES_CAP);
     this.retryDelayMs = options.retryDelayMs ?? 200;
-    this.maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
+    this.maxResponseBytes = intOption(
+      "maxResponseBytes",
+      options.maxResponseBytes,
+      DEFAULT_MAX_RESPONSE_BYTES,
+      Number.MAX_SAFE_INTEGER,
+    );
     this.sleep = options.sleep ?? realSleep;
   }
 
