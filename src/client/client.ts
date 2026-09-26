@@ -79,9 +79,15 @@ class ArchiveResource {
     return this.engine.getJson(`${API}/archive.mowas/${enc(identifier)}-mapping.json`);
   }
 
-  /** A specific archived MoWaS warning (same shape as a live warning). */
-  get(identifier: string): Promise<WarningDetail> {
-    return this.engine.getJson(`${API}/archive.mowas/${enc(identifier)}.json`);
+  /**
+   * A specific archived MoWaS warning (same shape as a live warning). Takes a
+   * revision identifier as `mapping()` lists it: its trailing `.json` is optional
+   * (the path adds one, so it is dropped rather than doubled).
+   */
+  async get(identifier: string): Promise<WarningDetail> {
+    const id = identifier.endsWith(".json") ? identifier.slice(0, -".json".length) : identifier;
+    if (id.trim() === "") throw new NinaError(`Invalid identifier ${JSON.stringify(identifier)}.`);
+    return this.engine.getJson(`${API}/archive.mowas/${enc(id)}.json`);
   }
 }
 

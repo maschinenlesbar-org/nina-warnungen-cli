@@ -70,6 +70,8 @@ CLI: `nina dashboard <ars>`.
 **archive – MoWaS-Archiv.** Frühere MoWaS-Warnungen und ihr Revisionsverlauf:
 - **mapping (`/archive.mowas/{identifier}-mapping.json`)** – der Revisionsverlauf
   (`ArchiveMapping`) einer archivierten Kennung. CLI: `nina archive mapping <id>`.
+  Jede `history[].identifier` ist eine Revisionskennung mit der Endung `.json`, die
+  `archive get` unverändert annimmt; ihr `msgType` ist großgeschrieben (`ALERT`, `UPDATE`).
 - **get (`/archive.mowas/{identifier}.json`)** – eine bestimmte archivierte
   MoWaS-Warnung, in derselben Form wie eine aktuelle Warnung. CLI: `nina archive get <id>`.
 
@@ -122,7 +124,8 @@ typisierten Warnungszusammenfassung (`MapWarning`) oder in den vollständigen Da
 angeben) wann sie abläuft.
 
 **type (msgType).** Der CAP-Meldungstyp eines Eintrags – `Alert` (neu), `Update`
-(ersetzt eine frühere Meldung) oder `Cancel` (zieht sie zurück).
+(ersetzt eine frühere Meldung) oder `Cancel` (zieht sie zurück). Das Archiv-Mapping
+schreibt ihn groß (`ALERT`, `UPDATE`).
 
 **Severity.** Die CAP-Schwerestufe einer Warnung. Der vom Client bereitgestellte
 Wertebereich ist `Minor`, `Moderate`, `Severe`, `Extreme`, `Unknown` (in aufsteigender

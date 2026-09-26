@@ -42,7 +42,9 @@ export interface DashboardEntry {
 
 /** One entry of an archive `…-mapping.json` history list. */
 export interface ArchiveMappingEntry {
+  /** A revision identifier, with a `.json` suffix (`archive.get` accepts it as is). */
   identifier: string;
+  /** Upper case here (`ALERT`, `UPDATE`, …), unlike a warning's own `msgType` (`Alert`). */
   msgType?: string;
   sent?: string;
   headline?: string;

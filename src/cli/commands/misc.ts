@@ -16,7 +16,10 @@ export function registerMiscCommands(program: Command, deps: CliDeps): void {
 
   archive
     .command("get <identifier>")
-    .description("A specific archived MoWaS warning")
+    .description(
+      "A specific archived MoWaS warning, by a revision identifier from `archive mapping` " +
+        "(its .json suffix is optional)",
+    )
     .action(
       action(deps, async ({ client, global }, [id]) => {
         renderJson(deps, global, await client.archive.get(requireIdentifier(id!, "identifier")));

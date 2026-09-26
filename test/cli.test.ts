@@ -371,3 +371,13 @@ test("dashboard checks the ARS shape locally and suggests the district key", asy
     assert.match(cli.err.join("\n"), message, ars);
   }
 });
+
+test("archive get accepts a revision identifier with the .json suffix archive mapping prints", async () => {
+  const cli = makeCli(() => jsonResponse({ identifier: "x" }));
+  const code = await run(["archive", "get", "mow.DE-SL-SLS-W038-20260904-000_20260904130528.json"], cli.deps);
+  assert.equal(code, 0);
+  assert.equal(
+    new URL(cli.mt.last().url).pathname,
+    "/api31/archive.mowas/mow.DE-SL-SLS-W038-20260904-000_20260904130528.json",
+  );
+});

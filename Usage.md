@@ -119,8 +119,10 @@ nina archive get     mow.DE-SL-SLS-W038-20250814-000_20250814172229
 
 `archive mapping` returns the revision history — a `history` array whose entries
 each carry an `identifier` for one archived revision (the `…_<timestamp>` form).
-Pass one of those revision identifiers (without the `.json` suffix) to
-`archive get` to fetch that specific archived warning.
+Pass one of those revision identifiers to `archive get` to fetch that specific archived
+warning; the `.json` suffix the mapping prints is optional (it is dropped, not doubled). The
+mapping's `msgType` is upper case (`ALERT`, `UPDATE`), unlike the `Alert`/`Update` in a
+warning itself.
 
 ### 8. Watching a district for changes
 

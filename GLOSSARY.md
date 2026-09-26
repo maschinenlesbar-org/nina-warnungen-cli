@@ -69,6 +69,8 @@ district, keyed by its district-level regional key (see ARS below). CLI:
 history:
 - **mapping (`/archive.mowas/{identifier}-mapping.json`)** — the revision history
   (`ArchiveMapping`) for an archived identifier. CLI: `nina archive mapping <id>`.
+  Each `history[].identifier` is a revision identifier with a `.json` suffix, which
+  `archive get` accepts as is; its `msgType` is upper case (`ALERT`, `UPDATE`).
 - **get (`/archive.mowas/{identifier}.json`)** — a specific archived MoWaS
   warning, same shape as a live warning. CLI: `nina archive get <id>`.
 
@@ -123,7 +125,8 @@ revision number.
 carry it) when it expires.
 
 **type (msgType).** The CAP message type of an entry — `Alert` (new), `Update`
-(supersedes a prior message) or `Cancel` (withdraws it).
+(supersedes a prior message) or `Cancel` (withdraws it). The archive mapping spells
+it in upper case (`ALERT`, `UPDATE`).
 
 **Severity.** The CAP severity level of a warning. The value set surfaced by the
 client is `Minor`, `Moderate`, `Severe`, `Extreme`, `Unknown` (in increasing
