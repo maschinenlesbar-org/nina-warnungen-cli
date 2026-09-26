@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RequestEngine } from "../src/client/engine.js";
+import { RequestEngine, parseRetryAfter } from "../src/client/engine.js";
 import { NinaApiError, NinaNetworkError, NinaParseError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 import type { HttpResponse } from "../src/client/http.js";
@@ -195,4 +195,61 @@ test("a 3xx error names the resolved, redacted, sanitised redirect target", asyn
     () => e2.getJson("/x"),
     (err: unknown) => err instanceof NinaApiError && err.location === "https://example.test/y",
   );
+});
+
+function retryAfterEngine(retryAfter: string | undefined, maxRetries = 2) {
+  const delays: number[] = [];
+  const mt = makeMockTransport(() => ({
+    status: 429,
+    headers: retryAfter === undefined ? {} : { "retry-after": retryAfter },
+    body: Buffer.from("{}"),
+  }));
+  const e = new RequestEngine({
+    transport: mt.transport,
+    maxRetries,
+    sleep: async (ms) => {
+      delays.push(ms);
+    },
+  });
+  return { e, mt, delays };
+}
+
+test("a 429 waits the Retry-After seconds before each retry", async () => {
+  const { e, mt, delays } = retryAfterEngine("1");
+  await assert.rejects(() => e.getJson("/x"), (err: unknown) => err instanceof NinaApiError && err.status === 429);
+  assert.equal(mt.calls.length, 3);
+  assert.deepEqual(delays, [1000, 1000]);
+});
+
+test("a malformed Retry-After falls back to the linear backoff", async () => {
+  for (const bad of ["-1", "+5", "1.5", "1e3", "0x10", "", "soon", "2026-09-26T10:00:00Z"]) {
+    const { e, delays } = retryAfterEngine(bad);
+    await assert.rejects(() => e.getJson("/x"));
+    assert.deepEqual(delays, [200, 400], bad);
+  }
+  const { e, delays } = retryAfterEngine(undefined);
+  await assert.rejects(() => e.getJson("/x"));
+  assert.deepEqual(delays, [200, 400]);
+});
+
+test("a Retry-After beyond 30 s is not retried: the error surfaces at once", async () => {
+  const far = new Date(Date.now() + 3_600_000).toUTCString();
+  for (const long of ["31", "99999999999", far]) {
+    const { e, mt, delays } = retryAfterEngine(long, 10);
+    await assert.rejects(() => e.getJson("/x"), (err: unknown) => err instanceof NinaApiError && err.status === 429);
+    assert.equal(mt.calls.length, 1, long);
+    assert.deepEqual(delays, [], long);
+  }
+});
+
+test("parseRetryAfter reads delay-seconds and IMF-fixdates only", () => {
+  const now = Date.parse("Sat, 26 Sep 2026 10:00:00 GMT");
+  assert.equal(parseRetryAfter("5", now), 5000);
+  assert.equal(parseRetryAfter(" 7 ", now), 7000);
+  assert.equal(parseRetryAfter(["2", "9"], now), 2000);
+  assert.equal(parseRetryAfter("Sat, 26 Sep 2026 10:00:10 GMT", now), 10_000);
+  assert.equal(parseRetryAfter("Sat, 26 Sep 2026 09:00:00 GMT", now), 0);
+  for (const bad of [undefined, "", "-1", "1.5", "1e3", "Saturday, 26-Sep-26 10:00:10 GMT", "Sat Sep 26 10:00:10 2026"]) {
+    assert.equal(parseRetryAfter(bad, now), undefined, String(bad));
+  }
 });

@@ -150,7 +150,10 @@ unverändert ankommt.
 
 **Rate-Limiting / vorübergehende Fehler.** Die API kann **429** (zu viele Anfragen) oder
 **503** (vorübergehend nicht verfügbar) liefern; der Client behandelt beide als
-wiederholbar und versucht es mit linearem Backoff erneut (`--max-retries`).
+wiederholbar (`--max-retries`). Jeder neue Versuch wartet den `Retry-After` der
+Antwort ab (Sekunden oder ein HTTP-Datum); ein `Retry-After` über 30 s wird nicht
+wiederholt, der Fehler wird sofort gemeldet. Ohne brauchbaren `Retry-After` wächst die
+Wartezeit linear.
 
 **Keine Weiterleitungen.** Der Transport sendet genau eine Anfrage und folgt keinen
 `3xx`-Weiterleitungen – eine Weiterleitung wird wie jeder andere Nicht-2xx-Status als

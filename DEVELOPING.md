@@ -59,7 +59,7 @@ try {
 new NinaClient({
   baseUrl: "https://warnung.bund.de",
   timeoutMs: 15_000,
-  maxRetries: 3,              // 429 / 503 are retried with linear backoff
+  maxRetries: 3,              // 429 / 503 are retried (Retry-After, else linear backoff)
   maxResponseBytes: 50 << 20, // example: abort over 50 MiB; the default is 100 MiB (0 = unlimited)
   userAgent: "my-app/1.0",
   transport: customTransport, // inject your own HTTP transport
@@ -152,7 +152,11 @@ serialiser: omits `undefined`/`null`, repeats keys for arrays, renders booleans
 as `true`/`false`, dates as ISO-8601, and encodes spaces as `%20` (not `+`).
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
-retried automatically with linear backoff, up to `--max-retries`. The engine
+retried automatically, up to `--max-retries`. Each retry waits the response's
+`Retry-After` (parsed strictly by the exported `parseRetryAfter`: delay-seconds or an
+IMF-fixdate); one above `MAX_RETRY_AFTER_MS` (30 s) is not retried and the error
+surfaces at once. Without a usable `Retry-After` the wait grows linearly
+(`retryDelayMs * attempt`). The engine
 clamps the count to `10` as a safety bound for direct library callers; the CLI
 goes further and *rejects* a `--max-retries` above `10` as a usage error.
 `NinaApiError` exposes `isRetryable` (true for `429`/`503`).

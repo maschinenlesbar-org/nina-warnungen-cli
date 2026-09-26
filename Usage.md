@@ -167,7 +167,7 @@ These flags apply to every command (real flags only):
 | `--base-url <url>` | API base URL (default `https://warnung.bund.de`) |
 | `--timeout <ms>` | Per-request timeout in ms (`0` disables; waits indefinitely) |
 | `--user-agent <ua>` | `User-Agent` header value |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`, max `10` — higher is rejected) |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`, max `10` — higher is rejected). Each retry waits the server's `Retry-After` (seconds or an HTTP date); a `Retry-After` above 30 s is not retried, the error is reported at once. Without one, the wait grows linearly (200 ms, 400 ms, …) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
 | `-o, --output <file>` | Write the command's output to a file instead of stdout (JSON commands and downloads alike). An existing file at that path is **overwritten silently** — there is no prompt or `--force`, so point `-o` at a fresh path or one you intend to replace |

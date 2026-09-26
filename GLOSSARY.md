@@ -150,7 +150,9 @@ delivered byte-for-byte.
 
 **Rate limiting / transient errors.** The API may return **429** (too many
 requests) or **503** (temporarily unavailable); the client treats both as
-retryable and retries with linear backoff (`--max-retries`).
+retryable (`--max-retries`). Each retry waits the response's `Retry-After`
+(delay-seconds or an HTTP date); a `Retry-After` above 30 s is not retried and the
+error is reported at once. Without a usable `Retry-After` it backs off linearly.
 
 **No redirect following.** The transport issues exactly one request and does not
 follow `3xx` redirects — a redirect is surfaced as an error like any other
