@@ -381,3 +381,17 @@ test("archive get accepts a revision identifier with the .json suffix archive ma
     "/api31/archive.mowas/mow.DE-SL-SLS-W038-20260904-000_20260904130528.json",
   );
 });
+
+test("--base-url with a query or fragment is a usage error", async () => {
+  for (const bad of ["http://127.0.0.1:1/ok#frag", "http://127.0.0.1:1/ok?x=1", "https://warnung.bund.de/?"]) {
+    const cli = makeCli(() => jsonResponse([]));
+    const code = await run(["--base-url", bad, "map-data", "dwd"], cli.deps);
+    assert.equal(code, 1, bad);
+    assert.equal(cli.mt.calls.length, 0, bad);
+    assert.match(cli.err.join("\n"), /A base URL cannot have a query \(\?\) or fragment \(#\)\./, bad);
+  }
+  // A path prefix (a mirror) still works.
+  const ok = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["--base-url", "https://mirror.test/nina/", "map-data", "dwd"], ok.deps), 0);
+  assert.equal(ok.mt.last().url, "https://mirror.test/nina/api31/dwd/mapData.json");
+});

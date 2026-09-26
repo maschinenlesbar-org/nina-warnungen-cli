@@ -153,6 +153,13 @@ export class RequestEngine {
         `Unsupported base URL scheme "${parsed.protocol}" (only http: and https: are allowed).`,
       );
     }
+    // The path is appended as text, so a query or fragment in the base URL would
+    // swallow it and every call would fetch the base URL itself.
+    if (/[?#]/.test(this.baseUrl)) {
+      throw new NinaNetworkError(
+        `Base URL must not contain a query or fragment: ${redactUrl(this.baseUrl)}`,
+      );
+    }
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const qs = query ? buildQueryString(query) : "";
     return `${this.baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;

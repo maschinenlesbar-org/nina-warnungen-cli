@@ -253,3 +253,16 @@ test("parseRetryAfter reads delay-seconds and IMF-fixdates only", () => {
     assert.equal(parseRetryAfter(bad, now), undefined, String(bad));
   }
 });
+
+test("buildUrl rejects a base URL with a query or fragment, userinfo redacted", () => {
+  for (const bad of ["https://u:secret@example.test/?x=1", "https://example.test/#f"]) {
+    const e = new RequestEngine({ baseUrl: bad });
+    assert.throws(
+      () => e.buildUrl("/x"),
+      (err: unknown) =>
+        err instanceof NinaNetworkError &&
+        /Base URL must not contain a query or fragment/.test(err.message) &&
+        !err.message.includes("secret"),
+    );
+  }
+});
