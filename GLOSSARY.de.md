@@ -53,6 +53,11 @@ von Warnungszusammenfassungen (`MapWarning[]`). CLI: `nina map-data <source>`.
 Daten einer Warnung zu einer einzelnen Kennung. Sie sind tief verschachtelt und
 standardspezifisch und werden daher als unverändertes rohes JSON-Objekt zurückgegeben.
 CLI: `nina warning get <identifier>`.
+Eine Kennung, die nicht mehr aktuell ist (abgelaufen, aktualisiert, aufgehoben oder nie
+ausgegeben), bekommt kein `404`: Die API leitet sie auf
+`/archive/alerts/{identifier}?contentType=json` weiter, wo eine Warnung, die es einmal
+gab, als Archivkopie liegt. Die CLI meldet das als „not a live warning“ (Exit-Code `4`)
+und nennt die Archiv-URL.
 
 **warning geojson (`/warnings/{identifier}.geojson`).** Die Geometrie des betroffenen
 Gebiets als GeoJSON (`application/geo+json`), zurückgegeben als rohe Bytes. CLI:
@@ -145,7 +150,10 @@ wiederholbar und versucht es mit linearem Backoff erneut (`--max-retries`).
 
 **Keine Weiterleitungen.** Der Transport sendet genau eine Anfrage und folgt keinen
 `3xx`-Weiterleitungen – eine Weiterleitung wird wie jeder andere Nicht-2xx-Status als
-Fehler gemeldet; so werden Header nicht erneut an ein Weiterleitungsziel gesendet.
+Fehler gemeldet (mit dem Ziel aus `Location`); so werden Header nicht erneut an ein
+Weiterleitungsziel gesendet. Die eine Weiterleitung, die die API im normalen Betrieb
+schickt – eine nicht mehr aktuelle Warnungskennung, die auf ihr Archiv zeigt –, wird als
+„nicht gefunden“ gemeldet (Exit-Code `4`).
 
 ---
 

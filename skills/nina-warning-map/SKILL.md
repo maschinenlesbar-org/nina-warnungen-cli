@@ -33,10 +33,10 @@ nina --compact map-data dwd > feed.json        # or map-data <source> / dashboar
 
 and take the `id` of the warning they mean (match on `i18nTitle.de`).
 
-> **404 / 302 trap.** A *valid, current* identifier resolves. A **stale or wrong**
-> identifier doesn't 404 cleanly — the API often answers a non-existent warning with an
-> HTTP `302` redirect, which the CLI surfaces as **exit 1** (generic error), while a true
-> `404` is exit `4`. Either way it means "no such live warning" — re-fetch a fresh id from
+> **Stale ids exit `4`.** A *valid, current* identifier resolves. For a **stale or wrong**
+> one the API answers with an HTTP `302` to its archive rather than a `404`; the CLI
+> reports that as `… is not a live warning …` (naming the archive URL) and exits **`4`**,
+> like a true `404`. Either way it means "no such live warning" — re-fetch a fresh id from
 > `map-data`/`dashboard` rather than retrying the same one. Identifiers churn as warnings
 > are issued and cancelled.
 

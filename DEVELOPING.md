@@ -134,7 +134,12 @@ CLI run in tests with a mocked client and captured output — no subprocess.
 **Error types.** [`errors.ts`](src/client/errors.ts): `NinaApiError` (non-2xx,
 carries `status`/`detail`/`isRetryable`), `NinaNetworkError` (transport
 failure/timeout), `NinaParseError` (bad JSON) and `NinaIOError` (local write
-failure), all extending `NinaError`. The CLI maps a `404` to exit code `4`,
+failure), all extending `NinaError`, plus `NinaNotFoundError` (a warning id that is
+no longer live: NINA answers it with a `302` to `/api31/archive/alerts/<id>`, which
+`warnings.get`/`geojson` turn into this error, carrying `identifier`, `location` and
+the `NinaApiError` as `cause`). For any other `3xx`, `NinaApiError.location` holds the
+redirect target (resolved, userinfo redacted, sanitised). The CLI maps a `404` and a
+`NinaNotFoundError` to exit code `4`,
 other errors to `1`.
 
 **Query builder.** [`buildQueryString`](src/client/query.ts) — a dependency-free

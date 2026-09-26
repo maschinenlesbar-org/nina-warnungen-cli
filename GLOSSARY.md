@@ -52,6 +52,10 @@ a list of warning summaries (`MapWarning[]`). CLI: `nina map-data <source>`.
 **warning get (`/warnings/{identifier}.json`).** The full, CAP-derived warning
 payload for a single identifier. Deeply nested and standard-specific, so it is
 returned as a faithful raw JSON object. CLI: `nina warning get <identifier>`.
+An identifier that is not live (expired, updated, cancelled, or never issued) gets
+no `404`: the API redirects it to `/archive/alerts/{identifier}?contentType=json`,
+where a warning that once existed has an archived copy. The CLI reports that as
+"not a live warning" (exit `4`), naming the archive URL.
 
 **warning geojson (`/warnings/{identifier}.geojson`).** The warning's affected-area
 geometry as GeoJSON (`application/geo+json`), returned as raw bytes. CLI:
@@ -147,7 +151,9 @@ retryable and retries with linear backoff (`--max-retries`).
 
 **No redirect following.** The transport issues exactly one request and does not
 follow `3xx` redirects — a redirect is surfaced as an error like any other
-non-2xx status, avoiding header replay to a redirect target.
+non-2xx status (naming the `Location` target), avoiding header replay to a redirect
+target. The one redirect the API sends in normal use, a warning id that is no longer
+live pointing to its archive, is reported as not found (exit `4`).
 
 ---
 

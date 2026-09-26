@@ -104,8 +104,8 @@ encode the non-obvious parts of this API, for example:
   `info[].instruction` is missing, and `urgency` can be `Unknown`;
 - `archive mapping` returns `history[].identifier` values **with a `.json` suffix** —
   passing one straight to `archive get` yields `…json.json` → 404; strip the suffix first;
-- a **stale/unknown warning identifier** often comes back as an HTTP **`302`** (surfaced as
-  exit `1`), not a clean `404` (exit `4`) — either way, re-fetch a fresh id;
+- a **stale/unknown warning identifier** gets an HTTP **`302`** to its archive, not a
+  `404`; the CLI reports it as "not a live warning" with exit `4` — re-fetch a fresh id;
 - the `warning geojson` output is already valid GeoJSON in correct `[lon, lat]` order, but
   its feature `properties` are *rendering* hints (`fillColor`, `warnId`, …), not the
   headline/severity — pull those from `warning get` if you need map labels

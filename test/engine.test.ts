@@ -171,3 +171,28 @@ test("an attacker-controlled Content-Type is stripped of control characters", as
   assert.ok(!hasControlChars(res.contentType));
   assert.equal(res.contentType, "application/json]0;pwned");
 });
+
+test("a 3xx error names the resolved, redacted, sanitised redirect target", async () => {
+  const mt = makeMockTransport(() => ({
+    status: 302,
+    headers: { location: `http://u:secret@other.test/a${ESC}]0;x${BEL}b` },
+    body: Buffer.alloc(0),
+  }));
+  const e = new RequestEngine({ transport: mt.transport, baseUrl: "https://example.test" });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err: unknown) =>
+      err instanceof NinaApiError &&
+      err.location !== undefined &&
+      !err.message.includes("secret") &&
+      !hasControlChars(err.message) &&
+      /redirect to http:\/\/\*\*\*@other\.test\/a/.test(err.message),
+  );
+
+  const rel = makeMockTransport(() => ({ status: 302, headers: { location: "/y" }, body: Buffer.alloc(0) }));
+  const e2 = new RequestEngine({ transport: rel.transport, baseUrl: "https://example.test" });
+  await assert.rejects(
+    () => e2.getJson("/x"),
+    (err: unknown) => err instanceof NinaApiError && err.location === "https://example.test/y",
+  );
+});

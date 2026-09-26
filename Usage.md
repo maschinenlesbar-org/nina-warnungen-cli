@@ -173,4 +173,5 @@ These flags apply to every command (real flags only):
 Notes: numeric options accept only plain non-negative decimal integers. An
 identifier that starts with `-` must be passed after a `--` separator, e.g.
 `nina warning get -- -odd.identifier`. Exit codes: `0` success, `4` on a `404`
-from the API, `1` for any other error, non-zero for usage errors.
+from the API or for a warning id that is no longer live (the API redirects it to its archive
+instead of answering `404`), `1` for any other error, non-zero for usage errors.

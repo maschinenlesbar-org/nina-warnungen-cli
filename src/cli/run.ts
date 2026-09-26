@@ -5,7 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import type { CliDeps } from "./io.js";
-import { NinaApiError, NinaError } from "../client/errors.js";
+import { NinaApiError, NinaError, NinaNotFoundError } from "../client/errors.js";
 
 interface OutputSink {
   out: string[];
@@ -65,6 +65,12 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       return isHelp ? 0 : err.exitCode;
     }
     flush(false);
+    if (err instanceof NinaNotFoundError) {
+      // A warning id that is no longer live: NINA redirects it to its archive
+      // instead of answering 404, so it gets the not-found exit code too.
+      deps.io.err(`Error: ${err.message}`);
+      return 4;
+    }
     if (err instanceof NinaApiError) {
       deps.io.err(`Error: ${err.message}`);
       // Map a few notable statuses to distinct exit codes for scripting.

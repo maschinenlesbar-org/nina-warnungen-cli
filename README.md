@@ -144,7 +144,7 @@ An identifier that begins with `-` would be parsed as an option; pass it after a
 | --- | --- |
 | `0` | success (also `--help` / `--version`) |
 | `1` | error — network failure, parse error, unexpected problem |
-| `4` | warning not found (`404`) |
+| `4` | not found: a `404`, or a warning id that is no longer live (the API redirects it to its archive) |
 | non-zero | bad usage / invalid argument (commander parse error) |
 
 ## Troubleshooting
@@ -154,7 +154,10 @@ An identifier that begins with `-` would be parsed as an option; pass it after a
   `npx @maschinenlesbar.org/nina-warnungen-cli …`.
 - **Exit `4` / "not found"** — the warning identifier doesn't exist or has
   expired. Re-fetch it from a fresh `map-data` or `dashboard` result; identifiers
-  change as warnings are issued and cancelled.
+  change as warnings are issued and cancelled. For a warning that is no longer live
+  (expired, updated, cancelled, or never issued) the API does not answer `404`: it
+  redirects to its archive (`/api31/archive/alerts/<id>`). The CLI does not follow
+  the redirect; it prints `… is not a live warning …` with that archive URL and exits `4`.
 - **Exit `1` / network error** — connectivity, DNS, or a timeout. Try again, or
   raise the limit with `--timeout 60000`. For flaky networks increase retries:
   `--max-retries 5`.

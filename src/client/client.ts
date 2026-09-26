@@ -8,6 +8,7 @@
 
 import { RequestEngine, type EngineOptions, type RawResponse } from "./engine.js";
 import type { NinaSource } from "./enums.js";
+import { NinaApiError, NinaNotFoundError } from "./errors.js";
 import type {
   MapWarning,
   WarningDetail,
@@ -22,18 +23,49 @@ const API = "/api31";
 const ACCEPT_GEOJSON = "application/geo+json";
 const enc = encodeURIComponent;
 
+/**
+ * NINA answers a warning id that is not live (expired, updated, cancelled, or
+ * never issued) with a redirect to `/api31/archive/alerts/<id>`, not a 404. Turn
+ * exactly that redirect into a `NinaNotFoundError`; any other error passes through.
+ */
+function notLive(identifier: string, err: unknown): unknown {
+  if (!(err instanceof NinaApiError) || err.status < 300 || err.status >= 400) return err;
+  let path = "";
+  try {
+    path = new URL(err.location ?? "").pathname;
+  } catch {
+    return err;
+  }
+  if (!path.includes("/archive/alerts/")) return err;
+  return new NinaNotFoundError(identifier, err.location, { cause: err });
+}
+
 /** Single-warning retrieval (full payload + geometry). */
 class WarningsResource {
   constructor(private readonly engine: RequestEngine) {}
 
-  /** The full CAP-derived warning for an identifier. */
-  get(identifier: string): Promise<WarningDetail> {
-    return this.engine.getJson(`${API}/warnings/${enc(identifier)}.json`);
+  /**
+   * The full CAP-derived warning for an identifier. A warning that is no longer
+   * live (or never existed) rejects with `NinaNotFoundError`.
+   */
+  async get(identifier: string): Promise<WarningDetail> {
+    try {
+      return await this.engine.getJson(`${API}/warnings/${enc(identifier)}.json`);
+    } catch (err) {
+      throw notLive(identifier, err);
+    }
   }
 
-  /** The warning's geometry as GeoJSON (returned as raw bytes). */
-  geojson(identifier: string): Promise<RawResponse> {
-    return this.engine.getRaw(`${API}/warnings/${enc(identifier)}.geojson`, ACCEPT_GEOJSON);
+  /**
+   * The warning's geometry as GeoJSON (returned as raw bytes). A warning that is no
+   * longer live (or never existed) rejects with `NinaNotFoundError`.
+   */
+  async geojson(identifier: string): Promise<RawResponse> {
+    try {
+      return await this.engine.getRaw(`${API}/warnings/${enc(identifier)}.geojson`, ACCEPT_GEOJSON);
+    } catch (err) {
+      throw notLive(identifier, err);
+    }
   }
 }
 

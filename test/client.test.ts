@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NinaClient } from "../src/client/client.js";
-import { NinaApiError } from "../src/client/errors.js";
+import { NinaApiError, NinaNotFoundError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson, rawResponse } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>): NinaClient {
@@ -61,5 +61,29 @@ test("a 404 raises NinaApiError with status 404", async () => {
   await assert.rejects(
     () => clientWith(mt).warnings.get("nope"),
     (err) => err instanceof NinaApiError && err.status === 404,
+  );
+});
+
+test("warnings.get/geojson turn the archive redirect into NinaNotFoundError", async () => {
+  const mt = makeMockTransport(() => ({
+    status: 302,
+    headers: { location: "https://warnung.bund.de/api31/archive/alerts/x?contentType=json" },
+    body: Buffer.alloc(0),
+  }));
+  for (const call of [() => clientWith(mt).warnings.get("x"), () => clientWith(mt).warnings.geojson("x")]) {
+    await assert.rejects(
+      call,
+      (err) =>
+        err instanceof NinaNotFoundError &&
+        err.identifier === "x" &&
+        err.location === "https://warnung.bund.de/api31/archive/alerts/x?contentType=json" &&
+        err.cause instanceof NinaApiError,
+    );
+  }
+  // A redirect elsewhere is not a "not live" answer: it stays a NinaApiError.
+  const other = makeMockTransport(() => ({ status: 302, headers: { location: "/login" }, body: Buffer.alloc(0) }));
+  await assert.rejects(
+    () => clientWith(other).warnings.get("x"),
+    (err) => err instanceof NinaApiError && err.status === 302,
   );
 });

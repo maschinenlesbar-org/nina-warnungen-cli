@@ -297,3 +297,43 @@ test("--base-url rejects a non-http(s) or malformed URL as a usage error", async
     assert.match(cli.err.join("\n"), /--base-url/, bad);
   }
 });
+
+function redirectResponse(status: number, location?: string): HttpResponse {
+  return {
+    status,
+    headers: location === undefined ? {} : { location },
+    body: Buffer.alloc(0),
+  };
+}
+
+test("a warning id that is no longer live (302 to the archive) exits 4 with a hint", async () => {
+  const archive = (req: HttpRequest) =>
+    redirectResponse(
+      302,
+      `https://warnung.bund.de/api31/archive/alerts/${new URL(req.url).pathname.split("/").pop()!.replace(/\.(json|geojson)$/, "")}?contentType=json`,
+    );
+  for (const cmd of ["get", "geojson"]) {
+    const cli = makeCli(archive);
+    const code = await run(["warning", cmd, "mow.DE-SL-SLS-W038-20260901-000"], cli.deps);
+    assert.equal(code, 4, cmd);
+    assert.equal(cli.mt.calls.length, 1, cmd);
+    const err = cli.err.join("\n");
+    assert.match(err, /"mow\.DE-SL-SLS-W038-20260901-000" is not a live warning/, cmd);
+    assert.match(
+      err,
+      /archive \(https:\/\/warnung\.bund\.de\/api31\/archive\/alerts\/mow\.DE-SL-SLS-W038-20260901-000\?contentType=json\)/,
+      cmd,
+    );
+    assert.equal(cli.out.length, 0, cmd);
+  }
+});
+
+test("any other 3xx stays exit 1 and names the redirect target", async () => {
+  const cli = makeCli(() => redirectResponse(301, "https://elsewhere.test/x"));
+  assert.equal(await run(["warning", "get", "abc"], cli.deps), 1);
+  assert.match(cli.err.join("\n"), /HTTP 301 for GET \/api31\/warnings\/abc\.json: redirect to https:\/\/elsewhere\.test\/x not followed/);
+
+  const bare = makeCli(() => redirectResponse(302));
+  assert.equal(await run(["map-data", "dwd"], bare.deps), 1);
+  assert.match(bare.err.join("\n"), /HTTP 302 for GET .*: redirect not followed \(no Location header\)/);
+});
