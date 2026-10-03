@@ -38,24 +38,6 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
 }
 
 /**
- * The most retries the engine will ever perform. Mirrors the engine's internal
- * `MAX_RETRIES_CAP` (which still clamps as a defence for direct library users);
- * surfacing it here lets the CLI *reject* an out-of-range value with a clear
- * message rather than silently clamping it, matching the rest of the CLI's
- * validate-and-reject style.
- */
-export const MAX_RETRIES_LIMIT = 10;
-
-/** commander value-parser for `--max-retries`: a non-negative integer, max 10. */
-export function parseMaxRetries(value: string): number {
-  const n = parseIntArg(value);
-  if (n > MAX_RETRIES_LIMIT) {
-    throw new InvalidArgumentError(`Expected a value between 0 and ${MAX_RETRIES_LIMIT}.`);
-  }
-  return n;
-}
-
-/**
  * commander value-parser for a value that ends up in an HTTP header (`--user-agent`).
  * A blank value is rejected like every free-text option. Node's HTTP layer throws an
  * opaque "Invalid character in header content" at request time for a CR/LF (or any

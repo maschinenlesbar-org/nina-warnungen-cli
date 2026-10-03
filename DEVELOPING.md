@@ -182,15 +182,24 @@ retried automatically, up to `--max-retries`. Each retry waits the response's
 `Retry-After` (parsed strictly by the exported `parseRetryAfter`: delay-seconds or an
 IMF-fixdate); one above `MAX_RETRY_AFTER_MS` (30 s) is not retried and the error
 surfaces at once. Without a usable `Retry-After` the wait grows linearly
-(`retryDelayMs * attempt`). The engine
-clamps the count to `10` as a safety bound for direct library callers; the CLI
-goes further and *rejects* a `--max-retries` above `10` as a usage error.
+(`retryDelayMs * attempt`). The count is bounded by the exported `MAX_RETRIES`
+(`10`): the engine rejects a `maxRetries` that is not an integer from `0` to
+`MAX_RETRIES` with a `NinaValidationError`, and the CLI's `--max-retries` parser
+uses the same constant, so a value above `10` is a usage error there.
 `NinaApiError` exposes `isRetryable` (true for `429`/`503`).
+
+**Engine options.** The numeric options are checked in the `RequestEngine`
+constructor, which throws a `NinaValidationError` (`Invalid option <name>: expected
+an integer from 0 to <max>, got <value>.`) before any request: `timeoutMs` must be
+an integer from `0` (no timeout) to `MAX_TIMEOUT_MS` (2^31 − 1 ms), `maxRetries`
+from `0` to `MAX_RETRIES`, and `retryDelayMs` and `maxResponseBytes` non-negative
+safe integers. A negative or NaN `timeoutMs` used to mean no timeout at all. The
+CLI's `--timeout` and `--max-retries` parsers use the same exported bounds.
 
 **maxResponseBytes.** A cap on the response body size in bytes (`0` = unlimited;
 default 100 MiB), guarding against unbounded responses. A negative or non-integer
-value is rejected (`NinaError`, `Invalid option maxResponseBytes: …`) rather than
-switching the cap off. Setting
+value is rejected (`NinaValidationError`, `Invalid option maxResponseBytes: …`)
+rather than switching the cap off. Setting
 `--max-response-bytes 0` disables the guard entirely — including for
 `warning geojson` downloads.
 

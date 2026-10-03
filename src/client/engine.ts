@@ -2,9 +2,9 @@
 // requests via a Transport, applies retry/backoff for transient statuses
 // (429, 503), and decodes responses.
 
-import { nodeHttpTransport, type Transport } from "./http.js";
+import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { NinaApiError, NinaError, NinaNetworkError, NinaParseError, redactUrl } from "./errors.js";
+import { NinaApiError, NinaNetworkError, NinaParseError, NinaValidationError, redactUrl } from "./errors.js";
 
 export const DEFAULT_BASE_URL = "https://warnung.bund.de";
 const DEFAULT_USER_AGENT = "nina-warnungen-cli";
@@ -22,20 +22,29 @@ export interface EngineOptions {
   transport?: Transport;
   /** Value of the User-Agent header. */
   userAgent?: string;
-  /** Per-request timeout in milliseconds (0 disables; capped at `MAX_TIMEOUT_MS`, 2^31 - 1 ms). */
+  /**
+   * Per-request timeout in milliseconds (default 30 000; 0 disables). Anything but
+   * an integer from 0 to `MAX_TIMEOUT_MS` (2^31 - 1 ms) throws a
+   * `NinaValidationError` — a negative or NaN value would otherwise mean no timeout.
+   */
   timeoutMs?: number;
   /**
-   * Number of automatic retries for transient (429/503) responses. Each waits the
-   * response's `Retry-After` (up to `MAX_RETRY_AFTER_MS`; a longer one is not
-   * retried), or else `retryDelayMs * attempt`.
+   * Number of automatic retries for transient (429/503) responses (default 2). Each
+   * waits the response's `Retry-After` (up to `MAX_RETRY_AFTER_MS`; a longer one is
+   * not retried), or else `retryDelayMs * attempt`. Anything but an integer from 0
+   * to `MAX_RETRIES` (10) throws a `NinaValidationError`.
    */
   maxRetries?: number;
-  /** Base backoff between retries in milliseconds (grows linearly); used without a Retry-After. */
+  /**
+   * Base backoff between retries in milliseconds (grows linearly; default 200); used
+   * without a Retry-After. A negative or non-integer value throws a
+   * `NinaValidationError`.
+   */
   retryDelayMs?: number;
   /**
    * Hard cap on response body size in bytes (defends against memory exhaustion
    * from a hostile/buggy endpoint). Defaults to 100 MiB; set to 0 for no limit. A
-   * negative or non-integer value throws a `NinaError`.
+   * negative or non-integer value throws a `NinaValidationError`.
    */
   maxResponseBytes?: number;
   /** Injectable sleep, primarily for deterministic tests. */
@@ -79,12 +88,13 @@ export function parseRetryAfter(
 }
 
 /**
- * Upper bound on retry attempts. Without a cap, a host stuck on 429/503 combined
- * with the linear backoff (`retryDelayMs * attempt`) makes the total wait grow
- * quadratically, so a large `--max-retries` (up to MAX_SAFE_INTEGER) would hang
- * the process for hours. 10 retries is well beyond any realistic transient blip.
+ * Upper bound on retry attempts (`maxRetries`, `--max-retries`). Without a cap, a
+ * host stuck on 429/503 combined with the linear backoff (`retryDelayMs * attempt`)
+ * makes the total wait grow quadratically, so a large count would hang the process
+ * for hours. 10 retries is well beyond any realistic transient blip. A larger value
+ * is rejected, not clamped.
  */
-const MAX_RETRIES_CAP = 10;
+export const MAX_RETRIES = 10;
 
 /**
  * Strip control characters (all C0/C1 except tab and newline, plus DEL) out of a
@@ -111,13 +121,16 @@ function sanitizeServerText(text: string): string {
 
 /**
  * A validated integer engine option: `undefined` gives the default; anything but a
- * safe integer from 0 to `max` throws. (A negative `maxResponseBytes` used to switch
- * the size cap off, although only 0 means "no limit".)
+ * safe integer from 0 to `max` throws a `NinaValidationError`. (A negative
+ * `maxResponseBytes` used to switch the size cap off, and a negative or NaN
+ * `timeoutMs` the timeout, although only 0 means "no limit".)
  */
 function intOption(name: string, value: number | undefined, fallback: number, max: number): number {
   if (value === undefined) return fallback;
   if (!Number.isSafeInteger(value) || value < 0 || value > max) {
-    throw new NinaError(`Invalid option ${name}: expected an integer from 0 to ${max}, got ${String(value)}.`);
+    throw new NinaValidationError(
+      `Invalid option ${name}: expected an integer from 0 to ${max}, got ${String(value)}.`,
+    );
   }
   return value;
 }
@@ -139,9 +152,9 @@ export class RequestEngine {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.transport = options.transport ?? nodeHttpTransport;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
-    this.timeoutMs = options.timeoutMs ?? 30_000;
-    this.maxRetries = Math.min(options.maxRetries ?? 2, MAX_RETRIES_CAP);
-    this.retryDelayMs = options.retryDelayMs ?? 200;
+    this.timeoutMs = intOption("timeoutMs", options.timeoutMs, 30_000, MAX_TIMEOUT_MS);
+    this.maxRetries = intOption("maxRetries", options.maxRetries, 2, MAX_RETRIES);
+    this.retryDelayMs = intOption("retryDelayMs", options.retryDelayMs, 200, Number.MAX_SAFE_INTEGER);
     this.maxResponseBytes = intOption(
       "maxResponseBytes",
       options.maxResponseBytes,

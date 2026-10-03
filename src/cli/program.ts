@@ -9,12 +9,12 @@ import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { NinaClient } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
+import { MAX_RETRIES } from "../client/engine.js";
 import {
   parseBaseUrl,
   parseBoundedInt,
   parseHeaderValue,
   parseIntArg,
-  parseMaxRetries,
 } from "./shared.js";
 import { registerWarningCommands } from "./commands/warnings.js";
 import { registerMiscCommands } from "./commands/misc.js";
@@ -66,9 +66,9 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     )
     .option(
       "--max-retries <n>",
-      "retries for transient 429/503 responses (0..10, default 2; each waits the server's " +
-        "Retry-After, up to 30 s)",
-      parseMaxRetries,
+      `retries for transient 429/503 responses (0..${MAX_RETRIES}, default 2; each waits the ` +
+        "server's Retry-After, up to 30 s)",
+      parseBoundedInt(0, MAX_RETRIES),
     )
     .option(
       "--max-response-bytes <n>",
