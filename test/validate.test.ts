@@ -80,3 +80,27 @@ test("identifierProblem rejects a blank, non-string or separator-bearing identif
   assert.equal(identifierProblem("a\\b"), '"a\\\\b" must not contain a path separator (/ or \\).');
   assert.equal(lib.identifierProblem, identifierProblem);
 });
+
+test("headerValueProblem rejects blank, control characters other than tab, DEL and non-Latin-1", async () => {
+  const { headerValueProblem } = await import("../src/client/validate.js");
+  for (const ok of ["nina", "a\tb", "café", "ÿ"]) assert.equal(headerValueProblem(ok), undefined, JSON.stringify(ok));
+  assert.equal(headerValueProblem(""), "Expected a non-empty value.");
+  assert.equal(headerValueProblem("  "), "Expected a non-empty value.");
+  assert.equal(headerValueProblem(1), "Expected a string.");
+  for (const bad of ["a\r\nb", "a\u0000b", "a\u007fb"]) {
+    assert.equal(headerValueProblem(bad), "Value contains control characters.", JSON.stringify(bad));
+  }
+  assert.equal(headerValueProblem("Ā"), "Value contains characters outside Latin-1 (above U+00FF).");
+  assert.equal(lib.headerValueProblem, headerValueProblem);
+});
+
+test("assertHeaderValue throws NinaValidationError naming the option", async () => {
+  const { assertHeaderValue } = await import("../src/client/engine.js");
+  assert.equal(assertHeaderValue("userAgent", "ua/1"), "ua/1");
+  assert.throws(
+    () => assertHeaderValue("userAgent", "a\nb"),
+    (err: unknown) =>
+      err instanceof NinaValidationError && err.message === "Invalid userAgent: Value contains control characters.",
+  );
+  assert.equal(lib.assertHeaderValue, assertHeaderValue);
+});

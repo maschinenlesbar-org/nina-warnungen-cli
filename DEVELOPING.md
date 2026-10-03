@@ -196,6 +196,15 @@ from `0` to `MAX_RETRIES`, and `retryDelayMs` and `maxResponseBytes` non-negativ
 safe integers. A negative or NaN `timeoutMs` used to mean no timeout at all. The
 CLI's `--timeout` and `--max-retries` parsers use the same exported bounds.
 
+**userAgent.** The `User-Agent` header value (default `nina-warnungen-cli`). The
+`RequestEngine` constructor checks a given value with the exported
+`headerValueProblem` (via `assertHeaderValue`) and throws a `NinaValidationError`
+(`Invalid userAgent: …`) for a blank value, a control character other than tab, DEL
+or a character above U+00FF; only an omitted value selects the default. The CLI's
+`--user-agent` parser calls the same rule. As defence in depth, the default
+transport rejects a header Node refuses as a `NinaNetworkError`, never a raw
+`TypeError`.
+
 **maxResponseBytes.** A cap on the response body size in bytes (`0` = unlimited;
 default 100 MiB), guarding against unbounded responses. A negative or non-integer
 value is rejected (`NinaValidationError`, `Invalid option maxResponseBytes: …`)

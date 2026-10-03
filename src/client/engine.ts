@@ -5,6 +5,7 @@
 import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
 import { NinaApiError, NinaNetworkError, NinaParseError, NinaValidationError, redactUrl } from "./errors.js";
+import { assertValid, headerValueProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://warnung.bund.de";
 const DEFAULT_USER_AGENT = "nina-warnungen-cli";
@@ -20,7 +21,11 @@ export interface EngineOptions {
   baseUrl?: string;
   /** Swappable transport. Defaults to the built-in node http/https transport. */
   transport?: Transport;
-  /** Value of the User-Agent header. */
+  /**
+   * Value of the User-Agent header (default `nina-warnungen-cli`). A blank value, a
+   * control character other than tab, or a character above U+00FF throws a
+   * `NinaValidationError`.
+   */
   userAgent?: string;
   /**
    * Per-request timeout in milliseconds (default 30 000; 0 disables). Anything but
@@ -135,6 +140,15 @@ function intOption(name: string, value: number | undefined, fallback: number, ma
   return value;
 }
 
+/**
+ * Check a value bound for an HTTP header (see {@link headerValueProblem}) and
+ * return it unchanged; anything else throws a NinaValidationError naming `name`
+ * ("Invalid userAgent: Value contains control characters.").
+ */
+export function assertHeaderValue(name: string, value: string): string {
+  return assertValid(name, value, headerValueProblem);
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -151,7 +165,10 @@ export class RequestEngine {
   constructor(options: EngineOptions = {}) {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.transport = options.transport ?? nodeHttpTransport;
-    this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
+    // Only an omitted userAgent selects the default: a blank one is an error, not
+    // a blank header, and a malformed one fails here rather than at request time.
+    this.userAgent =
+      options.userAgent === undefined ? DEFAULT_USER_AGENT : assertHeaderValue("userAgent", options.userAgent);
     this.timeoutMs = intOption("timeoutMs", options.timeoutMs, 30_000, MAX_TIMEOUT_MS);
     this.maxRetries = intOption("maxRetries", options.maxRetries, 2, MAX_RETRIES);
     this.retryDelayMs = intOption("retryDelayMs", options.retryDelayMs, 200, Number.MAX_SAFE_INTEGER);

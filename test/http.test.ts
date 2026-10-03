@@ -140,3 +140,12 @@ test("a 302 redirect is returned as-is and never followed", async () => {
     },
   );
 });
+
+test("a header Node refuses rejects as NinaNetworkError, not a raw TypeError", async () => {
+  // The engine refuses such a User-Agent up front; this guards a direct caller of
+  // the transport. Node throws while building the request, before any connection.
+  await assert.rejects(
+    nodeHttpTransport({ method: "GET", url: "http://127.0.0.1:1/x", headers: { "User-Agent": "a\r\nb" } }),
+    (err: unknown) => err instanceof NinaNetworkError && /Invalid request/.test(err.message),
+  );
+});

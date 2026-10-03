@@ -120,3 +120,24 @@ test("parity: the timeout and retry bounds themselves are accepted on both sides
 test("the retry cap is one exported library constant", () => {
   assert.equal(lib.MAX_RETRIES, 10);
 });
+
+// ---- Finding 2 (PAT-5): the User-Agent ---------------------------------------------
+
+test("parity: a blank or unsendable User-Agent is rejected by CLI and library alike", async () => {
+  for (const ua of ["", "   ", "a\r\nX-Injected: 1", "x\u0000y", "a\u007fb", "agent€"]) {
+    assertBothRejectedAtParse(
+      await parity(["--user-agent", ua, "--compact", "map-data", "dwd"], mapData({ userAgent: ua }), () => jsonResponse([])),
+      JSON.stringify(ua),
+    );
+  }
+});
+
+test("parity: a sendable User-Agent goes out unchanged from CLI and library", async () => {
+  for (const ua of ["my-app/1.0", "a\tb", "café"]) {
+    const { cli, lib: l } = await parity(["--user-agent", ua, "--compact", "map-data", "dwd"], mapData({ userAgent: ua }), () => jsonResponse([]));
+    assert.equal(cli.code, 0, JSON.stringify(ua));
+    assert.equal(l.ok, true, JSON.stringify(ua));
+    assert.equal(cli.requests[0]!.headers?.["User-Agent"], ua);
+    assert.deepEqual(l.requests, cli.requests);
+  }
+});
