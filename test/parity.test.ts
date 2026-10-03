@@ -192,3 +192,27 @@ test("parity: a base URL with a path prefix (a mirror) is used the same by both"
 test("the NinaClient constructor rejects a bad baseUrl synchronously", () => {
   assert.throws(() => new NinaClient({ baseUrl: "ftp://h.example" }), NinaValidationError);
 });
+
+// ---- Finding 4 (PAT-23): dashboard region keys ------------------------------------
+
+test("parity: dashboard rejects a bad region key with the library's arsProblem message on both sides", async () => {
+  for (const ars of ["", "   ", "a/b", "05515/0000000", " 055150000000", "050000000000", "55150000000"]) {
+    const error = assertBothRejected(
+      await parity(["--compact", "dashboard", "--", ars], (transport) => new NinaClient({ transport }).dashboard(ars)),
+      JSON.stringify(ars),
+    );
+    assert.equal(error.message, lib.arsProblem(ars), JSON.stringify(ars));
+  }
+});
+
+test("parity: dashboard sends the identical request for a district key", async () => {
+  const { cli, lib: l } = await parity(
+    ["--compact", "dashboard", "055150000000"],
+    (transport) => new NinaClient({ transport }).dashboard("055150000000"),
+    () => jsonResponse([]),
+  );
+  assert.equal(cli.code, 0);
+  assert.equal(l.ok, true);
+  assert.equal(cli.requests.length, 1);
+  assert.deepEqual(l.requests, cli.requests);
+});

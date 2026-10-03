@@ -84,10 +84,12 @@ once its optional `.json` suffix is dropped. The CLI passes the argument straigh
 to these methods.
 
 `client.dashboard(ars)` checks the key first with the exported `arsProblem(ars)` (a
-message, or `undefined` for a usable key) and rejects with a `NinaError` before any
+message, or `undefined` for a usable key) and rejects with a `NinaValidationError`
+carrying that message before any
 request: anything but 12 digits with the last seven `0` (the API answers an AGS with an
 opaque 400 and a municipality key with 404), and a state-level key (digits 3–5 `000`, other than `CITY_STATE_DISTRICT_KEYS`,
-Hamburg and Berlin) would get `[]` from the API, a false all-clear.
+Hamburg and Berlin) would get `[]` from the API, a false all-clear. The CLI's
+`dashboard` passes the key straight to this method, so it prints the same message.
 
 ## Architecture
 

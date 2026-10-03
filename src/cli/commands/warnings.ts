@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, assertEnum, renderJson, renderRaw, requireIdentifier } from "../shared.js";
+import { action, assertEnum, renderJson, renderRaw } from "../shared.js";
 import { NinaSourceValues } from "../../client/enums.js";
 
 export function registerWarningCommands(program: Command, deps: CliDeps): void {
@@ -50,7 +50,7 @@ export function registerWarningCommands(program: Command, deps: CliDeps): void {
         "not a state key such as 050000000000, which the API answers with [])")
     .action(
       action(deps, async ({ client, global }, [ars]) => {
-        renderJson(deps, global, await client.dashboard(requireIdentifier(ars!, "region key")));
+        renderJson(deps, global, await client.dashboard(ars!));
       }),
     );
 }

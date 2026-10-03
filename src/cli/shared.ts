@@ -79,25 +79,6 @@ export function assertEnum<T extends string>(
   return value as T;
 }
 
-/**
- * Validate a required free-form positional (an identifier or region key). Both
- * are single path segments, so two inputs can only ever produce a remote 404 (or
- * a confusing parse error) for what is really a local input mistake — reject them
- * up front with a clear message (exit 1) instead:
- *   - empty/whitespace-only (would build a path like `dashboard/.json`);
- *   - one containing a path separator (`/` or `\`), e.g. a `../../etc/passwd`
- *     traversal attempt — these are percent-encoded and can never match a real id.
- */
-export function requireIdentifier(value: string, argName: string): string {
-  if (value.trim() === "") {
-    throw new NinaError(`A non-empty ${argName} is required.`);
-  }
-  if (/[/\\]/.test(value)) {
-    throw new NinaError(`Invalid ${argName} "${value}": must not contain a path separator.`);
-  }
-  return value;
-}
-
 export interface GlobalOptions {
   baseUrl?: string;
   timeout?: number;

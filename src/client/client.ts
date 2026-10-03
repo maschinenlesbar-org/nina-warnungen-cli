@@ -8,7 +8,7 @@
 
 import { RequestEngine, type EngineOptions, type RawResponse } from "./engine.js";
 import { NinaSourceValues, type NinaSource } from "./enums.js";
-import { NinaApiError, NinaError, NinaNotFoundError } from "./errors.js";
+import { NinaApiError, NinaError, NinaNotFoundError, NinaValidationError } from "./errors.js";
 import { arsProblem } from "./ars.js";
 import { assertValid, identifierProblem } from "./validate.js";
 import type {
@@ -160,12 +160,12 @@ export class NinaClient {
    * Regionalschlüssel: 12 digits, the last seven `0`. Any other shape (an 8-digit
    * AGS, a municipality-level ARS, a lost leading zero) and a state-level key
    * (digits 3-5 `000`, other than Hamburg's and Berlin's, which the API would answer
-   * with `[]`, a false all-clear) are rejected with a `NinaError` before any request;
-   * see `arsProblem`.
+   * with `[]`, a false all-clear) are rejected with a `NinaValidationError` (whose
+   * message is `arsProblem`'s) before any request.
    */
   async dashboard(ars: string): Promise<DashboardEntry[]> {
     const problem = arsProblem(ars);
-    if (problem !== undefined) throw new NinaError(problem);
+    if (problem !== undefined) throw new NinaValidationError(problem);
     return this.engine.getJson(`${API}/dashboard/${enc(ars)}.json`);
   }
 }
