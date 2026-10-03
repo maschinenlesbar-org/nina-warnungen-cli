@@ -123,3 +123,10 @@ export class NinaParseError extends NinaError {}
 
 /** A local I/O failure, e.g. writing the --output file (no such dir, EISDIR). */
 export class NinaIOError extends NinaError {}
+
+/**
+ * A rejected input — a client option or a method argument that breaks one of the
+ * library's rules (see validate.ts). Thrown before any request is made; the CLI
+ * maps it to its usage exit code (1).
+ */
+export class NinaValidationError extends NinaError {}

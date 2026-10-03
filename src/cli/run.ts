@@ -5,7 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import type { CliDeps } from "./io.js";
-import { NinaApiError, NinaError, NinaNotFoundError } from "../client/errors.js";
+import { NinaApiError, NinaError, NinaNotFoundError, NinaValidationError } from "../client/errors.js";
 
 interface OutputSink {
   out: string[];
@@ -65,6 +65,12 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       return isHelp ? 0 : err.exitCode;
     }
     flush(false);
+    if (err instanceof NinaValidationError) {
+      // The library rejected an input before any request: a usage error, with the
+      // exit code commander gives a value its parsers reject (1).
+      deps.io.err(`Error: ${err.message}`);
+      return 1;
+    }
     if (err instanceof NinaNotFoundError) {
       // A warning id that is no longer live: NINA redirects it to its archive
       // instead of answering 404, so it gets the not-found exit code too.

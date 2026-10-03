@@ -92,7 +92,8 @@ src/
     query.ts     # dependency-free query-string builder
     http.ts      # the Transport interface + default node:http/https transport
     engine.ts    # URL building, retry/backoff, JSON/raw decoding, error mapping
-    errors.ts    # NinaError / NinaApiError / NinaNetworkError / NinaParseError
+    errors.ts    # NinaError / NinaApiError / NinaNetworkError / NinaParseError / NinaValidationError
+    validate.ts  # input rules (Problem functions) + assertValid, shared with the CLI
     client.ts    # NinaClient — resource groups over the engine
   cli/
     io.ts        # injectable I/O seam (stdout/stderr/file)
@@ -143,14 +144,27 @@ CLI run in tests with a mocked client and captured output — no subprocess.
 
 **Error types.** [`errors.ts`](src/client/errors.ts): `NinaApiError` (non-2xx,
 carries `status`/`detail`/`isRetryable`), `NinaNetworkError` (transport
-failure/timeout), `NinaParseError` (bad JSON) and `NinaIOError` (local write
-failure), all extending `NinaError`, plus `NinaNotFoundError` (a warning id that is
+failure/timeout), `NinaParseError` (bad JSON), `NinaIOError` (local write
+failure) and `NinaValidationError` (an input the library rejects before any
+request), all extending `NinaError`, plus `NinaNotFoundError` (a warning id that is
 no longer live: NINA answers it with a `302` to `/api31/archive/alerts/<id>`, which
 `warnings.get`/`geojson` turn into this error, carrying `identifier`, `location` and
 the `NinaApiError` as `cause`). For any other `3xx`, `NinaApiError.location` holds the
 redirect target (resolved, userinfo redacted, sanitised). The CLI maps a `404` and a
 `NinaNotFoundError` to exit code `4`,
-other errors to `1`.
+other errors to `1` — a `NinaValidationError` included, which is the same exit code
+commander gives a usage error.
+
+**Input validation.** Every rule about what a request may contain lives in the
+library, in [`validate.ts`](src/client/validate.ts) or next to the option it
+guards, as an exported `…Problem(value)` function that returns the reason a value
+is invalid (or `undefined`). The library enforces it with `assertValid(name,
+value, problem)`, which throws `NinaValidationError` with the message
+`Invalid <name>: <reason>` before any request (methods that return a promise
+reject; constructors throw). The CLI's option parsers call the same functions and
+turn the reason into a usage error, so the CLI keeps no rules of its own. Tests
+check this with the `parity()` helper in `test/helpers.ts`, which sends one input
+through `run()` and through the library on one recording mock transport.
 
 **Query builder.** [`buildQueryString`](src/client/query.ts) — a dependency-free
 serialiser: omits `undefined`/`null`, repeats keys for arrays, renders booleans
@@ -202,6 +216,7 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`client.test.ts`** — every endpoint's method/URL mapping, including identifier URL-encoding — mocked transport.
 - **`cli.test.ts`** — end-to-end command parsing, rendering, file output and exit codes, plus negative paths (network/parse/API errors, write failures, content-type warning) — mocked client.
 - **`shared.test.ts`** — the `parseIntArg` value parser (accepts plain decimals, rejects everything else).
+- **`validate.test.ts`** — `assertValid`, the `NinaValidationError` exit-code mapping and the `parity()` helper.
 
 ## Continuous integration
 

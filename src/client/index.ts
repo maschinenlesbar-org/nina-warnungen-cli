@@ -8,12 +8,15 @@ export type { Transport, HttpRequest, HttpResponse } from "./http.js";
 export { buildQueryString } from "./query.js";
 export { arsProblem, CITY_STATE_DISTRICT_KEYS } from "./ars.js";
 export type { QueryParams, QueryValue } from "./query.js";
+export { assertValid } from "./validate.js";
+export type { Problem } from "./validate.js";
 export {
   NinaError,
   NinaApiError,
   NinaNetworkError,
   NinaNotFoundError,
   NinaParseError,
+  NinaValidationError,
   redactUrl,
 } from "./errors.js";
 
