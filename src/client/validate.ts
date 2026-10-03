@@ -25,3 +25,27 @@ export function assertValid<T>(name: string, value: T, problem: Problem<T>): T {
   if (reason !== undefined) throw new NinaValidationError(`Invalid ${name}: ${reason}`);
   return value;
 }
+
+/** A value must be a string that is not blank (`""` or whitespace only). */
+export const nonBlankProblem: Problem<unknown> = (value) => {
+  if (typeof value !== "string") return "Expected a string.";
+  if (value.trim() === "") return "Expected a non-empty value.";
+  return undefined;
+};
+
+/**
+ * A warning or archive identifier is a single path segment: a non-blank string
+ * without a path separator (`/` or `\`). A blank one would address a different
+ * path (`/warnings/.json`, `/archive.mowas/-mapping.json`), and one with a separator
+ * is percent-encoded and can never match a real id (a `../../etc/passwd` attempt
+ * included), so both are refused before any request rather than ending in a remote
+ * 404 or a "not a live warning" that reads like an expired id.
+ */
+export const identifierProblem: Problem<unknown> = (value) => {
+  const blank = nonBlankProblem(value);
+  if (blank !== undefined) return blank;
+  if (/[/\\]/.test(value as string)) {
+    return `${JSON.stringify(value)} must not contain a path separator (/ or \\).`;
+  }
+  return undefined;
+};

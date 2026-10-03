@@ -68,3 +68,15 @@ test("parity() runs one input through the CLI and the library on one recording t
   assert.equal(cli.requests[0]!.url, l.requests[0]!.url);
   assert.deepEqual(JSON.parse(cli.out), l.ok ? l.value : undefined);
 });
+
+test("identifierProblem rejects a blank, non-string or separator-bearing identifier", async () => {
+  const { identifierProblem } = await import("../src/client/validate.js");
+  assert.equal(identifierProblem("mow.DE-SL-SLS-W038-20260901-000"), undefined);
+  assert.equal(identifierProblem("a b"), undefined);
+  assert.equal(identifierProblem(""), "Expected a non-empty value.");
+  assert.equal(identifierProblem("  "), "Expected a non-empty value.");
+  assert.equal(identifierProblem(42), "Expected a string.");
+  assert.equal(identifierProblem("a/b"), '"a/b" must not contain a path separator (/ or \\).');
+  assert.equal(identifierProblem("a\\b"), '"a\\\\b" must not contain a path separator (/ or \\).');
+  assert.equal(lib.identifierProblem, identifierProblem);
+});

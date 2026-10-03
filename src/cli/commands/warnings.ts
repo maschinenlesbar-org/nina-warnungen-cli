@@ -30,7 +30,7 @@ export function registerWarningCommands(program: Command, deps: CliDeps): void {
     .description("Get the full CAP warning for an identifier")
     .action(
       action(deps, async ({ client, global }, [id]) => {
-        renderJson(deps, global, await client.warnings.get(requireIdentifier(id!, "identifier")));
+        renderJson(deps, global, await client.warnings.get(id!));
       }),
     );
 
@@ -39,7 +39,7 @@ export function registerWarningCommands(program: Command, deps: CliDeps): void {
     .description("Download the warning's geometry as GeoJSON (-o to write a file)")
     .action(
       action(deps, async ({ client, global }, [id]) => {
-        const geojson = await client.warnings.geojson(requireIdentifier(id!, "identifier"));
+        const geojson = await client.warnings.geojson(id!);
         renderRaw(deps, global, geojson, "json");
       }),
     );

@@ -92,7 +92,10 @@ history:
 
 **identifier.** The opaque id of a single warning (e.g. a `mow.…` MoWaS id from a
 `map-data` entry's `id`). Used as the path argument to `warning get`/`geojson` and
-`archive mapping`/`get`. It is URL-encoded by the client before the request.
+`archive mapping`/`get`. It is URL-encoded by the client before the request. A
+blank identifier or one with a path separator (`/` or `\`) can never match a real
+id, so the client refuses it before any request (`identifierProblem`; a
+`NinaValidationError` for library callers, exit `1` on the CLI).
 
 **ARS — Amtlicher Regionalschlüssel** ("official regional key"). The
 12-digit key identifying a German administrative region (state → district →

@@ -94,7 +94,10 @@ werden:
 
 **identifier.** Die opake ID einer einzelnen Warnung (z. B. eine MoWaS-ID `mow.…` aus der
 `id` eines `map-data`-Eintrags). Wird als Pfadargument für `warning get`/`geojson` und
-`archive mapping`/`get` verwendet. Der Client URL-codiert sie vor der Anfrage.
+`archive mapping`/`get` verwendet. Der Client URL-codiert sie vor der Anfrage. Eine
+leere Kennung oder eine mit Pfadtrenner (`/` oder `\`) kann nie zu einer echten ID
+passen; der Client weist sie deshalb vor jeder Anfrage zurück (`identifierProblem`;
+für Bibliotheksnutzer ein `NinaValidationError`, in der CLI Exit-Code `1`).
 
 **ARS – Amtlicher Regionalschlüssel.** Der 12-stellige Schlüssel einer deutschen
 Verwaltungseinheit (Land → Kreis → Gemeinde), mit dem der `dashboard`-Endpoint

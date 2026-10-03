@@ -76,6 +76,13 @@ new NinaClient({
 plain JavaScript or a cast) with a `NinaError` before any request, and encodes it as a
 path segment.
 
+`client.warnings.get` / `.geojson` and `client.archive.mapping` / `.get` check the
+identifier first with the exported `identifierProblem(id)` and reject a blank one or
+one with a path separator (`/` or `\`) with a `NinaValidationError` before any
+request (`Invalid identifier: …`); `archive.get` also refuses an id that is blank
+once its optional `.json` suffix is dropped. The CLI passes the argument straight
+to these methods.
+
 `client.dashboard(ars)` checks the key first with the exported `arsProblem(ars)` (a
 message, or `undefined` for a usable key) and rejects with a `NinaError` before any
 request: anything but 12 digits with the last seven `0` (the API answers an AGS with an

@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, renderJson, requireIdentifier } from "../shared.js";
+import { action, renderJson } from "../shared.js";
 
 export function registerMiscCommands(program: Command, deps: CliDeps): void {
   const archive = program.command("archive").description("MoWaS archive (historical warnings)");
@@ -10,7 +10,7 @@ export function registerMiscCommands(program: Command, deps: CliDeps): void {
     .description("Revision history for an archived MoWaS identifier")
     .action(
       action(deps, async ({ client, global }, [id]) => {
-        renderJson(deps, global, await client.archive.mapping(requireIdentifier(id!, "identifier")));
+        renderJson(deps, global, await client.archive.mapping(id!));
       }),
     );
 
@@ -22,7 +22,7 @@ export function registerMiscCommands(program: Command, deps: CliDeps): void {
     )
     .action(
       action(deps, async ({ client, global }, [id]) => {
-        renderJson(deps, global, await client.archive.get(requireIdentifier(id!, "identifier")));
+        renderJson(deps, global, await client.archive.get(id!));
       }),
     );
 

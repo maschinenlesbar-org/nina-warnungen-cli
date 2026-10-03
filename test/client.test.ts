@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NinaClient } from "../src/client/client.js";
-import { NinaApiError, NinaError, NinaNotFoundError } from "../src/client/errors.js";
+import { NinaApiError, NinaError, NinaNotFoundError, NinaValidationError } from "../src/client/errors.js";
 import type { NinaSource } from "../src/client/enums.js";
 import { makeMockTransport, jsonResponse, constantJson, rawResponse } from "./helpers.js";
 
@@ -24,9 +24,27 @@ test("warnings.get builds the warnings path with .json", async () => {
 
 test("warnings.get url-encodes characters that need escaping", async () => {
   const mt = constantJson({ identifier: "x" });
-  await clientWith(mt).warnings.get("a b/c");
-  // The space becomes %20 and the slash becomes %2F; the .json suffix is intact.
-  assert.equal(new URL(mt.last().url).pathname, "/api31/warnings/a%20b%2Fc.json");
+  await clientWith(mt).warnings.get("a b?c#d");
+  // The space becomes %20, ? and # are escaped; the .json suffix is intact.
+  assert.equal(new URL(mt.last().url).pathname, "/api31/warnings/a%20b%3Fc%23d.json");
+});
+
+test("identifier methods reject a blank or separator-bearing id with NinaValidationError, no request", async () => {
+  const mt = constantJson({ identifier: "x" });
+  const client = clientWith(mt);
+  const calls: Array<[string, (id: string) => Promise<unknown>]> = [
+    ["warnings.get", (id) => client.warnings.get(id)],
+    ["warnings.geojson", (id) => client.warnings.geojson(id)],
+    ["archive.mapping", (id) => client.archive.mapping(id)],
+    ["archive.get", (id) => client.archive.get(id)],
+  ];
+  for (const [name, call] of calls) {
+    for (const id of ["", "  ", "a/b", "a\\b"]) {
+      await assert.rejects(call(id), NinaValidationError, `${name} ${JSON.stringify(id)}`);
+    }
+  }
+  await assert.rejects(client.archive.get(".json"), /Invalid identifier: Expected a non-empty value\./);
+  assert.equal(mt.calls.length, 0);
 });
 
 test("warnings.geojson requests the .geojson path and returns raw bytes", async () => {

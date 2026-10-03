@@ -10,6 +10,7 @@ import { RequestEngine, type EngineOptions, type RawResponse } from "./engine.js
 import { NinaSourceValues, type NinaSource } from "./enums.js";
 import { NinaApiError, NinaError, NinaNotFoundError } from "./errors.js";
 import { arsProblem } from "./ars.js";
+import { assertValid, identifierProblem } from "./validate.js";
 import type {
   MapWarning,
   WarningDetail,
@@ -46,10 +47,13 @@ class WarningsResource {
   constructor(private readonly engine: RequestEngine) {}
 
   /**
-   * The full CAP-derived warning for an identifier. A warning that is no longer
-   * live (or never existed) rejects with `NinaNotFoundError`.
+   * The full CAP-derived warning for an identifier. A blank identifier or one with a
+   * path separator rejects with `NinaValidationError` before any request (see
+   * `identifierProblem`); a warning that is no longer live (or never existed)
+   * rejects with `NinaNotFoundError`.
    */
   async get(identifier: string): Promise<WarningDetail> {
+    assertValid("identifier", identifier, identifierProblem);
     try {
       return await this.engine.getJson(`${API}/warnings/${enc(identifier)}.json`);
     } catch (err) {
@@ -58,10 +62,12 @@ class WarningsResource {
   }
 
   /**
-   * The warning's geometry as GeoJSON (returned as raw bytes). A warning that is no
-   * longer live (or never existed) rejects with `NinaNotFoundError`.
+   * The warning's geometry as GeoJSON (returned as raw bytes). The identifier is
+   * checked as for `get`; a warning that is no longer live (or never existed)
+   * rejects with `NinaNotFoundError`.
    */
   async geojson(identifier: string): Promise<RawResponse> {
+    assertValid("identifier", identifier, identifierProblem);
     try {
       return await this.engine.getRaw(`${API}/warnings/${enc(identifier)}.geojson`, ACCEPT_GEOJSON);
     } catch (err) {
@@ -74,19 +80,26 @@ class WarningsResource {
 class ArchiveResource {
   constructor(private readonly engine: RequestEngine) {}
 
-  /** Revision history for an archived MoWaS identifier. */
-  mapping(identifier: string): Promise<ArchiveMapping> {
+  /**
+   * Revision history for an archived MoWaS identifier. A blank identifier or one
+   * with a path separator rejects with `NinaValidationError` before any request.
+   */
+  async mapping(identifier: string): Promise<ArchiveMapping> {
+    assertValid("identifier", identifier, identifierProblem);
     return this.engine.getJson(`${API}/archive.mowas/${enc(identifier)}-mapping.json`);
   }
 
   /**
    * A specific archived MoWaS warning (same shape as a live warning). Takes a
    * revision identifier as `mapping()` lists it: its trailing `.json` is optional
-   * (the path adds one, so it is dropped rather than doubled).
+   * (the path adds one, so it is dropped rather than doubled). A blank identifier
+   * (also once the suffix is dropped) or one with a path separator rejects with
+   * `NinaValidationError` before any request.
    */
   async get(identifier: string): Promise<WarningDetail> {
+    assertValid("identifier", identifier, identifierProblem);
     const id = identifier.endsWith(".json") ? identifier.slice(0, -".json".length) : identifier;
-    if (id.trim() === "") throw new NinaError(`Invalid identifier ${JSON.stringify(identifier)}.`);
+    assertValid("identifier", id, identifierProblem);
     return this.engine.getJson(`${API}/archive.mowas/${enc(id)}.json`);
   }
 }
