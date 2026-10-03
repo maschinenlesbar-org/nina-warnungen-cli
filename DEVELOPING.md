@@ -72,9 +72,11 @@ new NinaClient({
 `.geojson`), `client.archive` (`.mapping` / `.get`), `client.reference`
 (`.notfalltipps` / `.eventCodes` / `.dataVersion`).
 
-`client.mapData(source)` rejects a source outside `NinaSourceValues` (possible from
-plain JavaScript or a cast) with a `NinaError` before any request, and encodes it as a
-path segment.
+`client.mapData(source)` checks the source with the exported `sourceProblem(source)`
+and rejects one outside `NinaSourceValues` (possible from plain JavaScript or a cast)
+with a `NinaValidationError` before any request, and encodes it as a path segment.
+The message quotes the value with `JSON.stringify`, so a control character in it is
+escaped. The CLI's `map-data` passes the argument straight to this method.
 
 `client.warnings.get` / `.geojson` and `client.archive.mapping` / `.get` check the
 identifier first with the exported `identifierProblem(id)` and reject a blank one or

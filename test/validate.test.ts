@@ -129,3 +129,12 @@ test("validateBaseUrl strips trailing slashes and throws NinaValidationError", a
   );
   assert.equal(lib.validateBaseUrl, validateBaseUrl);
 });
+
+test("sourceProblem accepts the NINA sources and names the allowed ones otherwise", async () => {
+  const { sourceProblem } = await import("../src/client/validate.js");
+  for (const ok of lib.NinaSourceValues) assert.equal(sourceProblem(ok), undefined, ok);
+  assert.equal(sourceProblem("DWD"), 'Invalid source "DWD". Expected one of: mowas, katwarn, biwapp, dwd, lhp, police.');
+  assert.equal(sourceProblem("toString"), 'Invalid source "toString". Expected one of: mowas, katwarn, biwapp, dwd, lhp, police.');
+  assert.equal(sourceProblem(String.fromCharCode(0x1b)), 'Invalid source "\\u001b". Expected one of: mowas, katwarn, biwapp, dwd, lhp, police.');
+  assert.equal(lib.sourceProblem, sourceProblem);
+});

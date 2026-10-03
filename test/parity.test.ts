@@ -216,3 +216,35 @@ test("parity: dashboard sends the identical request for a district key", async (
   assert.equal(cli.requests.length, 1);
   assert.deepEqual(l.requests, cli.requests);
 });
+
+// ---- Finding 6 (PAT-23): map-data sources -----------------------------------------
+
+test("parity: map-data rejects an unknown source with the library's message, control characters escaped", async () => {
+  const ESC = String.fromCharCode(0x1b);
+  const BEL = String.fromCharCode(0x07);
+  for (const source of [`a${ESC}]0;pwned${BEL}b`, 'a"b', "DWD", " dwd", "", "bogus"]) {
+    const label = JSON.stringify(source);
+    const { cli } = await (async () => {
+      const outcome = await parity(["--compact", "map-data", "--", source], (transport) =>
+        new NinaClient({ transport }).mapData(source as lib.NinaSource),
+      );
+      const error = assertBothRejected(outcome, label);
+      assert.equal(error.message, lib.sourceProblem(source), label);
+      return outcome;
+    })();
+    assert.ok(![...cli.err].some((c) => c === ESC || c === BEL), `${label}: raw control character on stderr`);
+  }
+});
+
+test("parity: map-data sends the identical request for a known source", async () => {
+  for (const source of lib.NinaSourceValues) {
+    const { cli, lib: l } = await parity(
+      ["--compact", "map-data", source],
+      (transport) => new NinaClient({ transport }).mapData(source),
+      () => jsonResponse([]),
+    );
+    assert.equal(cli.code, 0, source);
+    assert.equal(l.ok, true, source);
+    assert.deepEqual(l.requests, cli.requests, source);
+  }
+});

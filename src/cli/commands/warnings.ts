@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, assertEnum, renderJson, renderRaw } from "../shared.js";
-import { NinaSourceValues } from "../../client/enums.js";
+import { action, renderJson, renderRaw } from "../shared.js";
+import { NinaSourceValues, type NinaSource } from "../../client/enums.js";
 
 export function registerWarningCommands(program: Command, deps: CliDeps): void {
   program
@@ -18,8 +18,7 @@ export function registerWarningCommands(program: Command, deps: CliDeps): void {
     .description(`Current warnings from a source (${NinaSourceValues.join(" | ")})`)
     .action(
       action(deps, async ({ client, global }, [source]) => {
-        const s = assertEnum(source!, NinaSourceValues, "source");
-        renderJson(deps, global, await client.mapData(s));
+        renderJson(deps, global, await client.mapData(source as NinaSource));
       }),
     );
 

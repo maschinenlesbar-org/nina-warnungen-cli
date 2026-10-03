@@ -22,6 +22,7 @@ export {
   headerValueProblem,
   identifierProblem,
   nonBlankProblem,
+  sourceProblem,
 } from "./validate.js";
 export type { Problem } from "./validate.js";
 export {

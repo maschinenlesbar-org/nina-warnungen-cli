@@ -11,6 +11,7 @@
 //   rather than throw synchronously; constructors throw.
 
 import { NinaValidationError } from "./errors.js";
+import { NinaSourceValues } from "./enums.js";
 
 /** A validation rule: the reason `value` is invalid, or `undefined` when it is valid. */
 export type Problem<T = unknown> = (value: T) => string | undefined;
@@ -94,4 +95,14 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
   }
   if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
   return undefined;
+};
+
+/**
+ * A `mapData` source must be one of `NinaSourceValues` (an array lookup, so an
+ * inherited name such as `toString` is no source). The message quotes the value
+ * with JSON.stringify, so a control character in it is escaped, never printed raw.
+ */
+export const sourceProblem: Problem<unknown> = (value) => {
+  if ((NinaSourceValues as readonly unknown[]).includes(value)) return undefined;
+  return `Invalid source ${JSON.stringify(value)}. Expected one of: ${NinaSourceValues.join(", ")}.`;
 };

@@ -7,10 +7,10 @@
 //   client.dashboard(ars)          // alerts for a region (Amtlicher Regionalschlüssel)
 
 import { RequestEngine, type EngineOptions, type RawResponse } from "./engine.js";
-import { NinaSourceValues, type NinaSource } from "./enums.js";
-import { NinaApiError, NinaError, NinaNotFoundError, NinaValidationError } from "./errors.js";
+import type { NinaSource } from "./enums.js";
+import { NinaApiError, NinaNotFoundError, NinaValidationError } from "./errors.js";
 import { arsProblem } from "./ars.js";
-import { assertValid, identifierProblem } from "./validate.js";
+import { assertValid, identifierProblem, sourceProblem } from "./validate.js";
 import type {
   MapWarning,
   WarningDetail,
@@ -144,14 +144,11 @@ export class NinaClient {
   /**
    * Current warnings from one source, e.g. `mapData("dwd")`. A value outside
    * `NinaSourceValues` (possible from plain JavaScript or a cast) is rejected with a
-   * `NinaError` before any request.
+   * `NinaValidationError` before any request (see `sourceProblem`).
    */
   async mapData(source: NinaSource): Promise<MapWarning[]> {
-    if (!(NinaSourceValues as readonly unknown[]).includes(source)) {
-      throw new NinaError(
-        `Invalid source ${JSON.stringify(source)}. Expected one of: ${NinaSourceValues.join(", ")}.`,
-      );
-    }
+    const problem = sourceProblem(source);
+    if (problem !== undefined) throw new NinaValidationError(problem);
     return this.engine.getJson(`${API}/${enc(source)}/mapData.json`);
   }
 

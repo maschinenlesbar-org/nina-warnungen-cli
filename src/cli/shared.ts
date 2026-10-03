@@ -63,22 +63,6 @@ export function parseBaseUrl(value: string): string {
   return value;
 }
 
-/**
- * Validate a positional argument against an allowed set (commander does not
- * support .choices() on positional args). Throws a NinaError so run() prints a
- * clear message and exits 1.
- */
-export function assertEnum<T extends string>(
-  value: string,
-  allowed: readonly T[],
-  argName: string,
-): T {
-  if (!(allowed as readonly string[]).includes(value)) {
-    throw new NinaError(`Invalid ${argName} "${value}". Expected one of: ${allowed.join(", ")}.`);
-  }
-  return value as T;
-}
-
 export interface GlobalOptions {
   baseUrl?: string;
   timeout?: number;
