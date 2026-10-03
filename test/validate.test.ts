@@ -104,3 +104,28 @@ test("assertHeaderValue throws NinaValidationError naming the option", async () 
   );
   assert.equal(lib.assertHeaderValue, assertHeaderValue);
 });
+
+test("baseUrlProblem accepts an http(s) URL and rejects every other shape", async () => {
+  const { baseUrlProblem } = await import("../src/client/validate.js");
+  for (const ok of ["https://warnung.bund.de", "http://127.0.0.1:8080/nina/", "https://u:p@h.example"]) {
+    assert.equal(baseUrlProblem(ok), undefined, ok);
+  }
+  assert.equal(baseUrlProblem(1), "Expected a string.");
+  assert.equal(baseUrlProblem(""), "Expected an absolute http(s) URL.");
+  assert.equal(baseUrlProblem("x"), "Expected an absolute http(s) URL.");
+  assert.equal(baseUrlProblem(" https://h"), "A base URL cannot have surrounding whitespace.");
+  assert.equal(baseUrlProblem("https://h/a b"), "A base URL cannot contain whitespace or control characters.");
+  assert.equal(baseUrlProblem("ftp://h"), 'Unsupported scheme "ftp:". Expected an http(s) URL.');
+  assert.equal(baseUrlProblem("https://h/?"), "A base URL cannot have a query (?) or fragment (#).");
+  assert.equal(lib.baseUrlProblem, baseUrlProblem);
+});
+
+test("validateBaseUrl strips trailing slashes and throws NinaValidationError", async () => {
+  const { validateBaseUrl } = await import("../src/client/engine.js");
+  assert.equal(validateBaseUrl("https://h.example/nina//"), "https://h.example/nina");
+  assert.throws(
+    () => validateBaseUrl("ftp://h"),
+    (err: unknown) => err instanceof NinaValidationError && err.message === 'Invalid baseUrl: Unsupported scheme "ftp:". Expected an http(s) URL.',
+  );
+  assert.equal(lib.validateBaseUrl, validateBaseUrl);
+});

@@ -4,8 +4,8 @@
 
 import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { NinaApiError, NinaNetworkError, NinaParseError, NinaValidationError, redactUrl } from "./errors.js";
-import { assertValid, headerValueProblem } from "./validate.js";
+import { NinaApiError, NinaParseError, NinaValidationError, redactUrl } from "./errors.js";
+import { assertValid, baseUrlProblem, headerValueProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://warnung.bund.de";
 const DEFAULT_USER_AGENT = "nina-warnungen-cli";
@@ -17,7 +17,11 @@ export interface RawResponse {
 }
 
 export interface EngineOptions {
-  /** Base URL of the API. Defaults to https://warnung.bund.de */
+  /**
+   * Base URL of the API. Defaults to https://warnung.bund.de. A value that breaks a
+   * rule of {@link validateBaseUrl} (blank, whitespace or control characters, not
+   * http(s), a query or fragment) throws a `NinaValidationError` from the constructor.
+   */
   baseUrl?: string;
   /** Swappable transport. Defaults to the built-in node http/https transport. */
   transport?: Transport;
@@ -149,6 +153,18 @@ export function assertHeaderValue(name: string, value: string): string {
   return assertValid(name, value, headerValueProblem);
 }
 
+/**
+ * Check a base URL against every rule of {@link baseUrlProblem} — blank, whitespace
+ * or control characters, unparseable, a scheme other than `http:`/`https:`, a query
+ * or fragment — and return it with trailing slashes stripped. A bad value throws a
+ * NinaValidationError ("Invalid <name>: <reason>"): it is a configuration error, not
+ * a transport failure. The raw value is checked, before the slash strip, so
+ * "https://h/ " cannot slip past it.
+ */
+export function validateBaseUrl(raw: string, name = "baseUrl"): string {
+  return assertValid(name, raw, baseUrlProblem).replace(/\/+$/, "");
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -163,7 +179,9 @@ export class RequestEngine {
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: EngineOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+    // Only an omitted baseUrl selects the default; any given value must pass the
+    // library's base-URL rules here, before any request.
+    this.baseUrl = validateBaseUrl(options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl);
     this.transport = options.transport ?? nodeHttpTransport;
     // Only an omitted userAgent selects the default: a blank one is an error, not
     // a blank header, and a malformed one fails here rather than at request time.
@@ -181,34 +199,14 @@ export class RequestEngine {
     this.sleep = options.sleep ?? realSleep;
   }
 
-  /** Build a fully-qualified URL from a path and optional query parameters. */
+  /**
+   * Build a fully-qualified URL from a path and optional query parameters. The base
+   * URL was checked by the constructor (validateBaseUrl): an http(s) URL without a
+   * query or fragment, so the path is appended as text. Its scheme is enforced
+   * there, transport-independently, so a library user who injects a custom
+   * Transport still cannot reach a file:/ftp: driver.
+   */
   buildUrl(path: string, query?: QueryParams): string {
-    // Validate the base URL up front so a malformed `baseUrl` (e.g. a stray
-    // `--base-url notaurl`) yields a clear message naming the offending value,
-    // instead of an opaque "Invalid URL" that carries the full request path and
-    // reads as if the path were at fault.
-    let parsed: URL;
-    try {
-      parsed = new URL(this.baseUrl);
-    } catch {
-      throw new NinaNetworkError(`Invalid base URL: ${JSON.stringify(this.baseUrl)}`);
-    }
-    // Enforce the http(s) scheme here, transport-independently, so the guarantee
-    // holds even for a library user who injects a custom Transport that doesn't
-    // re-check (the default transport rejects non-http(s) too, but a swapped-in
-    // one might not, and could otherwise reach a file:/ftp: driver).
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      throw new NinaNetworkError(
-        `Unsupported base URL scheme "${parsed.protocol}" (only http: and https: are allowed).`,
-      );
-    }
-    // The path is appended as text, so a query or fragment in the base URL would
-    // swallow it and every call would fetch the base URL itself.
-    if (/[?#]/.test(this.baseUrl)) {
-      throw new NinaNetworkError(
-        `Base URL must not contain a query or fragment: ${redactUrl(this.baseUrl)}`,
-      );
-    }
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const qs = query ? buildQueryString(query) : "";
     return `${this.baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;

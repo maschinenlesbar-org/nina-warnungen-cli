@@ -5,7 +5,7 @@ import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import { NinaError } from "../client/errors.js";
-import { headerValueProblem } from "../client/validate.js";
+import { baseUrlProblem, headerValueProblem } from "../client/validate.js";
 import type { EngineOptions, RawResponse } from "../client/engine.js";
 
 /**
@@ -51,27 +51,15 @@ export function parseHeaderValue(value: string): string {
 }
 
 /**
- * commander value-parser for `--base-url`: an absolute http(s) URL. A `file:`,
- * `ftp:` or malformed value is a usage error at parse time (the engine and the
- * default transport still enforce the scheme for direct library users).
+ * commander value-parser for `--base-url`. The rule is the library's
+ * {@link baseUrlProblem}: an absolute `http:`/`https:` URL without a query,
+ * fragment, whitespace or control characters. A bad value is a usage error here, as
+ * it is a NinaValidationError from the client constructor; the CLI keeps no rules of
+ * its own.
  */
 export function parseBaseUrl(value: string): string {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new InvalidArgumentError("Expected an absolute http(s) URL.");
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new InvalidArgumentError(
-      `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`,
-    );
-  }
-  // The request path is appended to the base URL as text, so a query or fragment
-  // would swallow it: every command would fetch the base URL itself.
-  if (/[?#]/.test(value)) {
-    throw new InvalidArgumentError("A base URL cannot have a query (?) or fragment (#).");
-  }
+  const problem = baseUrlProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
   return value;
 }
 

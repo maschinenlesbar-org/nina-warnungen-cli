@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RequestEngine, parseRetryAfter } from "../src/client/engine.js";
-import { NinaApiError, NinaNetworkError, NinaParseError } from "../src/client/errors.js";
+import { NinaApiError, NinaNetworkError, NinaParseError, NinaValidationError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 import type { HttpResponse } from "../src/client/http.js";
 
@@ -27,29 +27,33 @@ test("buildUrl normalises the path and appends the query", () => {
   );
 });
 
-test("buildUrl rejects a malformed base URL with a clear, base-only message", () => {
-  const e = new RequestEngine({ baseUrl: "notaurl" });
+test("the constructor rejects a malformed base URL as NinaValidationError, not a network error", () => {
   assert.throws(
-    () => e.buildUrl("/api31/dwd/mapData.json"),
+    () => new RequestEngine({ baseUrl: "notaurl" }),
     (err: unknown) =>
-      err instanceof NinaNetworkError &&
-      /Invalid base URL: "notaurl"/.test(err.message) &&
-      // the diagnostic must NOT carry the request path (which read as if at fault)
-      !/mapData/.test(err.message),
+      err instanceof NinaValidationError &&
+      !(err instanceof NinaNetworkError) &&
+      err.message === "Invalid baseUrl: Expected an absolute http(s) URL.",
   );
 });
 
-test("buildUrl rejects a non-http(s) base URL scheme transport-independently", () => {
+test("the constructor rejects a non-http(s) base URL scheme transport-independently", () => {
   // The scheme guard lives in the engine (not only the default transport), so a
   // library user with a custom Transport still cannot reach a file:/ftp: driver.
   for (const bad of ["file:///etc/passwd", "ftp://example.test/x"]) {
-    const e = new RequestEngine({ baseUrl: bad });
     assert.throws(
-      () => e.buildUrl("/x"),
-      (err: unknown) =>
-        err instanceof NinaNetworkError && /Unsupported base URL scheme/.test(err.message),
+      () => new RequestEngine({ baseUrl: bad }),
+      (err: unknown) => err instanceof NinaValidationError && /Unsupported scheme/.test(err.message),
     );
   }
+});
+
+test("the constructor rejects every malformed base-URL shape, with no request", () => {
+  const mt = makeMockTransport(() => jsonResponse({}));
+  for (const bad of ["", " https://h.example", "https://h.example/ ", "https://h.example/p\t", "ftp://h.example", "https://h.example#f"]) {
+    assert.throws(() => new RequestEngine({ baseUrl: bad, transport: mt.transport }), NinaValidationError, JSON.stringify(bad));
+  }
+  assert.equal(mt.calls.length, 0);
 });
 
 test("getJson parses a JSON body", async () => {
@@ -254,14 +258,13 @@ test("parseRetryAfter reads delay-seconds and IMF-fixdates only", () => {
   }
 });
 
-test("buildUrl rejects a base URL with a query or fragment, userinfo redacted", () => {
+test("the constructor rejects a base URL with a query or fragment, without echoing userinfo", () => {
   for (const bad of ["https://u:secret@example.test/?x=1", "https://example.test/#f"]) {
-    const e = new RequestEngine({ baseUrl: bad });
     assert.throws(
-      () => e.buildUrl("/x"),
+      () => new RequestEngine({ baseUrl: bad }),
       (err: unknown) =>
-        err instanceof NinaNetworkError &&
-        /Base URL must not contain a query or fragment/.test(err.message) &&
+        err instanceof NinaValidationError &&
+        err.message === "Invalid baseUrl: A base URL cannot have a query (?) or fragment (#)." &&
         !err.message.includes("secret"),
     );
   }

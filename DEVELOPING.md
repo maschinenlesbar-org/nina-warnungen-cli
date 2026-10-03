@@ -220,14 +220,17 @@ non-2xx status, avoiding header replay to a redirect target.
 `nina --base-url <any-http(s)-host> -o <file> ...` is effectively a general
 "fetch this URL and write it to a file" tool. Only `http`/`https` are allowed
 (`file:`/`ftp:` are rejected) and redirects are never followed, but point it
-only at hosts you trust. On the CLI, `--base-url` is validated at parse time
-(`parseBaseUrl`), so a `file:`, `ftp:` or malformed value, or one with a query
-(`?`) or fragment (`#`) — which would swallow the appended request path — is a usage
-error before any request (`RequestEngine.buildUrl` refuses the latter for library
-callers too). Below the CLI the `http:`/`https:` scheme is enforced in
-**two** more places — the default transport *and* `RequestEngine.buildUrl` — so
-the guarantee holds transport-independently: a library user who injects a
-custom `Transport` still cannot reach a `file:`/`ftp:` driver via the base URL.
+only at hosts you trust. The `RequestEngine` constructor checks the base URL with
+the exported `validateBaseUrl` / `baseUrlProblem` and throws a `NinaValidationError`
+(`Invalid baseUrl: …`) — a configuration error, not a `NinaNetworkError` — before
+any request: a blank value, surrounding or inner whitespace and control characters,
+an unparseable value, a scheme other than `http:`/`https:`, and a query (`?`) or
+fragment (`#`), which would swallow the appended request path. The CLI's
+`--base-url` parser (`parseBaseUrl`) calls the same rule, so a bad value is a usage
+error there. The `http:`/`https:` scheme is enforced again, per request, by the
+default transport (as a `NinaNetworkError`); the constructor check alone already
+holds transport-independently, so a library user who injects a custom `Transport`
+still cannot reach a `file:`/`ftp:` driver via the base URL.
 
 ## Testing
 

@@ -141,3 +141,54 @@ test("parity: a sendable User-Agent goes out unchanged from CLI and library", as
     assert.deepEqual(l.requests, cli.requests);
   }
 });
+
+// ---- Finding 5 (PAT-2, PAT-1): the base URL ----------------------------------------
+
+test("parity: a malformed --base-url / baseUrl is rejected by both, as a validation error", async () => {
+  const cases: Array<[string, RegExp]> = [
+    ["ftp://h.example", /Unsupported scheme "ftp:"\. Expected an http\(s\) URL\./],
+    ["file:///etc", /Unsupported scheme "file:"\. Expected an http\(s\) URL\./],
+    ["notaurl", /Expected an absolute http\(s\) URL\./],
+    ["", /Expected an absolute http\(s\) URL\./],
+    ["   ", /Expected an absolute http\(s\) URL\./],
+    ["https://h.example/#f", /A base URL cannot have a query \(\?\) or fragment \(#\)\./],
+    ["https://h.example/?q=1", /A base URL cannot have a query \(\?\) or fragment \(#\)\./],
+    ["https://h.example/api?", /A base URL cannot have a query \(\?\) or fragment \(#\)\./],
+    [" https://h.example", /A base URL cannot have surrounding whitespace\./],
+    ["https://h.example/ ", /A base URL cannot have surrounding whitespace\./],
+    ["https://h.example/p\tq", /A base URL cannot contain whitespace or control characters\./],
+  ];
+  for (const [bad, message] of cases) {
+    const { cli, lib: l } = await parity(
+      ["--base-url", bad, "--compact", "map-data", "dwd"],
+      mapData({ baseUrl: bad }),
+      () => jsonResponse([]),
+    );
+    const label = JSON.stringify(bad);
+    assert.equal(cli.code, 1, label);
+    assert.deepEqual(cli.requests, [], label);
+    assert.match(cli.err, message, label);
+    assert.equal(l.ok, false, label);
+    assert.deepEqual(l.requests, [], label);
+    const error = (l as { error: unknown }).error;
+    assert.ok(error instanceof NinaValidationError, `${label}: ${String(error)}`);
+    assert.ok(!(error instanceof lib.NinaNetworkError), label);
+    assert.match(error.message, /^Invalid baseUrl: /, label);
+    assert.match(error.message, message, label);
+  }
+});
+
+test("parity: a base URL with a path prefix (a mirror) is used the same by both", async () => {
+  const { cli, lib: l } = await parity(
+    ["--base-url", "https://mirror.test/nina/", "--compact", "map-data", "dwd"],
+    mapData({ baseUrl: "https://mirror.test/nina/" }),
+    () => jsonResponse([]),
+  );
+  assert.equal(cli.code, 0);
+  assert.equal(cli.requests[0]!.url, "https://mirror.test/nina/api31/dwd/mapData.json");
+  assert.deepEqual(l.requests, cli.requests);
+});
+
+test("the NinaClient constructor rejects a bad baseUrl synchronously", () => {
+  assert.throws(() => new NinaClient({ baseUrl: "ftp://h.example" }), NinaValidationError);
+});
