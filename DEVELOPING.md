@@ -180,6 +180,10 @@ turn the reason into a usage error, so the CLI keeps no rules of its own. Tests
 check this with the `parity()` helper in `test/helpers.ts`, which sends one input
 through `run()` and through the library on one recording mock transport.
 
+**Charset.** JSON bodies are decoded by the charset their `Content-Type` names (UTF-8
+when it names none) with `TextDecoder`, which also drops a leading byte order mark; an
+unknown charset label is a `NinaParseError`. Raw downloads (`warning geojson`) stay bytes.
+
 **Response shapes.** Every client method checks the 2xx body against the shape its
 endpoint documents before returning it: `mapData` and `dashboard` an array of objects
 (`[]` is a real answer: no warnings), `warnings.get` and `archive.get` an object with a
