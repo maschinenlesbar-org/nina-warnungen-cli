@@ -228,8 +228,10 @@ only at hosts you trust. The `RequestEngine` constructor checks the base URL wit
 the exported `validateBaseUrl` / `baseUrlProblem` and throws a `NinaValidationError`
 (`Invalid baseUrl: …`) — a configuration error, not a `NinaNetworkError` — before
 any request: a blank value, surrounding or inner whitespace and control characters,
-an unparseable value, a scheme other than `http:`/`https:`, and a query (`?`) or
-fragment (`#`), which would swallow the appended request path. The CLI's
+an unparseable value, a scheme other than `http:`/`https:`, a query (`?`) or
+fragment (`#`), which would swallow the appended request path, and a `%` in the user
+name or password that doesn't start an escape (write a literal `%` as `%25`; Node would
+fail to decode it for the Authorization header at request time). The CLI's
 `--base-url` parser (`parseBaseUrl`) calls the same rule, so a bad value is a usage
 error there. The `http:`/`https:` scheme is enforced again, per request, by the
 default transport (as a `NinaNetworkError`); the constructor check alone already
@@ -264,7 +266,7 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`shared.test.ts`** — the `parseIntArg` value parser (accepts plain decimals, rejects everything else).
 - **`validate.test.ts`** — `assertValid`, the `NinaValidationError` exit-code mapping and the `parity()` helper.
 - **`conformance-p*.test.ts`** — the workspace's shared conformance checks from the 2026-10-05 review
-  (P1 credential redaction in CLI output, P2 in library objects, …); copied across the `*-cli` repos, only the adapter
+  (P1 credential redaction in CLI output, P2 in library objects, P4 base-URL validation, …); copied across the `*-cli` repos, only the adapter
   block at the top differs.
 
 ## Continuous integration

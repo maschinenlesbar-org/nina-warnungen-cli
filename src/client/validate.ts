@@ -77,7 +77,8 @@ export const headerValueProblem: Problem<unknown> = (value) => {
  * whitespace and drops tab/CR/LF silently, so the raw string is checked rather
  * than the parsed one; request paths are appended to the base's path as text, so
  * a `?` or `#` would swallow them and every call would fetch the base URL itself.
- * Userinfo (`user:pw@`) is allowed, and redacted in messages.
+ * Userinfo (`user:pw@`) is allowed, and redacted in messages; a `%` in it must start a
+ * valid escape (`%25` for a literal one), as Node decodes it for the Authorization header.
  */
 export const baseUrlProblem: Problem<unknown> = (value) => {
   if (typeof value !== "string") return "Expected a string.";
@@ -94,6 +95,15 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
     return `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`;
   }
   if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
+  // Node decodes the userinfo into the Authorization header and throws "URI malformed" for a
+  // "%" that isn't an escape — at request time, as a network error. Reject it here.
+  for (const part of [url.username, url.password]) {
+    try {
+      decodeURIComponent(part);
+    } catch {
+      return 'The user name or password has a "%" that is not followed by two hex digits; write a literal "%" as %25.';
+    }
+  }
   return undefined;
 };
 
