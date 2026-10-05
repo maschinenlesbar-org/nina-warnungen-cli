@@ -3,7 +3,7 @@
 Real examples for the Claude Code skills of the `nina` plugin, one per skill: a request,
 the `nina` commands the skill ran, and the answer Claude gave.
 
-Every example ran against the live API on 15 September 2026 with `nina` 0.0.5.
+Every example ran against the live API on 6 October 2026, shortly before 1:00, with `nina` 0.3.0.
 The data changes, so your results will differ; the ids and keys shown work for trying the
 requests yourself. Long lists are shortened.
 
@@ -13,37 +13,38 @@ Skills: [nina-region-watch](#nina-region-watch) · [nina-warning-briefing](#nina
 
 ## nina-region-watch
 
-> There's a strange smell in Bad Oeynhausen tonight. Is there an official warning? Keep an eye on it for me.
+> It smells of smoke in Breitungen in the Südharz tonight. Is there an official warning? Keep an eye on it for me.
 
 ```bash
-nina --compact dashboard 057700000000 > dash-mi.json                          # 22:43: 1 entry
-nina --compact warning get mow.DE-NW-MI-SE073-20260915-73-000 > mi-warn.json  # areaDesc and advice; no expires
-nina --compact dashboard 057700000000 > dash-mi2.json                         # 22:48: same id, same payload.hash
+nina --compact dashboard 150870000000 > dash-msh.json                       # 00:54: 1 entry
+nina --compact warning get mow.DE-ST-MSH-W058-20261005-000 > msh-warn.json  # areaDesc and advice; no expires
+nina --compact dashboard 150870000000 > dash-msh2.json                      # 00:58: same id, same payload.hash
 ```
 
-Bad Oeynhausen belongs to Kreis Minden-Lübbecke, so the skill used the district key
-`057700000000` (Nordrhein-Westfalen 05, Detmold 7, district 70). The entry had no `effective`,
-and `payload.data.area` was an encoded reference (`{"type":"ZGEM",…}`), so the time came from
-`sent` and the area and advice from `warning get`, which gave no `expires`. To keep watching,
-the skill fetched the dashboard again five minutes later and compared `id` and `payload.hash`.
+Breitungen (Südharz) belongs to the Landkreis Mansfeld-Südharz, as the warning id's `DE-ST-MSH`
+also says, so the skill used the district key `150870000000` (Sachsen-Anhalt 15, no
+Regierungsbezirk 0, district 87). The entry had no `effective`, and `payload.data.area` was an
+encoded reference (`{"type":"GRID",…}`), so the time came from `sent` and the area and advice
+from `warning get`, which gave no `expires`; its `instruction` and `description` came with
+`<br/>` tags, turned into sentences. To keep watching, the skill fetched the dashboard again four
+minutes later and compared `id` and `payload.hash`.
 
 ```
-Kreis Minden-Lübbecke (ARS 057700000000): 1 active warning
+Landkreis Mansfeld-Südharz (ARS 150870000000): 1 active warning
 
- MINOR  Geruchsbelästigung in Bad Oeynhausen / Süd- und Innenstadtbereich - Bad Oeynhausen
-        MOWAS · Alert · urgency Immediate · sent 15.09. 22:26, no expiry given
-        area: Bad Oeynhausen
-        Integrierte Leitstelle Kreis Minden-Lübbecke: an incident is causing an odour in the
-        town, no health risk. Close windows and doors, switch off ventilation and air
-        conditioning, keep the emergency lines free.
-        id mow.DE-NW-MI-SE073-20260915-73-000
+ MINOR  Rauchbelästigung durch Brand - Breitungen
+        MOWAS · Alert · urgency Immediate · sent 05.10. 03:31, no expiry given
+        area: Breitungen
+        A straw store is on fire and smoke and smell reach the village. There is no danger;
+        keep windows and doors closed as a precaution.
+        id mow.DE-ST-MSH-W058-20261005-000
 
-Watching the dashboard: 1 entry, payload.hash 82b0da27… stored at 22:43.
-  22:48  same id, same payload.hash, msgType still Alert: no new, changed or cleared warnings.
+Watching the dashboard: 1 entry, payload.hash 5cb9d83b… stored at 00:54.
+  00:58  same id, same payload.hash, msgType still Alert: no new, changed or cleared warnings.
 ```
 
 Next steps offered: another check in a few minutes, and
-`nina warning geojson mow.DE-NW-MI-SE073-20260915-73-000` to map the affected area.
+`nina warning geojson mow.DE-ST-MSH-W058-20261005-000` to map the affected area.
 
 ## nina-warning-briefing
 
@@ -51,57 +52,65 @@ Next steps offered: another check in a few minutes, and
 
 ```bash
 nina --compact sources
-nina --compact map-data mowas > mowas.json        # 4 entries
-nina --compact map-data katwarn > katwarn.json    # 1
+nina --compact map-data mowas > mowas.json        # 11 entries
+nina --compact map-data katwarn > katwarn.json    # []
 nina --compact map-data biwapp > biwapp.json      # []
 nina --compact map-data dwd > dwd.json            # []
 nina --compact map-data lhp > lhp.json            # []
 nina --compact map-data police > police.json      # []
-nina --compact warning get kat.6aa7f6b0995efd5eae12108e_public_topics > kat.json
 ```
 
-Three of the four MoWaS entries were `Cancel` messages (Entwarnung) and were dropped. The one
-Severe warning had `instruction: null`, so the skill took the advice from its `description`.
+One of the eleven MoWaS entries was a `Cancel` (Entwarnung) and was dropped. None of the other
+ten had an `expiresDate`, so all count as active. All were `Minor` and `Immediate`, and MoWaS was
+the only source with entries, so the skill listed them, most recent first, instead of giving only
+a count. No warning was `Severe` or `Extreme`, so it fetched no detail with `warning get`.
 
 ```
-Germany: 1 Severe, 1 Minor active
-(4 MoWaS / 1 KATWARN / 0 BIWAPP / 0 DWD / 0 flood / 0 police; 3 cancellations dropped)
+Germany: 10 Minor active, nothing Severe or Extreme
+(11 MoWaS / 0 KATWARN / 0 BIWAPP / 0 DWD / 0 flood / 0 police; 1 cancellation dropped)
 
- SEVERE  Vogelsbergkreis meldet: Warnung Trinkwasserunfall. Gültig ab 14.09.2026, 15:29. (KATWARN)
-         started 14.09. 15:29, no expiry given · area: Teile von Lauterbach
-         Tap water is cloudy: boil it before drinking, cooking or making drinks; fine for
-         washing and flushing. Expected to last about 4 days.
- MINOR   1. AKTUALISIERUNG: Bakteriologische Beeinträchtigung des Trinkwassers - Chlorung -
-         Biringen, Fürweiler, Gerlfangen und Oberesch - Gde. ReSi (MoWaS)
-         started 04.09. 13:05, no expiry given
+ MINOR  BOMBENENTSCHÄRFUNG - Strand Seebad Ahlbeck                          since 05.10. 08:25
+ MINOR  Rauchbelästigung durch Brand - Breitungen                           since 05.10. 03:31
+ MINOR  Notversorgung und Wiederherstellung der Gasversorgung - Stadt Greiz since 02.10. 21:50
+ MINOR  Warnung vor Wasserkontakt am südlichen Bleilochstausee              since 01.10. 21:29
+ MINOR  Abkochgebot für Trinkwasser … Teile von Wolnzach, Geisenfeld, Rohrbach, Ernsgaden
+        & Vohburg                                                           since 01.10. 18:29
+ MINOR  Trinkwasserverunreinigung - Winzerhausen Holzweiler Hof             since 01.10. 11:29
+ MINOR  Trinkwasserverunreinigung - Abkochgebot … Geisfeld (Strullendorf)   since 28.09. 14:46
+ MINOR  Vorsorgliches Abkochgebot für Trinkwasser in Teilen Wiesbadens      since 26.09. 14:54
+ MINOR  Verunreinigung des Trink- / Leitungswassers - Hambrücken            since 25.09. 09:01
+ MINOR  1. AKTUALISIERUNG: Bakteriologische Beeinträchtigung des Trinkwassers … Gde. ReSi
+                                                                            since 04.09. 13:05
+ All from MoWaS, urgency Immediate, no expiry given.
 
-Recently cleared: Weltkriegsbombe in Elsterwerda; boil-water notices for Riedering and for
-Ehrenberg-Wüstensachsen/Melperts.
+Recently cleared: Rauchgase in Geldern.
 ```
 
-Next steps offered: `nina warning get mow.DE-SL-SLS-W038-20260904-000` for the Saarland notice.
+Next steps offered: `nina warning get <id>` for the advice of any of them, for example the
+Ahlbeck bomb disposal (`mow.DE-MV-HGW-W005-20261005-000`).
 
 ## nina-warning-map
 
-> Show me on a map which part of Lauterbach the boil-water warning covers.
+> Show me on a map which part of Wiesbaden the boil-water notice covers.
 
 ```bash
-nina --compact map-data katwarn > katwarn.json
-nina --compact warning get kat.6aa7f6b0995efd5eae12108e_public_topics > kat.json   # areaDesc for the label
-nina warning geojson kat.6aa7f6b0995efd5eae12108e_public_topics -o lauterbach-trinkwasser.geojson
+nina --compact map-data mowas > mowas-map.json
+nina --compact warning get mow.DE-HE-WI-W097-20260926-000 > wi.json   # areaDesc for the label
+nina warning geojson mow.DE-HE-WI-W097-20260926-000 -o wiesbaden-abkochgebot.geojson
 ```
 
-The warning id came from the KATWARN feed by matching the Vogelsbergkreis headline. The CLI
-confirmed `Wrote 1319 bytes`, and the file needed no coordinate fix-up.
+The warning id came from the MoWaS feed by matching the Wiesbaden headline. The CLI confirmed
+`Wrote 1377 bytes`, and the file needed no coordinate fix-up.
 
 ```
-Wrote lauterbach-trinkwasser.geojson (1,319 bytes): one FeatureCollection, 1 feature
+Wrote wiesbaden-abkochgebot.geojson (1,377 bytes): one FeatureCollection, 1 feature
 
-  geometry:    1 Polygon, 61 vertices, [lon, lat] order
-  extent:      lon 9.4124–9.4302, lat 50.6709–50.6822 (roughly 1.3 × 1.3 km)
-  properties:  warnId, fillColor #B01917, fillOpacity 0.5, strokeColor, strokeOpacity,
+  geometry:    1 Polygon, 65 vertices, [lon, lat] order
+  extent:      lon 8.2347–8.2610, lat 50.0752–50.0912 (roughly 1.9 × 1.8 km)
+  properties:  warnId, fillColor #FB8C00, fillOpacity 0.5, strokeColor, strokeOpacity,
                strokeWeight, zIndex (rendering hints only, no headline or severity)
-  covers:      „Teile von Lauterbach" (areaDesc from warning get), KATWARN, Severe
+  covers:      „Wiesbaden-Mitte (Teile), Wiesbaden-Nordost (Teile)" (areaDesc from
+               warning get), MoWaS, Minor
 ```
 
 Next steps offered: drag the file into https://geojson.io, or merge the headline and severity
