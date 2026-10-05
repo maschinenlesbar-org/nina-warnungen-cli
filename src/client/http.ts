@@ -8,7 +8,7 @@
 
 import http from "node:http";
 import https from "node:https";
-import { NinaNetworkError } from "./errors.js";
+import { NinaNetworkError, redactUrl } from "./errors.js";
 
 /**
  * Turn an opaque Node transport error into a message that points at the likely
@@ -69,7 +69,7 @@ export const nodeHttpTransport: Transport = (request) =>
     try {
       url = new URL(request.url);
     } catch {
-      reject(new NinaNetworkError(`Invalid URL: ${request.url}`));
+      reject(new NinaNetworkError(`Invalid URL: ${redactUrl(request.url)}`));
       return;
     }
 
@@ -77,7 +77,7 @@ export const nodeHttpTransport: Transport = (request) =>
     // typed error instead of letting Node throw an opaque ERR_INVALID_PROTOCOL
     // (and so this never reaches the file:/ftp:/etc. drivers).
     if (url.protocol !== "http:" && url.protocol !== "https:") {
-      reject(new NinaNetworkError(`Unsupported protocol "${url.protocol}" in URL: ${request.url}`));
+      reject(new NinaNetworkError(`Unsupported protocol "${url.protocol}" in URL: ${redactUrl(request.url)}`));
       return;
     }
 

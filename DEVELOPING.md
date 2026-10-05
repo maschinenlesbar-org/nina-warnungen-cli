@@ -243,7 +243,12 @@ output: `run.ts` (`withRedactedOutput`) takes the exact userinfo of every argume
 commander's usage errors, which echo a rejected `--base-url` value, and its own
 messages — so a password with spaces, quotes, `#`, `?` or `/` is caught as well as an
 ordinary one. `redactUrl` (exported) falls back to the same text-based cut for a value
-that doesn't parse as a URL.
+that doesn't parse as a URL. The library keeps the base URL in a real `#private` field,
+so `console.log(client)`, `util.inspect` and `JSON.stringify` never show it;
+`NinaApiError.url` holds the request URL with its userinfo redacted; and the engine scrubs
+the userinfo (raw and percent-decoded) from error bodies and details, transport error text
+and the `cause` chain. Whatever a custom transport throws (a string, fetch's `TypeError`)
+reaches the caller as a `NinaNetworkError`, never raw.
 
 ## Testing
 
@@ -259,7 +264,7 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`shared.test.ts`** — the `parseIntArg` value parser (accepts plain decimals, rejects everything else).
 - **`validate.test.ts`** — `assertValid`, the `NinaValidationError` exit-code mapping and the `parity()` helper.
 - **`conformance-p*.test.ts`** — the workspace's shared conformance checks from the 2026-10-05 review
-  (P1 credential redaction in CLI output, …); copied across the `*-cli` repos, only the adapter
+  (P1 credential redaction in CLI output, P2 in library objects, …); copied across the `*-cli` repos, only the adapter
   block at the top differs.
 
 ## Continuous integration

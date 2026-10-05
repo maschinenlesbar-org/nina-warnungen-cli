@@ -18,6 +18,7 @@ export class NinaError extends Error {
 export class NinaApiError extends NinaError {
   readonly status: number;
   readonly detail: string | undefined;
+  /** The request URL, absolute, with any userinfo redacted (`https://***@host/…`). */
   readonly url: string;
   readonly method: string;
   readonly body: string;
@@ -42,11 +43,11 @@ export class NinaApiError extends NinaError {
     }
     const detailPart = parts.length > 0 ? `: ${parts.join("; ")}` : "";
     // Surface only the request path in the message, not the full URL: the base
-    // URL may carry credentials (userinfo) and is noisy. The complete URL stays
-    // available on the `.url` property for programmatic inspection.
+    // URL may carry credentials (userinfo) and is noisy. The `.url` property keeps the
+    // absolute URL with its userinfo redacted, so logging the error can't leak it.
     super(`HTTP ${args.status} for ${args.method} ${safeTarget(args.url)}${detailPart}`);
     this.status = args.status;
-    this.url = args.url;
+    this.url = redactUrl(args.url);
     this.method = args.method;
     this.body = args.body;
     this.detail = args.detail;

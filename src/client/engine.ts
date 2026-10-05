@@ -2,9 +2,18 @@
 // requests via a Transport, applies retry/backoff for transient statuses
 // (429, 503), and decodes responses.
 
-import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
+import { MAX_TIMEOUT_MS, nodeHttpTransport, type HttpResponse, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { NinaApiError, NinaParseError, NinaValidationError, redactUrl } from "./errors.js";
+import {
+  NinaApiError,
+  NinaError,
+  NinaNetworkError,
+  NinaParseError,
+  NinaValidationError,
+  credentialsIn,
+  redactCredentials,
+  redactUrl,
+} from "./errors.js";
 import { assertValid, baseUrlProblem, headerValueProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://warnung.bund.de";
@@ -169,7 +178,12 @@ const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 export class RequestEngine {
-  private readonly baseUrl: string;
+  // A real private field (not TypeScript's `private`): util.inspect, console.log and
+  // JSON.stringify of a client never show it, so a password in the base URL can't be
+  // logged by accident.
+  readonly #baseUrl: string;
+  /** The base URL's userinfo, raw and percent-decoded, for scrubbing server and transport text. */
+  readonly #credentials: string[];
   private readonly transport: Transport;
   private readonly userAgent: string;
   private readonly timeoutMs: number;
@@ -181,7 +195,14 @@ export class RequestEngine {
   constructor(options: EngineOptions = {}) {
     // Only an omitted baseUrl selects the default; any given value must pass the
     // library's base-URL rules here, before any request.
-    this.baseUrl = validateBaseUrl(options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl);
+    this.#baseUrl = validateBaseUrl(options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl);
+    this.#credentials = credentialsIn(this.#baseUrl).flatMap((raw) => {
+      try {
+        return [raw, decodeURIComponent(raw)];
+      } catch {
+        return [raw];
+      }
+    });
     this.transport = options.transport ?? nodeHttpTransport;
     // Only an omitted userAgent selects the default: a blank one is an error, not
     // a blank header, and a malformed one fails here rather than at request time.
@@ -200,6 +221,51 @@ export class RequestEngine {
   }
 
   /**
+   * `text` without the base URL's credentials: server text (an error body that echoes the
+   * request URL) and transport text (fetch's "Failed to fetch <url>") can carry them.
+   */
+  private scrub(text: string): string {
+    return this.#credentials.length === 0 ? text : redactCredentials(text, this.#credentials);
+  }
+
+  /**
+   * A transport failure as the `cause` of the error the engine raises: the original when its
+   * text carries no credentials, otherwise a copy with them scrubbed (message, `code` and the
+   * cause chain kept), so logging the error with its causes can't reveal the base URL's
+   * password.
+   */
+  private scrubCause(cause: unknown, depth = 0): unknown {
+    if (this.#credentials.length === 0 || depth > 5) return cause;
+    if (typeof cause === "string") return this.scrub(cause);
+    if (!(cause instanceof Error)) return cause;
+    const inner = this.scrubCause(cause.cause, depth + 1);
+    const message = this.scrub(cause.message);
+    if (message === cause.message && inner === cause.cause && !this.scrub(cause.stack ?? "").includes("***@")) return cause;
+    const copy = new Error(message, inner === undefined ? undefined : { cause: inner });
+    copy.name = cause.name;
+    const code = (cause as { code?: unknown }).code;
+    if (code !== undefined) Object.assign(copy, { code });
+    return copy;
+  }
+
+  /**
+   * What the transport threw, as the error the engine raises. The default transport
+   * rejects with `NinaNetworkError` only; an injected one may throw anything (a string, a
+   * `TypeError` from fetch). Every failure becomes a `NinaNetworkError` — a `NinaError` a
+   * caller and the CLI can rely on — with the base URL's credentials scrubbed from its
+   * message and cause chain; any other `NinaError` passes through, and a clean
+   * `NinaNetworkError` stays as it is.
+   */
+  private transportError(cause: unknown): NinaError {
+    if (cause instanceof NinaError && !(cause instanceof NinaNetworkError)) return cause;
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    const message = sanitizeServerText(this.scrub(reason));
+    const scrubbed = this.scrubCause(cause);
+    if (cause instanceof NinaNetworkError && message === cause.message && scrubbed === cause) return cause;
+    return new NinaNetworkError(message, { cause: scrubbed });
+  }
+
+  /**
    * Build a fully-qualified URL from a path and optional query parameters. The base
    * URL was checked by the constructor (validateBaseUrl): an http(s) URL without a
    * query or fragment, so the path is appended as text. Its scheme is enforced
@@ -209,7 +275,7 @@ export class RequestEngine {
   buildUrl(path: string, query?: QueryParams): string {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const qs = query ? buildQueryString(query) : "";
-    return `${this.baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
+    return `${this.#baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
   }
 
   /** Perform a request with Accept negotiation and transient-error retries. */
@@ -227,13 +293,18 @@ export class RequestEngine {
     let attempt = 0;
     // attempts = initial try + maxRetries
     for (;;) {
-      const response = await this.transport({
-        method,
-        url,
-        headers,
-        timeoutMs: this.timeoutMs,
-        ...(this.maxResponseBytes > 0 ? { maxResponseBytes: this.maxResponseBytes } : {}),
-      });
+      let response: HttpResponse;
+      try {
+        response = await this.transport({
+          method,
+          url,
+          headers,
+          timeoutMs: this.timeoutMs,
+          ...(this.maxResponseBytes > 0 ? { maxResponseBytes: this.maxResponseBytes } : {}),
+        });
+      } catch (cause) {
+        throw this.transportError(cause);
+      }
 
       const status = response.status;
       const retryable = status === 429 || status === 503;
@@ -266,7 +337,7 @@ export class RequestEngine {
     try {
       return JSON.parse(text) as T;
     } catch (cause) {
-      throw new NinaParseError(`Failed to parse JSON response from ${path}`, { cause });
+      throw new NinaParseError(`Failed to parse JSON response from ${path}`, { cause: this.scrubCause(cause) });
     }
   }
 
@@ -282,7 +353,8 @@ export class RequestEngine {
     body: Buffer,
     locationHeader?: string | string[],
   ): NinaApiError {
-    const text = body.toString("utf8");
+    // The body is kept on the error (`body`) and may echo the request URL: scrub it.
+    const text = this.scrub(body.toString("utf8"));
     let detail: string | undefined;
     try {
       const parsed = JSON.parse(text) as { detail?: unknown; message?: unknown };
