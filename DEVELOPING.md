@@ -152,6 +152,9 @@ status }` — raw bytes, never lossily decoded.
 **CliDeps / CliIO.** The dependency-injection seam for the CLI
 ([`io.ts`](src/cli/io.ts)): a client factory plus an I/O object. Lets the whole
 CLI run in tests with a mocked client and captured output — no subprocess.
+The bin shim installs `handleOutputErrors()` before `run()`: when stdout's reader stops
+early (`| head`) the CLI exits 0 quietly instead of printing an `EPIPE` stack trace, and
+when stderr's reader is gone a failed run keeps its own exit code.
 
 **Error types.** [`errors.ts`](src/client/errors.ts): `NinaApiError` (non-2xx,
 carries `status`/`detail`/`isRetryable`), `NinaNetworkError` (transport
@@ -286,7 +289,7 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`shared.test.ts`** — the `parseIntArg` value parser (accepts plain decimals, rejects everything else).
 - **`validate.test.ts`** — `assertValid`, the `NinaValidationError` exit-code mapping and the `parity()` helper.
 - **`conformance-p*.test.ts`** — the workspace's shared conformance checks from the 2026-10-05 review
-  (P1 credential redaction in CLI output, P2 in library objects, P4 base-URL validation, P5 transport contract, P6 retry policy, …); copied across the `*-cli` repos, only the adapter
+  (P1 credential redaction in CLI output, P2 in library objects, P4 base-URL validation, P5 transport contract, P6 retry policy, P7 closed pipes, …); copied across the `*-cli` repos, only the adapter
   block at the top differs.
 
 ## Continuous integration
