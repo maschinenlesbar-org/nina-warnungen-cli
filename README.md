@@ -119,11 +119,18 @@ nina --compact reference data-version
 ## Output & scripting
 
 Every command prints **pretty JSON to stdout**. Errors and diagnostics go to
-stderr, so piping stdout into `jq` stays clean.
+stderr, so piping stdout into `jq` stays clean. A failed run prints nothing on
+stdout and exits non-zero — including an HTTP 200 whose body is not the documented
+shape (`null`, `{}` or an error object where a list of warnings belongs), which is
+reported as `Unexpected response …`, exit `1`, never as an empty list. An empty list
+`[]` is a real answer: no warnings. Use `set -o pipefail` (or check `nina`'s exit
+code) so a failure is not read as "0 warnings".
 
 ```bash
-# Count warnings for a region
-nina dashboard 055150000000 | jq 'length'
+# Count warnings for a region. With pipefail a failed run (exit 1 or 4) fails the
+# pipeline instead of jq printing nothing; a `Cancel` entry is an all-clear, not a warning.
+set -o pipefail
+nina dashboard 055150000000 | jq '[.[] | select(.payload.data.msgType != "Cancel")] | length'
 
 # Extract severity + headline from all DWD entries
 nina map-data dwd | jq '.[] | {severity, title: .i18nTitle.de}'

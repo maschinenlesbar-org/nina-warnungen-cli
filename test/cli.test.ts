@@ -425,7 +425,8 @@ test("warning geojson to a terminal escapes control characters; to a pipe it is 
 
 test("a deeply nested response is a clean error, not an internal one", async () => {
   const depth = 200_000;
-  const deep = "[".repeat(depth) + "]".repeat(depth);
+  // Inside a warning entry, so the body still has the documented list shape.
+  const deep = '[{"x":' + "[".repeat(depth) + "]".repeat(depth) + "}]";
   const cli = makeCli(() => rawResponse(deep, "application/json"));
   assert.equal(await run(["map-data", "dwd"], cli.deps), 1);
   assert.match(cli.err.join("\n"), /^Error: The response is nested too deeply to pretty-print; try --compact\.$/m);
@@ -456,4 +457,18 @@ test("--user-agent rejects blank, control-character and non-Latin-1 values as a 
   const ok = makeCli(() => jsonResponse([]));
   assert.equal(await run(["--user-agent", "my\tagent/1.0 (Müller)", "map-data", "dwd"], ok.deps), 0);
   assert.equal(ok.mt.last().headers?.["User-Agent"], "my\tagent/1.0 (Müller)");
+});
+
+test("dashboard and map-data fail (exit 1, nothing on stdout) on a 200 that is not a list", async () => {
+  for (const body of [null, {}, { error: "Internal", message: "backend down", status: 500 }]) {
+    for (const argv of [["dashboard", "055150000000"], ["map-data", "mowas"]]) {
+      const cli = makeCli(() => jsonResponse(body));
+      assert.equal(await run(argv, cli.deps), 1, `${argv.join(" ")} ${JSON.stringify(body)}`);
+      assert.equal(cli.out.length, 0);
+      assert.match(cli.err.join("\n"), /^Error: Unexpected response from \/api31\//m);
+    }
+  }
+  const empty = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["--compact", "dashboard", "055150000000"], empty.deps), 0);
+  assert.equal(empty.out.join("\n"), "[]");
 });

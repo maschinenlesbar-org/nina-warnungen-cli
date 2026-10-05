@@ -103,10 +103,14 @@ nina dashboard 055150000000
 
 `055150000000` is the regional key for Münster (a kreisfreie Stadt). The
 result aggregates warnings from every source for that area; combine with `jq` to
-count or group them:
+count or group them. `set -o pipefail` keeps a failed run (exit 1 or 4, nothing on
+stdout) from reading as a count of 0; an HTTP 200 whose body isn't a list of warnings
+(`null`, `{}`, an error object) is such a failure (exit 1), never an empty list. A
+`Cancel` entry is an all-clear for an earlier warning, so leave it out of a count:
 
 ```bash
-nina dashboard 055150000000 | jq 'length'
+set -o pipefail
+nina dashboard 055150000000 | jq '[.[] | select(.payload.data.msgType != "Cancel")] | length'
 ```
 
 ### 7. Inspect the history of an archived MoWaS warning

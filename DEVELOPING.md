@@ -180,6 +180,15 @@ turn the reason into a usage error, so the CLI keeps no rules of its own. Tests
 check this with the `parity()` helper in `test/helpers.ts`, which sends one input
 through `run()` and through the library on one recording mock transport.
 
+**Response shapes.** Every client method checks the 2xx body against the shape its
+endpoint documents before returning it: `mapData` and `dashboard` an array of objects
+(`[]` is a real answer: no warnings), `warnings.get` and `archive.get` an object with a
+string `identifier`, `archive.mapping` an object with a `history` array, the reference
+files a JSON object or array. Anything else — `null`, `{}`, a scalar, an error object a
+gateway answers with HTTP 200 — is a `NinaParseError` (`Unexpected response from <path>:
+expected …, got …`, exit 1), never data: `jq 'length'` would read `null` and `{}` as 0, a
+false all-clear.
+
 **Query builder.** [`buildQueryString`](src/client/query.ts) — a dependency-free
 serialiser: omits `undefined`/`null`, repeats keys for arrays, renders booleans
 as `true`/`false`, dates as ISO-8601, and encodes spaces as `%20` (not `+`).

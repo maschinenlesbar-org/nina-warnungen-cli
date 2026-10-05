@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NinaClient } from "../src/client/client.js";
-import { NinaApiError, NinaError, NinaNotFoundError, NinaValidationError } from "../src/client/errors.js";
+import { NinaApiError, NinaError, NinaNotFoundError, NinaParseError, NinaValidationError } from "../src/client/errors.js";
 import type { NinaSource } from "../src/client/enums.js";
 import { makeMockTransport, jsonResponse, constantJson, rawResponse } from "./helpers.js";
 
@@ -148,5 +148,32 @@ test("the archive redirect is recognised whatever case or shape the Location hea
       (err: unknown) => err instanceof NinaNotFoundError && err.location === target,
       `headers ${(headers as object).constructor.name}`,
     );
+  }
+});
+
+test("a 2xx body without the documented shape is a NinaParseError, never an empty list", async () => {
+  const lists: Array<[string, (c: NinaClient) => Promise<unknown>]> = [
+    ["mapData", (c) => c.mapData("mowas")],
+    ["dashboard", (c) => c.dashboard("055150000000")],
+  ];
+  const bad: unknown[] = [null, {}, "text", 42, true, { error: "Internal", message: "backend down", status: 500 }, { message: "Not available" }, [null], [42], [[]]];
+  for (const [label, call] of lists) {
+    for (const body of bad) {
+      await assert.rejects(call(clientWith(constantJson(body))), NinaParseError, `${label} ${JSON.stringify(body)}`);
+    }
+    // An empty list is a real answer: no warnings.
+    assert.deepEqual(await call(clientWith(constantJson([]))), []);
+  }
+  await assert.rejects(
+    clientWith(constantJson({ message: "backend down" })).dashboard("055150000000"),
+    (err: unknown) => err instanceof NinaParseError && /expected a JSON array of warning objects, got an object with the message "backend down"/.test(err.message),
+  );
+  for (const body of [null, {}, [], { message: "x" }]) {
+    await assert.rejects(clientWith(constantJson(body)).warnings.get("x"), NinaParseError, `get ${JSON.stringify(body)}`);
+    await assert.rejects(clientWith(constantJson(body)).archive.get("x"), NinaParseError, `archive.get ${JSON.stringify(body)}`);
+    await assert.rejects(clientWith(constantJson(body)).archive.mapping("x"), NinaParseError, `mapping ${JSON.stringify(body)}`);
+  }
+  for (const body of [null, "x", 1]) {
+    await assert.rejects(clientWith(constantJson(body)).reference.eventCodes(), NinaParseError, `eventCodes ${JSON.stringify(body)}`);
   }
 });
