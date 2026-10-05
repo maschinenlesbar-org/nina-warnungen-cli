@@ -138,3 +138,12 @@ test("sourceProblem accepts the NINA sources and names the allowed ones otherwis
   assert.equal(sourceProblem(String.fromCharCode(0x1b)), 'Invalid source "\\u001b". Expected one of: mowas, katwarn, biwapp, dwd, lhp, police.');
   assert.equal(lib.sourceProblem, sourceProblem);
 });
+
+test("messages cut an echoed value at 500 characters and quote a string option", async () => {
+  const long = "1".repeat(400_000);
+  const client = new NinaClient({ transport: async () => { throw new Error("no request expected"); } });
+  for (const call of [() => client.dashboard(long), () => client.warnings.get(`${long}/x`)]) {
+    await assert.rejects(call(), (err: unknown) => err instanceof NinaValidationError && err.message.length < 1000 && err.message.includes("…"));
+  }
+  assert.throws(() => new NinaClient({ timeoutMs: "5000" as unknown as number }), /got "5000"\./);
+});

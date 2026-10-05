@@ -184,6 +184,12 @@ through `run()` and through the library on one recording mock transport.
 when it names none) with `TextDecoder`, which also drops a leading byte order mark; an
 unknown charset label is a `NinaParseError`. Raw downloads (`warning geojson`) stay bytes.
 
+**Messages.** Every rejected input is a `NinaValidationError`, also for a wrong type
+from JavaScript (`dashboard(12345678)`, `warnings.get(null)`), never a raw `TypeError`.
+An echoed value (an identifier, a region key) and server text (an error `detail`, a
+redirect target) are cut at `MAX_MESSAGE_VALUE_LENGTH` (500) characters, ending in `…`;
+the error's properties keep the full value.
+
 **Response shapes.** Every client method checks the 2xx body against the shape its
 endpoint documents before returning it: `mapData` and `dashboard` an array of objects
 (`[]` is a real answer: no warnings), `warnings.get` and `archive.get` an object with a
@@ -210,7 +216,9 @@ carries the requested wait as `retryAfterMs` and says that more retries won't he
 uses the same constant, so a value above `10` is a usage error there.
 `NinaApiError` exposes `isRetryable` (true for `429`/`503`).
 
-**Engine options.** The numeric options are checked in the `RequestEngine`
+**Engine options.** A `null` options object counts as none; `transport` and `sleep`
+must be functions (else `NinaValidationError`, `Invalid option transport: expected a
+function, …`). The numeric options are checked in the `RequestEngine`
 constructor, which throws a `NinaValidationError` (`Invalid option <name>: expected
 an integer from 0 to <max>, got <value>.`) before any request: `timeoutMs` must be
 an integer from `0` (no timeout) to `MAX_TIMEOUT_MS` (2^31 − 1 ms), `maxRetries`
@@ -302,7 +310,7 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`shared.test.ts`** — the `parseIntArg` value parser (accepts plain decimals, rejects everything else).
 - **`validate.test.ts`** — `assertValid`, the `NinaValidationError` exit-code mapping and the `parity()` helper.
 - **`conformance-p*.test.ts`** — the workspace's shared conformance checks from the 2026-10-05 review
-  (P1 credential redaction in CLI output, P2 in library objects, P4 base-URL validation, P5 transport contract, P6 retry policy, P7 closed pipes, …); copied across the `*-cli` repos, only the adapter
+  (P1 credential redaction in CLI output, P2 in library objects, P4 base-URL validation, P5 transport contract, P6 retry policy, P7 closed pipes, P8/P9/P13 charsets, response shapes and error classes); copied across the `*-cli` repos, only the adapter
   block at the top differs.
 
 ## Continuous integration

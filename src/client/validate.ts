@@ -10,7 +10,7 @@
 //   Methods that return a promise call it inside the async body, so they reject
 //   rather than throw synchronously; constructors throw.
 
-import { NinaValidationError } from "./errors.js";
+import { NinaValidationError, cutForMessage } from "./errors.js";
 import { NinaSourceValues } from "./enums.js";
 
 /** A validation rule: the reason `value` is invalid, or `undefined` when it is valid. */
@@ -46,7 +46,7 @@ export const identifierProblem: Problem<unknown> = (value) => {
   const blank = nonBlankProblem(value);
   if (blank !== undefined) return blank;
   if (/[/\\]/.test(value as string)) {
-    return `${JSON.stringify(value)} must not contain a path separator (/ or \\).`;
+    return `${cutForMessage(JSON.stringify(value))} must not contain a path separator (/ or \\).`;
   }
   return undefined;
 };
@@ -114,5 +114,5 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
  */
 export const sourceProblem: Problem<unknown> = (value) => {
   if ((NinaSourceValues as readonly unknown[]).includes(value)) return undefined;
-  return `Invalid source ${JSON.stringify(value)}. Expected one of: ${NinaSourceValues.join(", ")}.`;
+  return `Invalid source ${cutForMessage(String(JSON.stringify(value)))}. Expected one of: ${NinaSourceValues.join(", ")}.`;
 };

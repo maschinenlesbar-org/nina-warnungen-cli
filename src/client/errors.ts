@@ -57,7 +57,7 @@ export class NinaApiError extends NinaError {
     // Surface only the request path in the message, not the full URL: the base
     // URL may carry credentials (userinfo) and is noisy. The `.url` property keeps the
     // absolute URL with its userinfo redacted, so logging the error can't leak it.
-    super(`HTTP ${args.status} for ${args.method} ${safeTarget(args.url)}${detailPart}`);
+    super(`HTTP ${args.status} for ${args.method} ${cutForMessage(safeTarget(args.url))}${detailPart}`);
     this.status = args.status;
     this.url = redactUrl(args.url);
     this.method = args.method;
@@ -105,6 +105,19 @@ export function redactUrl(url: string): string {
   u.username = "***";
   u.password = "";
   return u.href;
+}
+
+/**
+ * Longest echoed value or server text (in characters) an error message shows. A
+ * 400 000-character region key or identifier would otherwise put the whole input on one
+ * stderr line, and a server `detail` could flood a CI log. Properties such as
+ * `NinaApiError.body` and `NinaNotFoundError.identifier` keep the full value.
+ */
+export const MAX_MESSAGE_VALUE_LENGTH = 500;
+
+/** `text` cut to MAX_MESSAGE_VALUE_LENGTH characters, ending in "…" when cut. */
+export function cutForMessage(text: string): string {
+  return text.length > MAX_MESSAGE_VALUE_LENGTH ? `${text.slice(0, MAX_MESSAGE_VALUE_LENGTH)}…` : text;
 }
 
 /**
@@ -165,7 +178,7 @@ export class NinaNotFoundError extends NinaError {
 
   constructor(identifier: string, location: string | undefined, options?: { cause?: unknown }) {
     super(
-      `Warning ${JSON.stringify(identifier)} is not a live warning: it has expired, been ` +
+      `Warning ${cutForMessage(JSON.stringify(identifier))} is not a live warning: it has expired, been ` +
         `updated or cancelled, or never existed. The API redirects it to its archive` +
         `${location ? ` (${location})` : ""}, which is not followed. Take a current id ` +
         `from map-data or dashboard.`,

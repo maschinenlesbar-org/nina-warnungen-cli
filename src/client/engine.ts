@@ -19,6 +19,7 @@ import {
   NinaParseError,
   NinaValidationError,
   credentialsIn,
+  cutForMessage,
   redactCredentials,
   redactUrl,
 } from "./errors.js";
@@ -227,8 +228,23 @@ function intOption(name: string, value: number | undefined, fallback: number, ma
   if (value === undefined) return fallback;
   if (!Number.isSafeInteger(value) || value < 0 || value > max) {
     throw new NinaValidationError(
-      `Invalid option ${name}: expected an integer from 0 to ${max}, got ${String(value)}.`,
+      // A string is quoted, so `"5000"` doesn't read like the number 5000.
+      `Invalid option ${name}: expected an integer from 0 to ${max}, got ` +
+        `${cutForMessage(typeof value === "string" ? JSON.stringify(value) : String(value))}.`,
     );
+  }
+  return value;
+}
+
+/**
+ * Read a function option: `undefined` gives the default; anything else that is not a
+ * function throws a `NinaValidationError`. A string `transport` used to fail only at the
+ * first request, and a bad `sleep` as a raw TypeError on the first retry.
+ */
+function functionOption<F extends (...args: never[]) => unknown>(name: string, value: F | undefined, fallback: F): F {
+  if (value === undefined) return fallback;
+  if (typeof value !== "function") {
+    throw new NinaValidationError(`Invalid option ${name}: expected a function, got ${value === null ? "null" : typeof value}.`);
   }
   return value;
 }
@@ -273,6 +289,8 @@ export class RequestEngine {
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: EngineOptions = {}) {
+    // A JavaScript caller may pass null for "no options"; treat it like undefined.
+    options = options ?? {};
     // Only an omitted baseUrl selects the default; any given value must pass the
     // library's base-URL rules here, before any request.
     this.#baseUrl = validateBaseUrl(options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl);
@@ -283,7 +301,7 @@ export class RequestEngine {
         return [raw];
       }
     });
-    this.transport = options.transport ?? nodeHttpTransport;
+    this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Only an omitted userAgent selects the default: a blank one is an error, not
     // a blank header, and a malformed one fails here rather than at request time.
     this.userAgent =
@@ -299,7 +317,7 @@ export class RequestEngine {
       DEFAULT_MAX_RESPONSE_BYTES,
       Number.MAX_SAFE_INTEGER,
     );
-    this.sleep = options.sleep ?? realSleep;
+    this.sleep = functionOption("sleep", options.sleep, realSleep);
   }
 
   /**
@@ -505,7 +523,7 @@ export class RequestEngine {
     }
     // `detail` came from the response body; strip control characters so a hostile
     // endpoint cannot inject terminal escape sequences via the stderr error message.
-    if (detail !== undefined) detail = sanitizeServerText(detail);
+    if (detail !== undefined) detail = cutForMessage(sanitizeServerText(detail).replace(/\s+/g, " ").trim());
     // Redirects are not followed; name the target (NINA redirects a warning that is
     // no longer live to its archive copy).
     const rawLocation = Array.isArray(locationHeader) ? locationHeader[0] : locationHeader;
@@ -545,6 +563,6 @@ function redirectTarget(requestUrl: string, location: string): string | undefine
   } catch {
     target = location;
   }
-  const clean = sanitizeServerText(target).replace(/\s+/g, " ").trim();
+  const clean = cutForMessage(sanitizeServerText(target).replace(/\s+/g, " ").trim());
   return clean === "" ? undefined : clean;
 }
