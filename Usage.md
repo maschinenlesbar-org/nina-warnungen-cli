@@ -82,7 +82,9 @@ nina warning geojson mow.DE-SL-SLS-W038-20260113-000 -o warn.geojson
 `geojson` writes the raw bytes — use `-o/--output <file>` to save them, or omit it
 to stream the GeoJSON to stdout (e.g. for piping into another tool). Piped or redirected,
 stdout gets the bytes exactly as the server sent them; on a terminal, control characters
-are escaped as `\uXXXX` so the body cannot send escape sequences to it.
+are escaped as `\uXXXX` so the body cannot send escape sequences to it. A body that isn't
+GeoJSON (a gateway's HTML page, an error object) is an error (exit `1`), and nothing is
+written. `-o -` also means stdout.
 
 ### 6. Region dashboard: everything affecting a district
 
@@ -185,7 +187,10 @@ These flags apply to every command (real flags only):
 
 Notes: numeric options accept only plain non-negative decimal integers. An
 identifier that starts with `-` must be passed after a `--` separator, e.g.
-`nina warning get -- -odd.identifier`. Exit codes: `0` success, `4` on a `404`
-from the API or for a warning id that is no longer live (the API redirects it to its archive
-instead of answering `404`), `1` for any other error, including usage errors (see the
+`nina warning get -- -odd.identifier`. Whitespace, invisible characters and quotes
+around an identifier and a `.json`/`.geojson` suffix are dropped before the request.
+Exit codes: `0` success, `4` on a `404`
+from the API or for a warning id that no live warning has (the API redirects it to its
+archive instead of answering `404`, for an ended and a mistyped id alike), `1` for any
+other error, including usage errors and a body without the documented shape (see the
 "Exit codes" table in GLOSSARY.md).
