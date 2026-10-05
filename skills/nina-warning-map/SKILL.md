@@ -53,9 +53,11 @@ nina warning geojson mow.DE-HE-KS-SE106-20260610-106-000 -o warn.geojson
 stdout pipe can come back empty when piped straight into another process under some Node
 builds, and the geojson bytes are binary-faithful, so a file is the reliable path.
 
-> If the CLI prints a "non-JSON content-type" diagnostic to stderr, the API returned an
-> unexpected content-type (often a gateway/error page). The bytes are still written, but
-> the identifier is probably bad — re-resolve it (Step 1).
+> If the CLI exits **`1`** with `Unexpected response … expected GeoJSON`, the API answered
+> HTTP 200 with something that isn't GeoJSON (often a gateway/error page); **nothing is
+> written**. The identifier may be bad — re-resolve it (Step 1) — or the API is having
+> trouble; don't report an empty or missing area. A "non-JSON content-type" warning on
+> stderr with exit `0` only means an unusual content-type on a body that is GeoJSON.
 
 ## Step 3 — Validate and hand it over
 

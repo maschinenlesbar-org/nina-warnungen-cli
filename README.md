@@ -177,9 +177,12 @@ An identifier that begins with `-` would be parsed as an option; pass it after a
   refused connection, a DNS failure or a timeout.
 - **Empty result from `map-data`** — the source has no active warnings right now.
   Try a different source or come back later.
-- **`warning geojson` prints non-JSON content-type warning** — the API returned
-  an unexpected content-type (e.g. a gateway error page). The bytes are still
-  written, but check whether the identifier is valid.
+- **`warning geojson` fails with `Unexpected response … expected GeoJSON`** (exit `1`)
+  — the API answered HTTP 200 with something that isn't GeoJSON (e.g. a gateway error
+  page or an error object). Nothing is written. Check whether the identifier is valid,
+  or try again later.
+- **`warning geojson` prints a non-JSON content-type warning** — the body is GeoJSON
+  but came with an unusual content-type; it is written as usual.
 
 ## Global options
 

@@ -70,7 +70,7 @@ test("parity: a valid identifier sends the identical request from CLI and librar
     const { cli, lib } = await parity(
       ["--compact", ...argv, "mow.DE-SL-SLS-W038-20260901-000"],
       (transport) => call(new NinaClient({ transport }), "mow.DE-SL-SLS-W038-20260901-000"),
-      () => jsonResponse({ identifier: "x", history: [] }),
+      () => jsonResponse({ type: "FeatureCollection", identifier: "x", history: [] }),
     );
     assert.equal(cli.code, 0, argv.join(" "));
     assert.equal(lib.ok, true, argv.join(" "));

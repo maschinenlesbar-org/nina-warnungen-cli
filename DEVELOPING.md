@@ -204,7 +204,8 @@ the error's properties keep the full value.
 endpoint documents before returning it: `mapData` and `dashboard` an array of objects
 (`[]` is a real answer: no warnings), `warnings.get` and `archive.get` an object with a
 string `identifier`, `archive.mapping` an object with a `history` array, the reference
-files a JSON object or array. Anything else — `null`, `{}`, a scalar, an error object a
+files a JSON object or array, and `warnings.geojson` GeoJSON (UTF-8 JSON for an object
+with a GeoJSON `type`; the bytes are still returned unchanged). Anything else — `null`, `{}`, a scalar, an error object a
 gateway answers with HTTP 200 — is a `NinaParseError` (`Unexpected response from <path>:
 expected …, got …`, exit 1), never data: `jq 'length'` would read `null` and `{}` as 0, a
 false all-clear.

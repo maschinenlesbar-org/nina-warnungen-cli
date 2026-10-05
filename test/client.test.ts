@@ -192,7 +192,7 @@ test("copy-paste artefacts around a warning id are dropped before the request", 
   ];
   for (const [label, call, path] of calls) {
     for (const v of variants) {
-      const mt = makeMockTransport(() => jsonResponse({ identifier: id, history: [] }));
+      const mt = makeMockTransport(() => jsonResponse({ type: "FeatureCollection", identifier: id, history: [] }));
       await call(clientWith(mt), v);
       assert.equal(new URL(mt.last().url).pathname, path, `${label} ${JSON.stringify(v)}`);
     }

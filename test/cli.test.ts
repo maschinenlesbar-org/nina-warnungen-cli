@@ -139,11 +139,20 @@ test("an --output write failure maps to exit code 1", async () => {
   assert.match(err.join("\n"), /EACCES/);
 });
 
-test("warning geojson warns when the content-type is not JSON", async () => {
-  const cli = makeCli(() => rawResponse("<html>error</html>", "text/html"));
+test("warning geojson warns when the content-type is not JSON but the body is GeoJSON", async () => {
+  const cli = makeCli(() => rawResponse('{"type":"FeatureCollection","features":[]}', "text/plain"));
   const code = await run(["warning", "geojson", "abc"], cli.deps);
   assert.equal(code, 0);
   assert.match(cli.err.join("\n"), /Warning: expected a "json" response/);
+});
+
+test("warning geojson fails (exit 1, no file) when a 200 body is not GeoJSON", async () => {
+  for (const [body, type] of [["<html>maintenance</html>", "text/html"], ['{"message":"Not available"}', "application/geo+json"], ["", "application/geo+json"], ["[]", "application/json"]]) {
+    const cli = makeCli(() => rawResponse(body!, type!));
+    assert.equal(await run(["-o", "out.geojson", "warning", "geojson", "abc"], cli.deps), 1, body);
+    assert.equal(cli.files.size, 0, body);
+    assert.match(cli.err.join("\n"), /^Error: Unexpected response from \/api31\/warnings\/abc\.geojson: expected (a )?GeoJSON/m, body);
+  }
 });
 
 test("warning get builds the warnings path", async () => {
@@ -398,9 +407,11 @@ test("--base-url with a query or fragment is a usage error", async () => {
 });
 
 test("warning geojson to a terminal escapes control characters; to a pipe it is byte-exact", async () => {
-  const ESC = String.fromCharCode(0x1b);
-  const BEL = String.fromCharCode(0x07);
-  const body = Buffer.from(`{"type":"FeatureCollection","n":"${ESC}]0;TITLE${BEL}${ESC}[31mred${String.fromCharCode(0x9b)}2J"}`, "utf8");
+  // C1 controls and DEL may stand raw in a JSON string (C0 such as ESC may not, so a body
+  // with a raw ESC is not GeoJSON and fails); U+009B is the 8-bit CSI a terminal acts on.
+  const CSI = String.fromCharCode(0x9b);
+  const DEL = String.fromCharCode(0x7f);
+  const body = Buffer.from(`{"type":"FeatureCollection","n":"${CSI}31mred${CSI}2J${DEL}"}`, "utf8");
 
   // Terminal (and the safe default of an I/O without isTerminal): escaped.
   for (const terminal of [true, undefined]) {
@@ -408,10 +419,10 @@ test("warning geojson to a terminal escapes control characters; to a pipe it is 
     if (terminal !== undefined) cli.deps.io.isTerminal = () => terminal;
     assert.equal(await run(["warning", "geojson", "x"], cli.deps), 0);
     const text = cli.out.join("");
-    assert.ok(![...text].some((c) => c.charCodeAt(0) === 0x1b || c.charCodeAt(0) === 0x07 || c.charCodeAt(0) === 0x9b), String(terminal));
-    assert.match(text, /\\u001b\]0;TITLE\\u0007\\u001b\[31mred\\u009b2J/);
+    assert.ok(![...text].some((c) => c.charCodeAt(0) === 0x9b || c.charCodeAt(0) === 0x7f), String(terminal));
+    assert.match(text, /\\u009b31mred\\u009b2J\\u007f/);
     // Still valid JSON carrying the same value.
-    assert.equal(JSON.parse(text).n, `${ESC}]0;TITLE${BEL}${ESC}[31mred${String.fromCharCode(0x9b)}2J`);
+    assert.equal(JSON.parse(text).n, `${CSI}31mred${CSI}2J${DEL}`);
   }
 
   // A pipe: the exact bytes.

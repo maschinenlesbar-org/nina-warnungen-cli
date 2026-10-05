@@ -77,6 +77,39 @@ const archiveMapping = (value: unknown): string | undefined =>
 const referenceData = (value: unknown): string | undefined =>
   typeof value === "object" && value !== null ? undefined : "a JSON object";
 
+/** The `type` values of a GeoJSON object (RFC 7946). */
+const GEOJSON_TYPES = [
+  "FeatureCollection",
+  "Feature",
+  "Point",
+  "MultiPoint",
+  "LineString",
+  "MultiLineString",
+  "Polygon",
+  "MultiPolygon",
+  "GeometryCollection",
+];
+
+/**
+ * Check that a GeoJSON download is GeoJSON: UTF-8 JSON (RFC 7946) for an object with a
+ * GeoJSON `type`. A gateway's HTML page or a JSON error body answered with HTTP 200 used
+ * to be saved as the `.geojson` file with exit 0. The bytes themselves are returned
+ * unchanged.
+ */
+function expectGeoJson(path: string, response: RawResponse): RawResponse {
+  let value: unknown;
+  try {
+    value = JSON.parse(new TextDecoder().decode(response.data));
+  } catch {
+    const type = response.contentType.split(";")[0]?.trim() || "no Content-Type";
+    throw new NinaParseError(`Unexpected response from ${path}: expected GeoJSON, got a body that is not JSON (${type.slice(0, 100)}).`);
+  }
+  expectShape(path, value, (v) =>
+    isObject(v) && typeof v["type"] === "string" && GEOJSON_TYPES.includes(v["type"]) ? undefined : "a GeoJSON object",
+  );
+  return response;
+}
+
 /**
  * NINA answers a warning id that is not live (expired, updated, cancelled, or
  * never issued) with a redirect to `/api31/archive/alerts/<id>`, not a 404. Turn
@@ -119,13 +152,15 @@ class WarningsResource {
 
   /**
    * The warning's geometry as GeoJSON (returned as raw bytes). The identifier is
-   * checked as for `get`; a warning that is no longer live (or never existed)
-   * rejects with `NinaNotFoundError`.
+   * normalised and checked as for `get`; an id that is not a live warning's rejects with
+   * `NinaNotFoundError`. A 2xx body that is not GeoJSON (an HTML page, a JSON error
+   * object) rejects with `NinaParseError` rather than being returned as the file.
    */
   async geojson(identifier: string): Promise<RawResponse> {
     const id = assertValid("identifier", normalizeIdentifier(identifier), identifierProblem);
     try {
-      return await this.engine.getRaw(`${API}/warnings/${enc(id)}.geojson`, ACCEPT_GEOJSON);
+      const path = `${API}/warnings/${enc(id)}.geojson`;
+      return expectGeoJson(path, await this.engine.getRaw(path, ACCEPT_GEOJSON));
     } catch (err) {
       throw notLive(id, err);
     }

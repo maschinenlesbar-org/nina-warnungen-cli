@@ -162,7 +162,9 @@ Client sendet nie Zugangsdaten.
 rohe Bytes (`RawResponse`), statt sie zu parsen, sodass die Geometrie Byte für Byte
 unverändert in einer Datei (`-o`) oder Pipe ankommt. Auf einem Terminal werden
 Steuerzeichen maskiert (`\uXXXX`), damit der Inhalt keine Escape-Sequenzen an das
-Terminal schicken kann.
+Terminal schicken kann. Der Inhalt wird vorher geprüft: Ist er kein GeoJSON (JSON mit
+einem GeoJSON-`type`) – etwa eine HTML-Fehlerseite oder ein Fehlerobjekt mit HTTP 200 –,
+ist das ein Fehler (Exit-Code `1`), und es wird nichts geschrieben.
 
 **Rate-Limiting / vorübergehende Fehler.** Die API kann **429** (zu viele Anfragen) oder
 **503** (vorübergehend nicht verfügbar) liefern; der Client behandelt beide als
