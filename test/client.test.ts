@@ -137,3 +137,16 @@ test("a negative or non-integer maxResponseBytes is rejected; 0 means no limit",
   await new NinaClient({ transport: mt.transport, maxResponseBytes: 0 }).mapData("dwd");
   assert.equal(mt.last().maxResponseBytes, undefined);
 });
+
+test("the archive redirect is recognised whatever case or shape the Location header has", async () => {
+  const target = "https://warnung.bund.de/api31/archive/alerts/x?contentType=json";
+  const shapes: unknown[] = [{ Location: target }, { LOCATION: target }, new Headers({ Location: target }), new Map([["Location", target]])];
+  for (const headers of shapes) {
+    const mt = makeMockTransport(() => ({ status: 302, headers: headers as Record<string, string>, body: Buffer.alloc(0) }));
+    await assert.rejects(
+      clientWith(mt).warnings.get("x"),
+      (err: unknown) => err instanceof NinaNotFoundError && err.location === target,
+      `headers ${(headers as object).constructor.name}`,
+    );
+  }
+});

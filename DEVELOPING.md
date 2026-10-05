@@ -214,7 +214,24 @@ default 100 MiB), guarding against unbounded responses. A negative or non-intege
 value is rejected (`NinaValidationError`, `Invalid option maxResponseBytes: …`)
 rather than switching the cap off. Setting
 `--max-response-bytes 0` disables the guard entirely — including for
-`warning geojson` downloads.
+`warning geojson` downloads. The default transport aborts as soon as the cap is
+passed; the engine also checks the body any transport returns, so the cap holds for
+custom transports too.
+
+**timeoutMs.** Bounds a request (default 30 s; `0` disables) with a socket-inactivity
+timeout and a wall-clock deadline in the default transport, and the engine enforces the
+deadline itself for every transport: the transport gets an `AbortSignal`
+(`HttpRequest.signal`) that fires at the deadline, and the call rejects then with a
+`NinaNetworkError` whether the transport stops or not, so a `fetch` or `node:http`
+transport can't hang a caller.
+
+**Custom transports.** A transport may return the body as a Buffer, any `ArrayBuffer`
+view (fetch's `Uint8Array`, from any realm) or an `ArrayBuffer`, and the headers as a
+plain record in any case, a `Headers` object or a `Map` (`Retry-After` and the archive
+`Location` are read either way). Whatever it throws becomes a `NinaNetworkError`, and a
+malformed response (no status, NaN) too; a reset reported as Node's
+`ECONNRESET`/`EPIPE`/`ECONNABORTED` or undici's `UND_ERR_SOCKET` anywhere in the
+`cause` chain is retried like a 503.
 
 **No redirect following.** The transport issues exactly one request and does not
 follow `3xx` redirects — a redirect is surfaced as an error like any other
@@ -266,7 +283,7 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`shared.test.ts`** — the `parseIntArg` value parser (accepts plain decimals, rejects everything else).
 - **`validate.test.ts`** — `assertValid`, the `NinaValidationError` exit-code mapping and the `parity()` helper.
 - **`conformance-p*.test.ts`** — the workspace's shared conformance checks from the 2026-10-05 review
-  (P1 credential redaction in CLI output, P2 in library objects, P4 base-URL validation, …); copied across the `*-cli` repos, only the adapter
+  (P1 credential redaction in CLI output, P2 in library objects, P4 base-URL validation, P5 transport contract, …); copied across the `*-cli` repos, only the adapter
   block at the top differs.
 
 ## Continuous integration
