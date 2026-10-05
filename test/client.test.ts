@@ -24,9 +24,9 @@ test("warnings.get builds the warnings path with .json", async () => {
 
 test("warnings.get url-encodes characters that need escaping", async () => {
   const mt = constantJson({ identifier: "x" });
-  await clientWith(mt).warnings.get("a b?c#d");
-  // The space becomes %20, ? and # are escaped; the .json suffix is intact.
-  assert.equal(new URL(mt.last().url).pathname, "/api31/warnings/a%20b%3Fc%23d.json");
+  await clientWith(mt).warnings.get("a%b?c#d");
+  // %, ? and # are escaped; the .json suffix is intact.
+  assert.equal(new URL(mt.last().url).pathname, "/api31/warnings/a%25b%3Fc%23d.json");
 });
 
 test("identifier methods reject a blank or separator-bearing id with NinaValidationError, no request", async () => {
@@ -176,4 +176,35 @@ test("a 2xx body without the documented shape is a NinaParseError, never an empt
   for (const body of [null, "x", 1]) {
     await assert.rejects(clientWith(constantJson(body)).reference.eventCodes(), NinaParseError, `eventCodes ${JSON.stringify(body)}`);
   }
+});
+
+test("copy-paste artefacts around a warning id are dropped before the request", async () => {
+  const id = "mow.DE-NW-KLE-SE058-20261005-58-000";
+  const variants = [
+    `${id} `, ` ${id}`, `${id}\r`, `${id}\n`, `${id}\t`, `${id} `, `​${id}`, `${id}﻿`,
+    `“${id}”`, `"${id}"`, `'${id}'`, `${id}.json`, `${id}.JSON`, `${id}.geojson`, `${id}.json `, `${id.normalize("NFD")}`,
+  ];
+  const calls: Array<[string, (c: NinaClient, v: string) => Promise<unknown>, string]> = [
+    ["warnings.get", (c, v) => c.warnings.get(v), `/api31/warnings/${id}.json`],
+    ["warnings.geojson", (c, v) => c.warnings.geojson(v), `/api31/warnings/${id}.geojson`],
+    ["archive.get", (c, v) => c.archive.get(v), `/api31/archive.mowas/${id}.json`],
+    ["archive.mapping", (c, v) => c.archive.mapping(v), `/api31/archive.mowas/${id}-mapping.json`],
+  ];
+  for (const [label, call, path] of calls) {
+    for (const v of variants) {
+      const mt = makeMockTransport(() => jsonResponse({ identifier: id, history: [] }));
+      await call(clientWith(mt), v);
+      assert.equal(new URL(mt.last().url).pathname, path, `${label} ${JSON.stringify(v)}`);
+    }
+  }
+  // Whitespace or an invisible character inside an id is refused before any request.
+  for (const v of [`mow.DE NW`, `mow.DE NW`, `mow.DE​NW`, `mow.DE\tNW`]) {
+    const mt = constantJson({ identifier: "x" });
+    await assert.rejects(clientWith(mt).warnings.get(v), NinaValidationError, JSON.stringify(v));
+    assert.equal(mt.calls.length, 0);
+  }
+  // Case is kept: the API's ids are case-sensitive.
+  const mt = constantJson({ identifier: "x" });
+  await clientWith(mt).warnings.get(id.toLowerCase());
+  assert.equal(new URL(mt.last().url).pathname, `/api31/warnings/${id.toLowerCase()}.json`);
 });

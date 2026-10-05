@@ -166,7 +166,7 @@ export function redactCredentials(text: string, credentials: readonly string[]):
 
 /**
  * The requested warning is not a live one. The API answers an expired, updated,
- * cancelled or unknown warning identifier with a redirect to its archive
+ * cancelled, mistyped or unknown warning identifier alike with a redirect to its archive
  * (`/api31/archive/alerts/<id>`) rather than a 404; the client does not follow it
  * and raises this instead. `location` is the archive URL the API pointed to (the
  * archive has a copy only for a warning that once existed); `cause` is the
@@ -177,9 +177,12 @@ export class NinaNotFoundError extends NinaError {
   readonly location: string | undefined;
 
   constructor(identifier: string, location: string | undefined, options?: { cause?: unknown }) {
+    // The API redirects *every* id it has no live warning for — an ended warning, a
+    // mistyped one, one in the wrong case — so the message must not claim the warning ended.
     super(
-      `Warning ${cutForMessage(JSON.stringify(identifier))} is not a live warning: it has expired, been ` +
-        `updated or cancelled, or never existed. The API redirects it to its archive` +
+      `Warning ${cutForMessage(JSON.stringify(identifier))} is not a live warning: no live ` +
+        `warning has exactly this id (ids are case-sensitive). It may have expired, been updated ` +
+        `or cancelled, or be mistyped. The API redirects it to its archive` +
         `${location ? ` (${location})` : ""}, which is not followed. Take a current id ` +
         `from map-data or dashboard.`,
       options,

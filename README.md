@@ -168,6 +168,9 @@ An identifier that begins with `-` would be parsed as an option; pass it after a
   (expired, updated, cancelled, or never issued) the API does not answer `404`: it
   redirects to its archive (`/api31/archive/alerts/<id>`). The CLI does not follow
   the redirect; it prints `… is not a live warning …` with that archive URL and exits `4`.
+  The API redirects a mistyped id the same way, and ids are case-sensitive, so exit `4`
+  does not prove that a warning ended. Whitespace, invisible characters and quotes around
+  an id and a `.json`/`.geojson` suffix are dropped before the request.
 - **Exit `1` / network error** — connectivity, DNS, or a timeout. Try again, or
   raise the limit with `--timeout 60000`. For flaky networks increase retries:
   `--max-retries 5` retries a connection that was reset (and `429`/`503`), but not a

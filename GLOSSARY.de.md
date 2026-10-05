@@ -53,11 +53,18 @@ von Warnungszusammenfassungen (`MapWarning[]`). CLI: `nina map-data <source>`.
 Daten einer Warnung zu einer einzelnen Kennung. Sie sind tief verschachtelt und
 standardspezifisch und werden daher als unverändertes rohes JSON-Objekt zurückgegeben.
 CLI: `nina warning get <identifier>`.
-Eine Kennung, die nicht mehr aktuell ist (abgelaufen, aktualisiert, aufgehoben oder nie
-ausgegeben), bekommt kein `404`: Die API leitet sie auf
+Eine Kennung, die nicht mehr aktuell ist (abgelaufen, aktualisiert, aufgehoben,
+vertippt oder nie ausgegeben), bekommt kein `404`: Die API leitet sie auf
 `/archive/alerts/{identifier}?contentType=json` weiter, wo eine Warnung, die es einmal
 gab, als Archivkopie liegt. Die CLI meldet das als „not a live warning“ (Exit-Code `4`)
-und nennt die Archiv-URL.
+und nennt die Archiv-URL; eine beendete Warnung kann sie von einer vertippten Kennung
+nicht unterscheiden und behauptet daher keins von beiden. Kennungen unterscheiden Groß-
+und Kleinschreibung. Was beim Kopieren um eine Kennung herum mitkommt – Leerraum (ein
+Leerzeichen am Ende, ein CR aus einer CRLF-Datei, ein geschütztes Leerzeichen),
+unsichtbare Zeichen, Anführungszeichen, eine Endung `.json`/`.geojson` aus einer API-URL –
+wird vor der Anfrage entfernt (`normalizeIdentifier`), bei `warning get`/`geojson` wie bei
+`archive get`/`mapping`; Leerraum oder ein unsichtbares Zeichen *innerhalb* einer Kennung
+wird abgelehnt (Exit-Code `1`, keine Anfrage).
 
 **warning geojson (`/warnings/{identifier}.geojson`).** Die Geometrie des betroffenen
 Gebiets als GeoJSON (`application/geo+json`), zurückgegeben als rohe Bytes. CLI:

@@ -52,10 +52,16 @@ a list of warning summaries (`MapWarning[]`). CLI: `nina map-data <source>`.
 **warning get (`/warnings/{identifier}.json`).** The full, CAP-derived warning
 payload for a single identifier. Deeply nested and standard-specific, so it is
 returned as a faithful raw JSON object. CLI: `nina warning get <identifier>`.
-An identifier that is not live (expired, updated, cancelled, or never issued) gets
-no `404`: the API redirects it to `/archive/alerts/{identifier}?contentType=json`,
-where a warning that once existed has an archived copy. The CLI reports that as
-"not a live warning" (exit `4`), naming the archive URL.
+An identifier that is not live (expired, updated, cancelled, mistyped, or never
+issued) gets no `404`: the API redirects it to
+`/archive/alerts/{identifier}?contentType=json`, where a warning that once existed has
+an archived copy. The CLI reports that as "not a live warning" (exit `4`), naming the
+archive URL; it cannot tell an ended warning from a mistyped id, so it says neither.
+Identifiers are case-sensitive. What a copy-paste adds around an id — whitespace (a
+trailing space, a CR from a CRLF file, a non-breaking space), invisible characters,
+quotes, a `.json`/`.geojson` suffix from an API URL — is dropped before the request
+(`normalizeIdentifier`), for `warning get`/`geojson` and `archive get`/`mapping` alike;
+whitespace or an invisible character *inside* an id is refused (exit `1`, no request).
 
 **warning geojson (`/warnings/{identifier}.geojson`).** The warning's affected-area
 geometry as GeoJSON (`application/geo+json`), returned as raw bytes. CLI:

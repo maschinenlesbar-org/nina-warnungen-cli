@@ -318,7 +318,8 @@ test("a warning id that is no longer live (302 to the archive) exits 4 with a hi
     assert.equal(code, 4, cmd);
     assert.equal(cli.mt.calls.length, 1, cmd);
     const err = cli.err.join("\n");
-    assert.match(err, /"mow\.DE-SL-SLS-W038-20260901-000" is not a live warning/, cmd);
+    assert.match(err, /"mow\.DE-SL-SLS-W038-20260901-000" is not a live warning: no live warning has exactly this id/, cmd);
+    assert.doesNotMatch(err, /it has expired/, cmd);
     assert.match(
       err,
       /archive \(https:\/\/warnung\.bund\.de\/api31\/archive\/alerts\/mow\.DE-SL-SLS-W038-20260901-000\?contentType=json\)/,

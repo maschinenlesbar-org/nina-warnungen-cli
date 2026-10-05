@@ -35,18 +35,58 @@ export const nonBlankProblem: Problem<unknown> = (value) => {
 };
 
 /**
- * A warning or archive identifier is a single path segment: a non-blank string
- * without a path separator (`/` or `\`). A blank one would address a different
- * path (`/warnings/.json`, `/archive.mowas/-mapping.json`), and one with a separator
- * is percent-encoded and can never match a real id (a `../../etc/passwd` attempt
- * included), so both are refused before any request rather than ending in a remote
- * 404 or a "not a live warning" that reads like an expired id.
+ * What a copy-paste leaves around an identifier: whitespace (a space, a CR from a CRLF
+ * file, a tab, a non-breaking space, a BOM), invisible format characters (a zero-width
+ * space) and quotes (straight, curly, guillemets).
+ */
+const IDENTIFIER_EDGE = /^[\s\p{Cf}"'\u2018-\u201f\u00ab\u00bb\u2039\u203a]+|[\s\p{Cf}"'\u2018-\u201f\u00ab\u00bb\u2039\u203a]+$/gu;
+
+/** The file suffixes the API appends to an identifier in its URLs (`/warnings/<id>.json`). */
+const IDENTIFIER_SUFFIXES = [".json", ".geojson"];
+
+/**
+ * A warning or archive identifier as the API knows it, from the way people copy one:
+ * Unicode NFC, with the whitespace, invisible characters and quotes around it removed
+ * (see `IDENTIFIER_EDGE`), and a `.json` or `.geojson` suffix (any case) dropped, as
+ * copied from an API URL such as `…/warnings/<id>.json`. No real identifier has any of
+ * these, and the API answers each such variant of a live id with a redirect to its
+ * archive, which used to read as "the warning has expired". Case is kept: the API's
+ * identifiers are case-sensitive (`mow.DE-…`, DWD's lower-case hex parts), so no case
+ * can be inferred. A non-string is returned unchanged for the rule to reject.
+ */
+export function normalizeIdentifier(value: string): string {
+  if (typeof value !== "string") return value;
+  let id = value.normalize("NFC").replace(IDENTIFIER_EDGE, "");
+  const lower = id.toLowerCase();
+  const suffix = IDENTIFIER_SUFFIXES.find((s) => lower.endsWith(s));
+  if (suffix !== undefined) id = id.slice(0, -suffix.length).replace(IDENTIFIER_EDGE, "");
+  return id;
+}
+
+/**
+ * A warning or archive identifier (after {@link normalizeIdentifier}) is a single path
+ * segment: a non-blank string without a path separator (`/` or `\`), whitespace, control
+ * or invisible format characters. A blank one would address a different path
+ * (`/warnings/.json`, `/archive.mowas/-mapping.json`); one with a separator is
+ * percent-encoded and can never match a real id (a `../../etc/passwd` attempt included);
+ * and no real id contains whitespace or an invisible character, which the API answers with
+ * a redirect to its archive. All are refused before any request rather than ending in a
+ * remote 404 or a "not a live warning" that reads like an expired id.
  */
 export const identifierProblem: Problem<unknown> = (value) => {
   const blank = nonBlankProblem(value);
   if (blank !== undefined) return blank;
-  if (/[/\\]/.test(value as string)) {
-    return `${cutForMessage(JSON.stringify(value))} must not contain a path separator (/ or \\).`;
+  const text = value as string;
+  if (/[/\\]/.test(text)) {
+    return `${cutForMessage(JSON.stringify(text))} must not contain a path separator (/ or \\).`;
+  }
+  const hidden = /[\s\p{Cc}\p{Cf}]/u.exec(text);
+  if (hidden !== null) {
+    const code = hidden[0].codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0");
+    return (
+      `${cutForMessage(JSON.stringify(text))} contains whitespace or an invisible character ` +
+      `(U+${code}); a warning identifier has none. Copy it again from map-data or dashboard.`
+    );
   }
   return undefined;
 };

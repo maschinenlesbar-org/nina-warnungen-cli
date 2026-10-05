@@ -21,6 +21,7 @@ export {
   baseUrlProblem,
   headerValueProblem,
   identifierProblem,
+  normalizeIdentifier,
   nonBlankProblem,
   sourceProblem,
 } from "./validate.js";
