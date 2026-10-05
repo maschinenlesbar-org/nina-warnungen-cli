@@ -3,7 +3,7 @@
 Echte Beispiele für die Claude-Code-Skills des Plugins `nina`, eines pro Skill: eine
 Anfrage, die `nina`-Befehle, die der Skill ausgeführt hat, und Claudes Antwort.
 
-Jedes Beispiel lief am 6. Oktober 2026 kurz vor 1:00 Uhr mit `nina` 0.3.0 gegen die Live-API.
+Jedes Beispiel lief am 6. Oktober 2026 gegen 1:00 Uhr mit `nina` 0.3.0 gegen die Live-API.
 Die Daten ändern sich, Ihre Ergebnisse werden also abweichen; mit den gezeigten IDs und
 Schlüsseln können Sie die Anfragen selbst ausprobieren. Lange Listen sind gekürzt.
 

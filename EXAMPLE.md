@@ -3,7 +3,7 @@
 Real examples for the Claude Code skills of the `nina` plugin, one per skill: a request,
 the `nina` commands the skill ran, and the answer Claude gave.
 
-Every example ran against the live API on 6 October 2026, shortly before 1:00, with `nina` 0.3.0.
+Every example ran against the live API on 6 October 2026 around 1:00 with `nina` 0.3.0.
 The data changes, so your results will differ; the ids and keys shown work for trying the
 requests yourself. Long lists are shortened.
 
