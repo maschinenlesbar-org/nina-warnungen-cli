@@ -28,7 +28,7 @@ can pipe straight into [`jq`](https://jqlang.github.io/jq/).
 npm i -g @maschinenlesbar.org/nina-warnungen-cli
 ```
 
-This installs the **`nina`** command. Requires **Node.js 20+**.
+This installs the **`nina`** command. Requires **Node.js 22.12+**.
 
 Check it works:
 
@@ -160,7 +160,7 @@ An identifier that begins with `-` would be parsed as an option; pass it after a
 ## Troubleshooting
 
 - **`command not found: nina`** — the global npm bin directory isn't on your
-  `PATH`. Run `npm bin -g` to find it and add it, or run via
+  `PATH`. Add `$(npm prefix -g)/bin` to it, or run via
   `npx @maschinenlesbar.org/nina-warnungen-cli …`.
 - **Exit `4` / "not found"** — the warning identifier doesn't exist or has
   expired. Re-fetch it from a fresh `map-data` or `dashboard` result; identifiers
