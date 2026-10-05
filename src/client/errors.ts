@@ -23,6 +23,11 @@ export class NinaApiError extends NinaError {
   readonly method: string;
   readonly body: string;
   readonly location: string | undefined;
+  /**
+   * For a 429/503 that was not retried because its `Retry-After` asked for longer than the
+   * client waits (`MAX_RETRY_AFTER_MS`): the requested wait in milliseconds.
+   */
+  readonly retryAfterMs: number | undefined;
 
   constructor(args: {
     status: number;
@@ -31,9 +36,16 @@ export class NinaApiError extends NinaError {
     body: string;
     detail?: string;
     location?: string;
+    retryAfterMs?: number;
   }) {
     const parts: string[] = [];
     if (args.detail) parts.push(args.detail);
+    if (args.retryAfterMs !== undefined) {
+      parts.push(
+        `the server asks to retry after ${Math.ceil(args.retryAfterMs / 1000)} s, longer than ` +
+          `the 30 s this client waits, so it was not retried (more retries won't help; try again later)`,
+      );
+    }
     if (args.status >= 300 && args.status < 400) {
       parts.push(
         args.location
@@ -52,6 +64,7 @@ export class NinaApiError extends NinaError {
     this.body = args.body;
     this.detail = args.detail;
     this.location = args.location;
+    this.retryAfterMs = args.retryAfterMs;
   }
 
   /** True for statuses the API documents as transient and retry-able. */

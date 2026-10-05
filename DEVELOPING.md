@@ -59,7 +59,7 @@ try {
 new NinaClient({
   baseUrl: "https://warnung.bund.de",
   timeoutMs: 15_000,
-  maxRetries: 3,              // 429 / 503 are retried (Retry-After, else linear backoff)
+  maxRetries: 3,              // 429 / 503 and resets are retried (linear backoff, or a longer Retry-After)
   maxResponseBytes: 50 << 20, // example: abort over 50 MiB; the default is 100 MiB (0 = unlimited)
   userAgent: "my-app/1.0",
   transport: customTransport, // inject your own HTTP transport
@@ -181,12 +181,14 @@ through `run()` and through the library on one recording mock transport.
 serialiser: omits `undefined`/`null`, repeats keys for arrays, renders booleans
 as `true`/`false`, dates as ISO-8601, and encodes spaces as `%20` (not `+`).
 
-**Retry / backoff.** Transient `429` (rate limit) and `503` responses are
-retried automatically, up to `--max-retries`. Each retry waits the response's
-`Retry-After` (parsed strictly by the exported `parseRetryAfter`: delay-seconds or an
-IMF-fixdate); one above `MAX_RETRY_AFTER_MS` (30 s) is not retried and the error
-surfaces at once. Without a usable `Retry-After` the wait grows linearly
-(`retryDelayMs * attempt`). The count is bounded by the exported `MAX_RETRIES`
+**Retry / backoff.** Transient `429` (rate limit) and `503` responses, and reset
+connections (see Custom transports), are retried automatically, up to `--max-retries`;
+a refused connection, a DNS failure and a timeout are not. Each retry waits the linear
+backoff (`retryDelayMs * attempt`), or the response's `Retry-After` (parsed strictly by
+the exported `parseRetryAfter`: delay-seconds or an IMF-fixdate) when that is longer —
+never less, so `Retry-After: 0` or a past date cannot make a burst. A `Retry-After`
+above `MAX_RETRY_AFTER_MS` (30 s) is not retried: the `NinaApiError` surfaces at once,
+carries the requested wait as `retryAfterMs` and says that more retries won't help. The count is bounded by the exported `MAX_RETRIES`
 (`10`): the engine rejects a `maxRetries` that is not an integer from `0` to
 `MAX_RETRIES` with a `NinaValidationError`, and the CLI's `--max-retries` parser
 uses the same constant, so a value above `10` is a usage error there.
@@ -196,8 +198,9 @@ uses the same constant, so a value above `10` is a usage error there.
 constructor, which throws a `NinaValidationError` (`Invalid option <name>: expected
 an integer from 0 to <max>, got <value>.`) before any request: `timeoutMs` must be
 an integer from `0` (no timeout) to `MAX_TIMEOUT_MS` (2^31 − 1 ms), `maxRetries`
-from `0` to `MAX_RETRIES`, and `retryDelayMs` and `maxResponseBytes` non-negative
-safe integers. A negative or NaN `timeoutMs` used to mean no timeout at all. The
+from `0` to `MAX_RETRIES`, `retryDelayMs` from `0` to `MAX_RETRY_AFTER_MS` (30 000; a
+larger one used to overflow Node's timers into a 1 ms delay), and `maxResponseBytes` a
+non-negative safe integer. A negative or NaN `timeoutMs` used to mean no timeout at all. The
 CLI's `--timeout` and `--max-retries` parsers use the same exported bounds.
 
 **userAgent.** The `User-Agent` header value (default `nina-warnungen-cli`). The
@@ -283,7 +286,7 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`shared.test.ts`** — the `parseIntArg` value parser (accepts plain decimals, rejects everything else).
 - **`validate.test.ts`** — `assertValid`, the `NinaValidationError` exit-code mapping and the `parity()` helper.
 - **`conformance-p*.test.ts`** — the workspace's shared conformance checks from the 2026-10-05 review
-  (P1 credential redaction in CLI output, P2 in library objects, P4 base-URL validation, P5 transport contract, …); copied across the `*-cli` repos, only the adapter
+  (P1 credential redaction in CLI output, P2 in library objects, P4 base-URL validation, P5 transport contract, P6 retry policy, …); copied across the `*-cli` repos, only the adapter
   block at the top differs.
 
 ## Continuous integration

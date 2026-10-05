@@ -159,10 +159,11 @@ Terminal schicken kann.
 
 **Rate-Limiting / vorübergehende Fehler.** Die API kann **429** (zu viele Anfragen) oder
 **503** (vorübergehend nicht verfügbar) liefern; der Client behandelt beide als
-wiederholbar (`--max-retries`). Jeder neue Versuch wartet den `Retry-After` der
-Antwort ab (Sekunden oder ein HTTP-Datum); ein `Retry-After` über 30 s wird nicht
-wiederholt, der Fehler wird sofort gemeldet. Ohne brauchbaren `Retry-After` wächst die
-Wartezeit linear.
+wiederholbar (`--max-retries`), ebenso eine zurückgesetzte Verbindung. Jeder neue
+Versuch wartet linear länger (200 ms, 400 ms, …) oder den `Retry-After` der Antwort
+(Sekunden oder ein HTTP-Datum), wenn der länger ist – nie kürzer, sodass `Retry-After: 0`
+keine Anfragesalve auslöst. Ein `Retry-After` über 30 s wird nicht wiederholt; der
+Fehler nennt die verlangte Wartezeit und wird sofort gemeldet.
 
 **Keine Weiterleitungen.** Der Transport sendet genau eine Anfrage und folgt keinen
 `3xx`-Weiterleitungen – eine Weiterleitung wird wie jeder andere Nicht-2xx-Status als

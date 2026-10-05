@@ -269,3 +269,27 @@ test("the constructor rejects a base URL with a query or fragment, without echoi
     );
   }
 });
+
+test("retryDelayMs is bounded by MAX_RETRY_AFTER_MS, so no timer overflows to 1 ms", () => {
+  for (const retryDelayMs of [30_001, 3_000_000_000, Number.MAX_SAFE_INTEGER]) {
+    assert.throws(() => new RequestEngine({ retryDelayMs }), NinaValidationError, String(retryDelayMs));
+  }
+  assert.doesNotThrow(() => new RequestEngine({ retryDelayMs: 30_000 }));
+});
+
+test("a reset is retried, a refused connection is not", async () => {
+  const sleeps: number[] = [];
+  let n = 0;
+  const reset = makeMockTransport(() => {
+    if (n++ === 0) throw new NinaNetworkError("Connection to h was reset.", { cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }) });
+    return jsonResponse([]);
+  });
+  await new RequestEngine({ transport: reset.transport, maxRetries: 5, sleep: async (ms) => void sleeps.push(ms) }).getJson("/x");
+  assert.equal(reset.calls.length, 2);
+  assert.deepEqual(sleeps, [200]);
+  const refused = makeMockTransport(() => {
+    throw new NinaNetworkError("Could not connect to h (connection refused).", { cause: Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" }) });
+  });
+  await assert.rejects(new RequestEngine({ transport: refused.transport, maxRetries: 5, sleep: async () => {} }).getJson("/x"), NinaNetworkError);
+  assert.equal(refused.calls.length, 1);
+});

@@ -62,15 +62,16 @@ export interface EngineOptions {
   /**
    * Number of automatic retries for transient (429/503) responses and reset connections
    * (`ECONNRESET`, `UND_ERR_SOCKET`, …) (default 2). A refused connection, a DNS failure
-   * and a timeout are not retried. Each retry waits the response's `Retry-After` (up to
-   * `MAX_RETRY_AFTER_MS`; a longer one is not retried), or else `retryDelayMs * attempt`.
+   * and a timeout are not retried. Each retry waits `retryDelayMs * attempt`, or the
+   * response's `Retry-After` when that is longer (up to `MAX_RETRY_AFTER_MS`; a longer
+   * one is not retried, and the error names the requested wait).
    * Anything but an integer from 0 to `MAX_RETRIES` (10) throws a `NinaValidationError`.
    */
   maxRetries?: number;
   /**
-   * Base backoff between retries in milliseconds (grows linearly; default 200); used
-   * without a Retry-After. A negative or non-integer value throws a
-   * `NinaValidationError`.
+   * Base backoff between retries in milliseconds (grows linearly; default 200). A
+   * `Retry-After` can make a wait longer, never shorter. Anything but an integer from 0
+   * to `MAX_RETRY_AFTER_MS` (30 000) throws a `NinaValidationError`.
    */
   retryDelayMs?: number;
   /**
@@ -288,7 +289,9 @@ export class RequestEngine {
       options.userAgent === undefined ? DEFAULT_USER_AGENT : assertHeaderValue("userAgent", options.userAgent);
     this.timeoutMs = intOption("timeoutMs", options.timeoutMs, 30_000, MAX_TIMEOUT_MS);
     this.maxRetries = intOption("maxRetries", options.maxRetries, 2, MAX_RETRIES);
-    this.retryDelayMs = intOption("retryDelayMs", options.retryDelayMs, 200, Number.MAX_SAFE_INTEGER);
+    // Bounded like a Retry-After: a larger value (above 2^31 - 1 ms) used to overflow Node's
+    // timers, which fire after 1 ms instead, so the retries went out back to back.
+    this.retryDelayMs = intOption("retryDelayMs", options.retryDelayMs, 200, MAX_RETRY_AFTER_MS);
     this.maxResponseBytes = intOption(
       "maxResponseBytes",
       options.maxResponseBytes,
@@ -438,13 +441,17 @@ export class RequestEngine {
         throw new NinaNetworkError(sizeLimitMessage(this.maxResponseBytes));
       }
       const retryable = status === 429 || status === 503;
+      const retryAfter = retryable ? parseRetryAfter(responseHeaders["retry-after"]) : undefined;
       if (idempotent && retryable && attempt < this.maxRetries) {
-        // Honour Retry-After; without a usable one, back off linearly. A Retry-After
-        // beyond MAX_RETRY_AFTER_MS is not retried: the error below surfaces at once.
-        const retryAfter = parseRetryAfter(responseHeaders["retry-after"]);
+        // Back off linearly (retryDelayMs * attempt). A Retry-After can make the wait longer,
+        // never shorter: `Retry-After: 0` or a date in the past turned the retries into a
+        // zero-delay burst against a server that had just asked for less load. A Retry-After
+        // beyond MAX_RETRY_AFTER_MS is not retried: the error below surfaces at once and
+        // names the wait the server asked for.
         if (retryAfter === undefined || retryAfter <= MAX_RETRY_AFTER_MS) {
           attempt += 1;
-          await this.sleep(retryAfter ?? this.retryDelayMs * attempt);
+          const backoff = this.retryDelayMs * attempt;
+          await this.sleep(retryAfter === undefined ? backoff : Math.max(retryAfter, backoff));
           continue;
         }
       }
@@ -453,7 +460,8 @@ export class RequestEngine {
       // so strip control characters at the source before it leaves the engine.
       const contentType = sanitizeServerText(String(responseHeaders["content-type"] ?? ""));
       if (status < 200 || status >= 300) {
-        throw this.toApiError(method, url, status, body, responseHeaders["location"]);
+        const tooLong = retryable && retryAfter !== undefined && retryAfter > MAX_RETRY_AFTER_MS;
+        throw this.toApiError(method, url, status, body, responseHeaders["location"], tooLong ? retryAfter : undefined);
       }
 
       return { data: body, contentType, status };
@@ -482,6 +490,7 @@ export class RequestEngine {
     status: number,
     body: Buffer,
     locationHeader?: string | string[],
+    retryAfterMs?: number,
   ): NinaApiError {
     // The body is kept on the error (`body`) and may echo the request URL: scrub it.
     const text = this.scrub(body.toString("utf8"));
@@ -501,7 +510,7 @@ export class RequestEngine {
     const rawLocation = Array.isArray(locationHeader) ? locationHeader[0] : locationHeader;
     const location =
       status >= 300 && status < 400 && rawLocation ? redirectTarget(url, rawLocation) : undefined;
-    return new NinaApiError({ status, url, method, body: text, detail, location });
+    return new NinaApiError({ status, url, method, body: text, detail, location, retryAfterMs });
   }
 }
 

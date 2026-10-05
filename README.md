@@ -163,7 +163,8 @@ An identifier that begins with `-` would be parsed as an option; pass it after a
   the redirect; it prints `… is not a live warning …` with that archive URL and exits `4`.
 - **Exit `1` / network error** — connectivity, DNS, or a timeout. Try again, or
   raise the limit with `--timeout 60000`. For flaky networks increase retries:
-  `--max-retries 5`.
+  `--max-retries 5` retries a connection that was reset (and `429`/`503`), but not a
+  refused connection, a DNS failure or a timeout.
 - **Empty result from `map-data`** — the source has no active warnings right now.
   Try a different source or come back later.
 - **`warning geojson` prints non-JSON content-type warning** — the API returned
@@ -183,7 +184,7 @@ These apply to every command and may be given before *or* after it:
 | `--base-url <url>` | API base URL (default `https://warnung.bund.de`; a path prefix for a mirror is fine; a query `?` or fragment `#`, whitespace or control characters are rejected) |
 | `--timeout <ms>` | Per-request timeout (default `30000`; `0` waits indefinitely; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (a blank value, control characters or characters above U+00FF are rejected) |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`, max `10` — higher is rejected). Each retry waits the server's `Retry-After` (seconds or an HTTP date); a `Retry-After` above 30 s is not retried, the error is reported at once. Without one, the wait grows linearly (200 ms, 400 ms, …) |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (default `2`, max `10` — higher is rejected). A refused connection, a DNS failure and a timeout are not retried. Each retry waits a linear backoff (200 ms, 400 ms, …), or the server's `Retry-After` (seconds or an HTTP date) when that is longer — never less, so `Retry-After: 0` still waits the backoff; a `Retry-After` above 30 s is not retried, and the error names the requested wait |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 
 Numeric options accept only plain non-negative decimal integers — values like

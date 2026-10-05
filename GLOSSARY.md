@@ -159,9 +159,11 @@ characters are escaped (`\uXXXX`) so the body cannot send escape sequences to it
 
 **Rate limiting / transient errors.** The API may return **429** (too many
 requests) or **503** (temporarily unavailable); the client treats both as
-retryable (`--max-retries`). Each retry waits the response's `Retry-After`
-(delay-seconds or an HTTP date); a `Retry-After` above 30 s is not retried and the
-error is reported at once. Without a usable `Retry-After` it backs off linearly.
+retryable (`--max-retries`), as is a connection that was reset. Each retry backs off
+linearly (200 ms, 400 ms, …), or waits the response's `Retry-After` (delay-seconds or
+an HTTP date) when that is longer — never less, so `Retry-After: 0` does not cause a
+burst. A `Retry-After` above 30 s is not retried and the error, naming the requested
+wait, is reported at once.
 
 **No redirect following.** The transport issues exactly one request and does not
 follow `3xx` redirects — a redirect is surfaced as an error like any other
