@@ -164,12 +164,13 @@ export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown)
 }
 
 /**
- * Resolve the --output target. `undefined` means "no -o given" (write to stdout).
+ * Resolve the --output target. `undefined` means "write to stdout": no -o given, or
+ * `-o -`, the common convention for stdout (it used to write a file named "-").
  * An explicitly empty string is a user error (e.g. `--output "$OUT"` with an
  * unset variable) and must not silently fall through to stdout, so we reject it.
  */
-function resolveOutput(output: string | undefined): string | undefined {
-  if (output === undefined) return undefined;
+export function resolveOutput(output: string | undefined): string | undefined {
+  if (output === undefined || output === "-") return undefined;
   if (output === "") {
     throw new NinaError("--output requires a non-empty file path.");
   }

@@ -180,7 +180,7 @@ These flags apply to every command (real flags only):
 | `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (default `2`, max `10` — higher is rejected). A refused connection, a DNS failure and a timeout are not retried. Each retry waits a linear backoff (200 ms, 400 ms, …), or the server's `Retry-After` (seconds or an HTTP date) when that is longer — never less, so `Retry-After: 0` still waits the backoff; a `Retry-After` above 30 s is not retried, and the error names the requested wait |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `-o, --output <file>` | Write the command's output to a file instead of stdout (JSON commands and downloads alike). An existing file at that path is **overwritten silently** — there is no prompt or `--force`, so point `-o` at a fresh path or one you intend to replace |
+| `-o, --output <file>` | Write the command's output to a file instead of stdout (JSON commands and downloads alike); `-o -` means stdout. An existing file at that path is **overwritten silently** — there is no prompt or `--force`, so point `-o` at a fresh path or one you intend to replace |
 | `-h, --help` | Display help for a command |
 
 Notes: numeric options accept only plain non-negative decimal integers. An

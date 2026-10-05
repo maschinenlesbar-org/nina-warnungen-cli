@@ -473,3 +473,17 @@ test("dashboard and map-data fail (exit 1, nothing on stdout) on a 200 that is n
   assert.equal(await run(["--compact", "dashboard", "055150000000"], empty.deps), 0);
   assert.equal(empty.out.join("\n"), "[]");
 });
+
+test("-o - writes to stdout, not to a file named -", async () => {
+  for (const argv of [["-o", "-", "--compact", "map-data", "mowas"], ["--output=-", "--compact", "map-data", "mowas"]]) {
+    const cli = makeCli(() => jsonResponse([{ id: "mow.1" }]));
+    assert.equal(await run(argv, cli.deps), 0);
+    assert.equal(cli.out.join("\n"), '[{"id":"mow.1"}]');
+    assert.equal(cli.files.size, 0);
+    assert.doesNotMatch(cli.err.join("\n"), /Wrote/);
+  }
+  const geo = makeCli(() => rawResponse('{"type":"FeatureCollection"}', "application/geo+json"));
+  assert.equal(await run(["-o", "-", "warning", "geojson", "abc"], geo.deps), 0);
+  assert.equal(geo.out.join(""), '{"type":"FeatureCollection"}');
+  assert.equal(geo.files.size, 0);
+});
