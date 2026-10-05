@@ -236,6 +236,15 @@ default transport (as a `NinaNetworkError`); the constructor check alone already
 holds transport-independently, so a library user who injects a custom `Transport`
 still cannot reach a `file:`/`ftp:` driver via the base URL.
 
+**Credentials in the base URL.** A base URL may carry `user:password@` (sent as Basic
+auth). The library's reasons never repeat the value, and the CLI also redacts on
+output: `run.ts` (`withRedactedOutput`) takes the exact userinfo of every argument
+(`credentialsIn`, exported) and replaces it with `***` in everything it prints —
+commander's usage errors, which echo a rejected `--base-url` value, and its own
+messages — so a password with spaces, quotes, `#`, `?` or `/` is caught as well as an
+ordinary one. `redactUrl` (exported) falls back to the same text-based cut for a value
+that doesn't parse as a URL.
+
 ## Testing
 
 ```bash
@@ -249,6 +258,9 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`cli.test.ts`** — end-to-end command parsing, rendering, file output and exit codes, plus negative paths (network/parse/API errors, write failures, content-type warning) — mocked client.
 - **`shared.test.ts`** — the `parseIntArg` value parser (accepts plain decimals, rejects everything else).
 - **`validate.test.ts`** — `assertValid`, the `NinaValidationError` exit-code mapping and the `parity()` helper.
+- **`conformance-p*.test.ts`** — the workspace's shared conformance checks from the 2026-10-05 review
+  (P1 credential redaction in CLI output, …); copied across the `*-cli` repos, only the adapter
+  block at the top differs.
 
 ## Continuous integration
 

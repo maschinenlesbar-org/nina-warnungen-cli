@@ -33,6 +33,8 @@ export {
   NinaParseError,
   NinaValidationError,
   redactUrl,
+  credentialsIn,
+  redactCredentials,
 } from "./errors.js";
 
 export * from "./enums.js";
