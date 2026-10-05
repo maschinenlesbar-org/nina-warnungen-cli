@@ -26,33 +26,56 @@ export function arsProblem(ars: string): string | undefined {
   if (typeof ars !== "string") return `Invalid region key: expected a string, got ${ars === null ? "null" : typeof ars}.`;
   const key = cutForMessage(JSON.stringify(ars));
   if (!/^\d{12}$/.test(ars)) {
+    // The district key the input most likely meant, if its shape tells.
+    let candidate: string | undefined;
     let hint = "";
     if (/^\d{11}$/.test(ars) && DISTRICT_ARS.test(`0${ars}`)) {
-      hint = ` It has 11 digits; if a leading zero was lost, try "0${ars}".`;
+      candidate = `0${ars}`;
+      hint = ` It has 11 digits; if a leading zero was lost, try "${candidate}".`;
     } else if (/^\d{8}$/.test(ars)) {
-      hint = ` An 8-digit AGS (municipality key) belongs to the district "${ars.slice(0, 5)}0000000".`;
+      candidate = `${ars.slice(0, 5)}0000000`;
+      hint = ` An 8-digit AGS (municipality key) belongs to the district "${candidate}".`;
     } else if (/^\d{5}$/.test(ars)) {
-      hint = ` For the district ${ars}, use "${ars}0000000".`;
+      candidate = `${ars}0000000`;
+      hint = ` For the district ${ars}, use "${candidate}".`;
     }
-    return (
+    const expected =
       `Invalid region key ${key}: expected a 12-digit district-level ARS, the district's ` +
-      `first five digits followed by 0000000 (e.g. 055150000000 for Münster).${hint}`
-    );
+      `first five digits followed by 0000000 (e.g. 055150000000 for Münster).`;
+    // Never suggest a key the next run refuses: a state-level result gets the state-key
+    // explanation straight away.
+    if (candidate !== undefined && isStateLevel(candidate)) {
+      return `${expected} It would be the key "${candidate}", which is not a district: ${STATE_KEY_REASON}`;
+    }
+    return `${expected}${hint}`;
   }
   if (!DISTRICT_ARS.test(ars)) {
+    const district = `${ars.slice(0, 5)}0000000`;
+    if (isStateLevel(district)) {
+      return (
+        `Region key ${key} is not a district key: the last seven digits must be 0 (this is ` +
+        `a municipality-level key), and its first five digits name no district: ${STATE_KEY_REASON}`
+      );
+    }
     return (
       `Region key ${key} is not a district key: the last seven digits must be 0 (this is ` +
-      `a municipality-level key). Use its district: "${ars.slice(0, 5)}0000000".`
+      `a municipality-level key). Use its district: "${district}".`
     );
   }
-  if (/^\d{2}000\d{7}$/.test(ars) && !CITY_STATE_DISTRICT_KEYS.includes(ars)) {
-    return (
-      `Region key ${key} is not a district key: digits 3-5 are "000" (a whole state, or ` +
-      `the whole country), and the dashboard answers such a key with an empty list even ` +
-      `while a district there has warnings. Use the district's key: its first five digits ` +
-      `followed by 0000000, e.g. 055150000000 (Münster). Only Hamburg (020000000000) and ` +
-      `Berlin (110000000000) are their own district.`
-    );
+  if (isStateLevel(ars)) {
+    return `Region key ${key} is not a district key: ${STATE_KEY_REASON}`;
   }
   return undefined;
 }
+
+/** True for a whole state's key (or the whole country's), which is not a district key. */
+function isStateLevel(key: string): boolean {
+  return /^\d{2}000\d{7}$/.test(key) && !CITY_STATE_DISTRICT_KEYS.includes(key);
+}
+
+/** Why a state-level key is refused, and what to use instead. */
+const STATE_KEY_REASON =
+  `digits 3-5 are "000" (a whole state, or the whole country), and the dashboard answers ` +
+  `such a key with an empty list even while a district there has warnings. Use the ` +
+  `district's key: its first five digits followed by 0000000, e.g. 055150000000 (Münster). ` +
+  `Only Hamburg (020000000000) and Berlin (110000000000) are their own district.`;

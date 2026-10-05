@@ -208,3 +208,18 @@ test("copy-paste artefacts around a warning id are dropped before the request", 
   await clientWith(mt).warnings.get(id.toLowerCase());
   assert.equal(new URL(mt.last().url).pathname, `/api31/warnings/${id.toLowerCase()}.json`);
 });
+
+test("the region-key hint never suggests a key that is then refused", async () => {
+  const { arsProblem } = await import("../src/client/ars.js");
+  // Inputs whose obvious district key is a state's: the state-key reason straight away.
+  for (const input of ["80000000000", "04000000", "05000", "080000001234"]) {
+    const problem = arsProblem(input)!;
+    assert.match(problem, /digits 3-5 are "000"/, input);
+    assert.doesNotMatch(problem, /try "|belongs to the district "|use "|Use its district: "/, input);
+  }
+  // Inputs whose suggested key is accepted keep their hint, and the suggestion passes.
+  for (const [input, suggested] of [["55150000000", "055150000000"], ["05515000", "055150000000"], ["05515", "055150000000"], ["055150001234", "055150000000"], ["02000000", "020000000000"]] as const) {
+    assert.match(arsProblem(input)!, new RegExp(`"${suggested}"`), input);
+    assert.equal(arsProblem(suggested), undefined, suggested);
+  }
+});
