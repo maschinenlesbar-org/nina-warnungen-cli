@@ -171,6 +171,10 @@ An identifier that begins with `-` would be parsed as an option; pass it after a
   The API redirects a mistyped id the same way, and ids are case-sensitive, so exit `4`
   does not prove that a warning ended. Whitespace, invisible characters and quotes around
   an id and a `.json`/`.geojson` suffix are dropped before the request.
+- **Exit `4` / `no such district key` from `dashboard`** — the key has the right shape
+  but NINA knows no district by it (e.g. a Regierungsbezirk key such as `051000000000`, or
+  an unassigned number), and the API answered `404`. Look the district's key up again:
+  its first five digits followed by `0000000`.
 - **Exit `1` / network error** — connectivity, DNS, or a timeout. Try again, or
   raise the limit with `--timeout 60000`. For flaky networks increase retries:
   `--max-retries 5` retries a connection that was reset (and `429`/`503`), but not a

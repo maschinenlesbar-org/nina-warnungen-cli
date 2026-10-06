@@ -98,6 +98,10 @@ district key to use where it is clear — take the first five digits and append
 `000000000000`) is refused before any request: the API answers it with `[]` even while a
 district in that state has warnings, which would read as an all-clear. Hamburg
 (`020000000000`) and Berlin (`110000000000`) are their own district and are accepted.
+A well-formed key that names no district (a Regierungsbezirk key such as `051000000000`,
+an unassigned number) gets HTTP 404 from the API: the CLI prints
+`Error: HTTP 404 for GET /api31/dashboard/<key>.json: no such district key "<key>": …`
+and exits `4`.
 
 ```bash
 nina dashboard 055150000000

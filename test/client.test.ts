@@ -223,3 +223,24 @@ test("the region-key hint never suggests a key that is then refused", async () =
     assert.equal(arsProblem(suggested), undefined, suggested);
   }
 });
+
+test("dashboard turns a 404 into 'no such district key', naming the key; other errors pass through", async () => {
+  const notFound = clientWith(makeMockTransport(() => rawResponse("", "text/html", 404)));
+  await assert.rejects(
+    () => notFound.dashboard("059990000000"),
+    (err: unknown) => {
+      assert.ok(err instanceof NinaApiError);
+      assert.equal(err.status, 404);
+      assert.match(err.message, /^HTTP 404 for GET \/api31\/dashboard\/059990000000\.json: no such district key "059990000000"/);
+      assert.equal(err.detail?.startsWith('no such district key "059990000000"'), true);
+      return true;
+    },
+  );
+  const down = clientWith(constantJson({ message: "backend down" }, 500));
+  await assert.rejects(() => down.dashboard("055150000000"), (err: unknown) => {
+    assert.ok(err instanceof NinaApiError);
+    assert.equal(err.status, 500);
+    assert.doesNotMatch(err.message, /no such district key/);
+    return true;
+  });
+});

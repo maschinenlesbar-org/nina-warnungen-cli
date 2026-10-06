@@ -118,6 +118,9 @@ refused, naming the district key where it is clear — and it also refuses a
 3–5 `000`, e.g. `050000000000`, or `000000000000`) before any request: the API answers
 those with `[]` and HTTP 200 even while a district in that state has warnings, a false
 all-clear. Hamburg (`020000000000`) and Berlin (`110000000000`) are their own district.
+A well-formed key that names no district (a Regierungsbezirk key such as
+`051000000000`, an unassigned number) gets HTTP 404, reported as `no such district key`
+with exit code `4`.
 
 ---
 
@@ -190,7 +193,7 @@ What `nina` returns to the shell, for scripts:
 | --- | --- |
 | `0` | Success — also `--help`, `--version`, and a bare command or group (which prints its help). An empty list (`[]`) is a success too: no active warnings. |
 | `1` | Any error other than "not found": a network failure or timeout, a response that is not valid JSON, not the documented shape (an HTTP 200 with `null`, `{}` or an error object where a list of warnings belongs — never read as "no warnings") or is nested too deeply to print, an API error other than `404` (including a `3xx`, which is not followed, and `429`/`503` after the retries), a failed `-o` write, and bad usage — an unknown command or option, an invalid option value, or an argument the CLI refuses before sending (a malformed or state-level region key, an unknown source, an identifier with a path separator). |
-| `4` | Not found: an API `404` (e.g. an unknown archive identifier or region key), or a warning identifier that is no longer live, which the API redirects to its archive instead of answering `404`. |
+| `4` | Not found: an API `404` (e.g. an unknown archive identifier, or a region key that names no district — reported as `no such district key "<key>"`), or a warning identifier that is no longer live, which the API redirects to its archive instead of answering `404`. |
 
 ---
 

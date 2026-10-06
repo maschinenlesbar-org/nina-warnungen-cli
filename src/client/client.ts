@@ -127,6 +127,28 @@ function notLive(identifier: string, err: unknown): unknown {
   return new NinaNotFoundError(identifier, err.location, { cause: err });
 }
 
+/**
+ * The dashboard answers a well-formed key it knows no district for with a bare HTTP 404
+ * (empty body), which said nothing about the key. Give that 404 a detail naming the key;
+ * it stays a `NinaApiError` with status 404, and any other error passes through.
+ */
+function noSuchDistrict(ars: string, err: unknown): unknown {
+  if (!(err instanceof NinaApiError) || err.status !== 404) return err;
+  const detail =
+    `no such district key ${JSON.stringify(ars)}: NINA has no dashboard for it. ` +
+    `A district key is the district's first five digits followed by 0000000 (e.g. ` +
+    `055150000000 for Münster); a Regierungsbezirk key such as 051000000000 is not one` +
+    (err.detail ? ` (server: ${err.detail})` : "");
+  return new NinaApiError({
+    status: err.status,
+    url: err.url,
+    method: err.method,
+    body: err.body,
+    detail,
+    ...(err.location !== undefined ? { location: err.location } : {}),
+  });
+}
+
 /** Single-warning retrieval (full payload + geometry). */
 class WarningsResource {
   constructor(private readonly engine: RequestEngine) {}
@@ -256,12 +278,19 @@ export class NinaClient {
    * AGS, a municipality-level ARS, a lost leading zero) and a state-level key
    * (digits 3-5 `000`, other than Hamburg's and Berlin's, which the API would answer
    * with `[]`, a false all-clear) are rejected with a `NinaValidationError` (whose
-   * message is `arsProblem`'s) before any request.
+   * message is `arsProblem`'s) before any request. A well-formed key NINA knows no
+   * district for (a Regierungsbezirk key such as `051000000000`, an unassigned number)
+   * gets HTTP 404, which rejects as a `NinaApiError` (status 404) whose detail says
+   * `no such district key "<ars>"`.
    */
   async dashboard(ars: string): Promise<DashboardEntry[]> {
     const problem = arsProblem(ars);
     if (problem !== undefined) throw new NinaValidationError(problem);
     const path = `${API}/dashboard/${enc(ars)}.json`;
-    return expectShape(path, await this.engine.getJson(path), warningList);
+    try {
+      return expectShape(path, await this.engine.getJson(path), warningList);
+    } catch (err) {
+      throw noSuchDistrict(ars, err);
+    }
   }
 }

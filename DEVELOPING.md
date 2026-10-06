@@ -97,7 +97,10 @@ carrying that message before any
 request: anything but 12 digits with the last seven `0` (the API answers an AGS with an
 opaque 400 and a municipality key with 404), and a state-level key (digits 3–5 `000`, other than `CITY_STATE_DISTRICT_KEYS`,
 Hamburg and Berlin) would get `[]` from the API, a false all-clear. The CLI's
-`dashboard` passes the key straight to this method, so it prints the same message.
+`dashboard` passes the key straight to this method, so it prints the same message. A
+well-formed key NINA knows no district for gets a bare HTTP 404 (empty body); the method
+rethrows it as a `NinaApiError` (still status 404, so CLI exit `4`) whose `detail` is
+`no such district key "<ars>": …`.
 
 ## Architecture
 

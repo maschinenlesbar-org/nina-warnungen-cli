@@ -522,3 +522,11 @@ test("a usage error with an http base URL prints no cleartext warning", async ()
   assert.ok(!cli.err.some((l) => l.startsWith("warning:")), cli.err.join("\n"));
   assert.equal(cli.mt.calls.length, 0);
 });
+
+test("dashboard: a 404 says 'no such district key' and exits 4", async () => {
+  const cli = makeCli(() => rawResponse("", "text/html", 404));
+  const code = await run(["dashboard", "059990000000"], cli.deps);
+  assert.equal(code, 4);
+  assert.deepEqual(cli.out, []);
+  assert.match(cli.err.join("\n"), /^Error: HTTP 404 for GET \/api31\/dashboard\/059990000000\.json: no such district key "059990000000"/);
+});
