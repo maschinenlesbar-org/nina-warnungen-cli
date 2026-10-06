@@ -153,8 +153,9 @@ status }` — raw bytes, never lossily decoded.
 ([`io.ts`](src/cli/io.ts)): a client factory plus an I/O object. Lets the whole
 CLI run in tests with a mocked client and captured output — no subprocess.
 The bin shim installs `handleOutputErrors()` before `run()`: when stdout's reader stops
-early (`| head`) the CLI exits 0 quietly instead of printing an `EPIPE` stack trace, and
-when stderr's reader is gone a failed run keeps its own exit code.
+early (`| head`) the CLI exits 0 quietly instead of printing an `EPIPE` (or, on a socket,
+`ENOTCONN`) stack trace, and when stderr's reader is gone a failed run keeps its own exit
+code.
 
 **Error types.** [`errors.ts`](src/client/errors.ts): `NinaApiError` (non-2xx,
 carries `status`/`detail`/`isRetryable`), `NinaNetworkError` (transport

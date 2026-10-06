@@ -498,3 +498,19 @@ test("-o - writes to stdout, not to a file named -", async () => {
   assert.equal(geo.out.join(""), '{"type":"FeatureCollection"}');
   assert.equal(geo.files.size, 0);
 });
+
+test("handleOutputErrors treats ENOTCONN like EPIPE: exit 0 on stdout, ignored on stderr", async () => {
+  const { EventEmitter } = await import("node:events");
+  const { handleOutputErrors } = await import("../src/cli/io.js");
+  const stdout = new EventEmitter();
+  const stderr = new EventEmitter();
+  const exits: number[] = [];
+  handleOutputErrors({ stdout, stderr } as never, (code) => exits.push(code));
+  const gone = (code: string) => Object.assign(new Error(`write ${code}`), { code });
+  stderr.emit("error", gone("ENOTCONN"));
+  stderr.emit("error", gone("EPIPE"));
+  assert.deepEqual(exits, []);
+  stdout.emit("error", gone("ENOTCONN"));
+  stdout.emit("error", gone("EPIPE"));
+  assert.deepEqual(exits, [0, 0]);
+});
