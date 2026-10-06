@@ -270,6 +270,44 @@ export function validateBaseUrl(raw: string, name = "baseUrl"): string {
   return assertValid(name, raw, baseUrlProblem).replace(/\/+$/, "");
 }
 
+/** True for a loopback host: `localhost`, `127.0.0.0/8` or `::1` (as `URL.hostname` gives them). */
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (host === "localhost" || host === "[::1]") return true;
+  return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+}
+
+/**
+ * Describe what a plain-`http:` base URL exposes on the wire, or `undefined` when there is
+ * nothing to warn about: an `https:` URL, an unparseable one, or a loopback host
+ * (`localhost`, `127.0.0.0/8`, `::1`). Otherwise one sentence, without a `warning: ` prefix:
+ *
+ * - `requests to <host> are sent unencrypted (http:, not https:)`
+ * - `the base URL's credentials are sent unencrypted to <host> (http:, not https:)` when
+ *   the URL carries userinfo;
+ * - other secrets the caller sends (noun phrases in `secrets`, e.g. `"the API key"`) are
+ *   named first, joined with the userinfo phrase by "and".
+ *
+ * `<host>` is the URL's host and port, never its userinfo; the sentence never contains a
+ * password or key. The CLI prints it once per run as `warning: <sentence>` on stderr.
+ */
+export function cleartextProblem(baseUrl: string, secrets: readonly string[] = []): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== "http:" || isLoopbackHost(url.hostname)) return undefined;
+  const phrases = [...secrets];
+  if (url.username !== "" || url.password !== "") phrases.push("the base URL's credentials");
+  if (phrases.length === 0) return `requests to ${url.host} are sent unencrypted (http:, not https:)`;
+  const named =
+    phrases.length === 1 ? phrases[0]! : `${phrases.slice(0, -1).join(", ")} and ${phrases[phrases.length - 1]!}`;
+  const verb = phrases.length === 1 && secrets.length === 1 ? "is" : "are";
+  return `${named} ${verb} sent unencrypted to ${url.host} (http:, not https:)`;
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 

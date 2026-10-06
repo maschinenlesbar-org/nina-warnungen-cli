@@ -176,7 +176,7 @@ These flags apply to every command (real flags only):
 | Option | Description |
 | --- | --- |
 | `-V, --version` | Output the version number |
-| `--base-url <url>` | API base URL (default `https://warnung.bund.de`; a path prefix for a mirror is fine; a query `?` or fragment `#`, whitespace or control characters are rejected) |
+| `--base-url <url>` | API base URL (default `https://warnung.bund.de`; a path prefix for a mirror is fine; a query `?` or fragment `#`, whitespace or control characters are rejected). A remote plain `http:` URL works but prints one `warning: … sent unencrypted …` line on stderr before the request (stdout and the exit code are unchanged; `localhost`, `127.0.0.0/8` and `::1` are exempt) |
 | `--timeout <ms>` | Per-request timeout in ms (`0` disables; waits indefinitely) |
 | `--user-agent <ua>` | `User-Agent` header value (a blank value, control characters or characters above U+00FF are rejected) |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (default `2`, max `10` — higher is rejected). A refused connection, a DNS failure and a timeout are not retried. Each retry waits a linear backoff (200 ms, 400 ms, …), or the server's `Retry-After` (seconds or an HTTP date) when that is longer — never less, so `Retry-After: 0` still waits the backoff; a `Retry-After` above 30 s is not retried, and the error names the requested wait |

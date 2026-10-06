@@ -6,7 +6,7 @@ import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import { NinaError } from "../client/errors.js";
 import { baseUrlProblem, headerValueProblem } from "../client/validate.js";
-import type { EngineOptions, RawResponse } from "../client/engine.js";
+import { DEFAULT_BASE_URL, cleartextProblem, type EngineOptions, type RawResponse } from "../client/engine.js";
 
 /**
  * commander value-parser: a plain non-negative decimal integer.
@@ -223,7 +223,9 @@ export interface ActionContext {
 /**
  * Wrap an async command action with consistent global-option resolution and
  * client construction. The callback receives a context (client + resolved global
- * options + this command's options) and the command's positional arguments.
+ * options + this command's options) and the command's positional arguments. When the
+ * effective base URL is remote plain `http:`, one `warning: …` line goes to stderr
+ * first ({@link cleartextProblem}); help, version and usage errors never reach here.
  *
  * Commander invokes actions as (arg1, ..., argN, options, command); we slice off
  * the trailing options object and command instance to recover the positionals.
@@ -236,6 +238,9 @@ export function action(
     const command = args[args.length - 1] as Command;
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
+    // One stderr line before any request when the base URL is remote plain http:.
+    const cleartext = cleartextProblem(global.baseUrl ?? DEFAULT_BASE_URL);
+    if (cleartext !== undefined) deps.io.err(`warning: ${cleartext}`);
     const client = deps.createClient(toEngineOptions(global));
     await fn({ client, global, opts: command.opts() }, positionals);
   };

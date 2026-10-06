@@ -514,3 +514,11 @@ test("handleOutputErrors treats ENOTCONN like EPIPE: exit 0 on stdout, ignored o
   stdout.emit("error", gone("EPIPE"));
   assert.deepEqual(exits, [0, 0]);
 });
+
+test("a usage error with an http base URL prints no cleartext warning", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  const code = await run(["--base-url", "http://mirror.example", "map-data"], cli.deps);
+  assert.equal(code, 1);
+  assert.ok(!cli.err.some((l) => l.startsWith("warning:")), cli.err.join("\n"));
+  assert.equal(cli.mt.calls.length, 0);
+});

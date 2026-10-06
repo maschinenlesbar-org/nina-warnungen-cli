@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RequestEngine, parseRetryAfter } from "../src/client/engine.js";
+import { RequestEngine, cleartextProblem, parseRetryAfter } from "../src/client/engine.js";
 import { NinaApiError, NinaNetworkError, NinaParseError, NinaValidationError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 import type { HttpResponse } from "../src/client/http.js";
@@ -304,4 +304,30 @@ test("getJson decodes by the declared charset, drops a BOM, and rejects an unkno
   assert.deepEqual(await new RequestEngine({ transport: bom.transport }).getJson("/x"), []);
   const unknown = makeMockTransport(() => rawResponse("[]", "application/json; charset=x-bogus"));
   await assert.rejects(new RequestEngine({ transport: unknown.transport }).getJson("/x"), NinaParseError);
+});
+
+test("cleartextProblem names the host and each secret, exempts https, loopback and junk", () => {
+  assert.equal(cleartextProblem("https://warnung.bund.de"), undefined);
+  assert.equal(cleartextProblem("not a url"), undefined);
+  for (const loopback of ["http://localhost:8080", "http://LOCALHOST", "http://127.8.9.10", "http://[::1]:9"]) {
+    assert.equal(cleartextProblem(loopback, ["the API key"]), undefined, loopback);
+  }
+  assert.equal(
+    cleartextProblem("http://mirror.example:8080/api"),
+    "requests to mirror.example:8080 are sent unencrypted (http:, not https:)",
+  );
+  assert.equal(
+    cleartextProblem("http://alice:s3cret@mirror.example"),
+    "the base URL's credentials are sent unencrypted to mirror.example (http:, not https:)",
+  );
+  assert.equal(
+    cleartextProblem("http://alice:s3cret@mirror.example", ["the API key"]),
+    "the API key and the base URL's credentials are sent unencrypted to mirror.example (http:, not https:)",
+  );
+  assert.equal(
+    cleartextProblem("http://mirror.example", ["the API key"]),
+    "the API key is sent unencrypted to mirror.example (http:, not https:)",
+  );
+  // 127.0.0.1.example is a remote name, not loopback.
+  assert.match(cleartextProblem("http://127.0.0.1.example") ?? "", /127\.0\.0\.1\.example/);
 });
