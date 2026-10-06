@@ -20,7 +20,7 @@ can pipe straight into [`jq`](https://jqlang.github.io/jq/).
 - **Region check** — one small request lists every warning affecting a district, by its official regional key.
 
 > Want to use this as a TypeScript library or understand how it's built?
-> See **[DEVELOPING.md](DEVELOPING.md)**.
+> See **[DEVELOPING.md](https://github.com/maschinenlesbar-org/nina-warnungen-cli/blob/main/DEVELOPING.md)**.
 
 ## Install
 
@@ -89,7 +89,7 @@ The canonical list is always available at runtime via `nina sources`.
 
 ## Common tasks
 
-A few recipes to get going — see **[Usage.md](Usage.md)** for the full,
+A few recipes to get going — see **[Usage.md](https://github.com/maschinenlesbar-org/nina-warnungen-cli/blob/main/Usage.md)** for the full,
 use-case-driven set.
 
 ```bash
@@ -205,10 +205,10 @@ Numeric options accept only plain non-negative decimal integers — values like
 
 ## Learn more
 
-- **[SKILLS.md](SKILLS.md)** — Claude Code Agent Skills that drive this CLI for live warning briefings, region watches and GeoJSON maps.
-- **[Usage.md](Usage.md)** — full use-case-driven cookbook.
-- **[GLOSSARY.md](GLOSSARY.md)** — every command, source, domain term and exit code explained.
-- **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
+- **[SKILLS.md](https://github.com/maschinenlesbar-org/nina-warnungen-cli/blob/main/SKILLS.md)** — Claude Code Agent Skills that drive this CLI for live warning briefings, region watches and GeoJSON maps.
+- **[Usage.md](https://github.com/maschinenlesbar-org/nina-warnungen-cli/blob/main/Usage.md)** — full use-case-driven cookbook.
+- **[GLOSSARY.md](https://github.com/maschinenlesbar-org/nina-warnungen-cli/blob/main/GLOSSARY.md)** — every command, source, domain term and exit code explained.
+- **[DEVELOPING.md](https://github.com/maschinenlesbar-org/nina-warnungen-cli/blob/main/DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
 
 ## Data license
 

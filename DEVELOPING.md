@@ -328,7 +328,7 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`shared.test.ts`** — the `parseIntArg` value parser (accepts plain decimals, rejects everything else).
 - **`validate.test.ts`** — `assertValid`, the `NinaValidationError` exit-code mapping and the `parity()` helper.
 - **`conformance-p*.test.ts`** — the workspace's shared conformance checks from the 2026-10-05 review
-  (P1 credential redaction in CLI output, P2 in library objects, P4 base-URL validation, P5 transport contract, P6 retry policy, P7 closed pipes, P8/P9/P13 charsets, response shapes and error classes, and from the 2026-10-06 follow-up P20 the cleartext `http:` warning); copied across the `*-cli` repos, only the adapter
+  (P1 credential redaction in CLI output, P2 in library objects, P4 base-URL validation, P5 transport contract, P6 retry policy, P7 closed pipes, P8/P9/P13 charsets, response shapes and error classes, and from the 2026-10-06 follow-up P20 the cleartext `http:` warning and P21 README links: a relative link in `README.md` must point at a file the npm package ships — link any other document by its `https://github.com/maschinenlesbar-org/nina-warnungen-cli/blob/main/…` URL); copied across the `*-cli` repos, only the adapter
   block at the top differs.
 
 ## Continuous integration
