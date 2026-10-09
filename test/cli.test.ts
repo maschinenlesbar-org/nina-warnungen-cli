@@ -576,3 +576,10 @@ test("a base URL typed without its scheme is still a credential to redact (L14)"
   assert.equal(await run(["--base-url", "alice:s3cret-pw@mirror.example", "map-data", "dwd"], cli.deps), 1);
   assert.ok(!cli.err.join("\n").includes("s3cret-pw"), cli.err.join("\n"));
 });
+
+test("a parse error after -o --log-format jsonl is logged in text, as commander read it (L6)", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  // commander takes "--log-format" as the -o file and "jsonl" as an unknown command.
+  assert.equal(await run(["-o", "--log-format", "jsonl", "map-data", "dwd"], cli.deps), 1);
+  assert.match(untimed(cli.err[0] ?? ""), /^ERROR \[nina\.cli\] unknown command 'jsonl'/);
+});

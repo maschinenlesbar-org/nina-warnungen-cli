@@ -5,7 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import { logOf, type CliDeps } from "./io.js";
-import { createLogger, logFormatFromArgv, type Logger } from "./log.js";
+import { DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat, type Logger } from "./log.js";
 import {
   NinaApiError,
   NinaError,
@@ -42,6 +42,21 @@ function configureTree(command: Command, sink: OutputSink): void {
     writeErr: (str) => sink.err.push(str.replace(/\n$/, "")),
   });
   for (const child of command.commands) configureTree(child, sink);
+}
+
+/**
+ * The names (long and short) of the program's own options that require a value. Only the
+ * program's: commander takes them out of argv before a subcommand parses, so after a
+ * subcommand the next token is the subcommand's to read.
+ */
+function valueOptionsOf(program: Command): Set<string> {
+  const names = new Set<string>();
+  for (const option of program.options) {
+    if (!option.required) continue;
+    if (option.long !== undefined) names.add(option.long);
+    if (option.short !== undefined) names.add(option.short);
+  }
+  return names;
 }
 
 /**
@@ -173,6 +188,18 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
   const program = buildProgram(deps);
   const sink: OutputSink = { out: [], err: [] };
   configureTree(program, sink);
+  // For the records of a parse error: the scan of argv, now knowing which of the
+  // program's options take a value, as commander reads them.
+  const log = deps.log;
+  if (log !== undefined) log.format = logFormatFromArgv(argv, valueOptionsOf(program));
+  // One source for the format once commander has parsed argv: its value, not the scan
+  // of argv (an option's value can look like --log-format; `--` ends the scan, not
+  // commander's parse of a value). Ancestors' hooks run first, so this precedes every
+  // other preAction check.
+  program.hook("preAction", (_program, actionCommand) => {
+    const format = (actionCommand.optsWithGlobals() as { logFormat?: LogFormat }).logFormat;
+    if (log !== undefined) log.format = format ?? DEFAULT_LOG_FORMAT;
+  });
 
   // Flush commander's buffered output. `helpToStdout` routes the buffered
   // writeErr lines to stdout: commander emits no-command help (a bare invocation

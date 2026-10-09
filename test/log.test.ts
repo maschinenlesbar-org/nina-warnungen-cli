@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_RECORD_MESSAGE, escapeForRecord, formatLogRecord } from "../src/cli/log.js";
+import { MAX_RECORD_MESSAGE, escapeForRecord, formatLogRecord, logFormatFromArgv } from "../src/cli/log.js";
 
 const TS = "2026-01-02T03:04:05.678Z";
 
@@ -42,4 +42,13 @@ test("formatLogRecord: a message over MAX_RECORD_MESSAGE is cut at a code point 
   assert.doesNotMatch(kept, /\ufffd/, "no half character at the cut");
   const short = "b".repeat(MAX_RECORD_MESSAGE);
   assert.equal(formatLogRecord({ ts: TS, level: "INFO", topic: "nina.cli", msg: short }, "text"), `${TS} INFO  [nina.cli] ${short}`);
+});
+
+test("logFormatFromArgv: the value of an option that takes one is never read as --log-format (L6)", () => {
+  const values = new Set(["--user-agent", "-o", "--output"]);
+  assert.equal(logFormatFromArgv(["-o", "--log-format", "jsonl", "map-data", "dwd"], values), "text");
+  assert.equal(logFormatFromArgv(["--user-agent", "--log-format=jsonl", "map-data", "dwd"], values), "text");
+  assert.equal(logFormatFromArgv(["--user-agent", "--", "--log-format", "jsonl", "map-data"], values), "jsonl");
+  assert.equal(logFormatFromArgv(["--log-format", "jsonl", "--log-format", "text"], values), "text");
+  assert.equal(logFormatFromArgv(["map-data", "foo", "--log-format", "jsonl"], values), "jsonl");
 });

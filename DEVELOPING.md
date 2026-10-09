@@ -403,7 +403,10 @@ code point and ends in `… (N more characters)`. The areas are `cli` (usage err
 content-type warning of a download), `http` (the connection: network errors, the
 cleartext warning) and `output` (`-o`: "Wrote N bytes", a `NinaIOError` writing the file).
 Code logs through `logOf(deps)` and never writes diagnostics with `io.err` directly.
-`run()` builds the logger from argv before commander parses it, and turns commander's
+`run()` builds the logger from argv before commander parses it (`logFormatFromArgv`,
+which skips the value of the program's own value options and is used only for the records
+of a parse error; a `preAction` hook then sets the format commander parsed, so
+`--user-agent --log-format=jsonl` logs text), and turns commander's
 buffered stderr into records when it flushes it, one per line (`commanderRecords`): its
 `error: …` an ERROR of `cli`, with a `(Did you mean …?)` line joined to it, and the help it
 shows after an error an INFO record per non-blank line. Help for a bare invocation or a
