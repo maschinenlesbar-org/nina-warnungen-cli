@@ -164,6 +164,15 @@ test("warning geojson warns when the content-type is not JSON but the body is Ge
   assert.match(untimed(cli.err.join("\n")), /^WARN  \[nina\.api\] expected a "json" response/m);
 });
 
+test("the content-type WARN quotes a huge Content-Type cut at 500 characters (B02-2)", async () => {
+  const type = `text/html; note=${"A".repeat(12000)}`;
+  const cli = makeCli(() => rawResponse('{"type":"FeatureCollection","features":[]}', type));
+  assert.equal(await run(["warning", "geojson", "mow.DE-X"], cli.deps), 0);
+  const warn = cli.err.map(untimed).find((line) => line.startsWith("WARN  [nina.api] expected")) ?? "";
+  assert.match(warn, /got "text\/html; note=A+…"\. The body may not be what you expect\.$/);
+  assert.ok(warn.length < 700, `${warn.length} characters`);
+});
+
 test("warning geojson fails (exit 1, no file) when a 200 body is not GeoJSON", async () => {
   for (const [body, type] of [["<html>maintenance</html>", "text/html"], ['{"message":"Not available"}', "application/geo+json"], ["", "application/geo+json"], ["[]", "application/json"]]) {
     const cli = makeCli(() => rawResponse(body!, type!));

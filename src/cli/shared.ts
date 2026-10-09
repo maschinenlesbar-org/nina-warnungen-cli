@@ -4,7 +4,7 @@
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import { logOf, type CliDeps } from "./io.js";
-import { NinaError } from "../client/errors.js";
+import { NinaError, cutForMessage } from "../client/errors.js";
 import { baseUrlProblem, headerValueProblem } from "../client/validate.js";
 import { DEFAULT_BASE_URL, cleartextProblem, type EngineOptions, type RawResponse } from "../client/engine.js";
 
@@ -186,7 +186,8 @@ export function resolveOutput(output: string | undefined): string | undefined {
  * `expectContentType` is an optional substring sanity check. A misconfigured
  * gateway can return an HTML error page with a 200 status; without this the bytes
  * would be saved silently to e.g. `out.geojson`. We do not fail (the body may be
- * valid with an unusual type), but we warn to stderr so the surprise is visible.
+ * valid with an unusual type), but we warn to stderr so the surprise is visible. The
+ * warning quotes the server's Content-Type cut at `MAX_MESSAGE_VALUE_LENGTH` (500).
  */
 export function renderRaw(
   deps: CliDeps,
@@ -198,7 +199,7 @@ export function renderRaw(
     logOf(deps).warn(
       "api",
       `expected a "${expectContentType}" response but got ` +
-        `"${response.contentType || "(none)"}". The body may not be what you expect.`,
+        `"${cutForMessage(response.contentType) || "(none)"}". The body may not be what you expect.`,
     );
   }
   const output = resolveOutput(global.output);
