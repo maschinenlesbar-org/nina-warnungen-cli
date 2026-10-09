@@ -255,3 +255,30 @@ test("a wrong-shape answer to a very long id names the request path cut, not who
     return true;
   });
 });
+
+test("a wrong-shape answer's message is quoted with bidi controls and line separators escaped (B02-1)", async () => {
+  const message = "Wartung\u2029\u202eNIAGA YRT\u202c ok\u2028\u2066x\u2069\u200f";
+  for (const call of [(c: NinaClient) => c.mapData("dwd"), (c: NinaClient) => c.warnings.get("mow.DE-X")]) {
+    await assert.rejects(call(clientWith(constantJson({ message }))), (err: Error) => {
+      assert.ok(err instanceof NinaParseError);
+      assert.match(err.message, /got an object with the message "Wartung\\u2029\\u202eNIAGA YRT\\u202c ok\\u2028\\u2066x\\u2069\\u200f"\.$/);
+      assert.doesNotMatch(err.message, /[\u2028\u2029\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/);
+      return true;
+    });
+  }
+  // GeoJSON downloads take the same path.
+  const geo = makeMockTransport(() => rawResponse(JSON.stringify({ message }), "application/geo+json"));
+  await assert.rejects(new NinaClient({ transport: geo.transport }).warnings.geojson("mow.DE-X"), (err: Error) => {
+    assert.doesNotMatch(err.message, /[\u2028\u2029\u202a-\u202e\u2066-\u2069\u200f]/);
+    return true;
+  });
+});
+
+test("a server detail carries no bidi controls (B02-1)", async () => {
+  const mt = makeMockTransport(() => jsonResponse({ detail: "no \u202eevil\u202c \u2066x\u2069 \u200e\u200f\u061cend" }, 500));
+  await assert.rejects(clientWith(mt).mapData("dwd"), (err: Error) => {
+    assert.ok(err instanceof NinaApiError);
+    assert.equal(err.detail, "no evil x end");
+    return true;
+  });
+});

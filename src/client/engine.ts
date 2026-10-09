@@ -142,6 +142,10 @@ export const MAX_RETRIES = 10;
  * (`escapeControlChars` in cli/shared.ts): `JSON.stringify` alone leaves DEL and
  * the C1 range raw. So this only needs to cover text that flows into a message.
  *
+ * The bidi controls (U+061C, U+200E, U+200F, U+202A–U+202E, U+2066–U+2069) are dropped
+ * too: an override such as U+202E would show the rest of the message reversed ("Trojan
+ * Source").
+ *
  * Filtered by code point rather than a regex literal, so no raw control byte ever
  * appears in this source file.
  */
@@ -150,6 +154,7 @@ function sanitizeServerText(text: string): string {
   for (const ch of text) {
     const n = ch.codePointAt(0) ?? 0;
     if (n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f)) continue;
+    if (n === 0x061c || n === 0x200e || n === 0x200f || (n >= 0x202a && n <= 0x202e) || (n >= 0x2066 && n <= 0x2069)) continue;
     out += ch;
   }
   return out;

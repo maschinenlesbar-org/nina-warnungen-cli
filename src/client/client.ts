@@ -30,9 +30,31 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** True for a character a quoted server text never carries raw: the line and paragraph separators, the bidi controls. */
+function invisibleInQuote(c: number): boolean {
+  return c === 0x2028 || c === 0x2029 || c === 0x061c || c === 0x200e || c === 0x200f || (c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069);
+}
+
+/**
+ * `text` quoted as `JSON.stringify` does, with the line and paragraph separators and the
+ * bidi controls also written as `\uXXXX` escapes (still a valid JSON string): JSON leaves
+ * them raw, and an override such as U+202E would show the rest of the line reversed
+ * ("Trojan Source"), a separator break it in some viewers. The message then shows what
+ * the server sent. Checked by char code, so the source stays free of those characters.
+ */
+function quoteServerText(text: string): string {
+  let out = "";
+  for (const ch of JSON.stringify(text)) {
+    const c = ch.charCodeAt(0);
+    out += invisibleInQuote(c) ? "\\u" + c.toString(16).padStart(4, "0") : ch;
+  }
+  return out;
+}
+
 /**
  * What a value is, for a shape error: its JSON type, and the `message` an error object
- * carries (control characters dropped, cut at 200 characters, never inside a surrogate pair).
+ * carries (control characters dropped, cut at 200 characters, never inside a surrogate
+ * pair, quoted with the separators and bidi controls escaped).
  */
 function describeValue(value: unknown): string {
   if (value === null) return "null";
@@ -42,7 +64,7 @@ function describeValue(value: unknown): string {
     const message = typeof value["message"] === "string" ? value["message"] : typeof value["error"] === "string" ? value["error"] : undefined;
     if (message === undefined) return "an object";
     const clean = cutText(message.replace(/[\u0000-\u001f\u007f-\u009f]/g, ""), 200);
-    return `an object with the message ${JSON.stringify(clean)}`;
+    return `an object with the message ${quoteServerText(clean)}`;
   }
   return `a ${typeof value}`;
 }
