@@ -20,6 +20,7 @@ import {
   NinaValidationError,
   credentialsIn,
   cutForMessage,
+  cutText,
   redactCredentials,
   redactUrl,
 } from "./errors.js";
@@ -584,7 +585,7 @@ function decodeBody(body: Buffer, contentType: string, path: string): string {
   try {
     decoder = new TextDecoder(charset);
   } catch {
-    throw new NinaParseError(`Unsupported response charset "${sanitizeServerText(charset).slice(0, 100)}" from ${path}.`);
+    throw new NinaParseError(`Unsupported response charset "${cutText(sanitizeServerText(charset), 100)}" from ${path}.`);
   }
   return decoder.decode(body);
 }

@@ -115,9 +115,36 @@ export function redactUrl(url: string): string {
  */
 export const MAX_MESSAGE_VALUE_LENGTH = 500;
 
-/** `text` cut to MAX_MESSAGE_VALUE_LENGTH characters, ending in "…" when cut. */
+/**
+ * `text` cut to MAX_MESSAGE_VALUE_LENGTH characters, ending in "…" when cut; never inside a
+ * surrogate pair (`cutText`), so the message stays well-formed.
+ */
 export function cutForMessage(text: string): string {
-  return text.length > MAX_MESSAGE_VALUE_LENGTH ? `${text.slice(0, MAX_MESSAGE_VALUE_LENGTH)}…` : text;
+  return text.length > MAX_MESSAGE_VALUE_LENGTH ? `${cutText(text, MAX_MESSAGE_VALUE_LENGTH)}…` : text;
+}
+
+/**
+ * `text` cut to at most `max` UTF-16 units, never inside a surrogate pair: when the cut
+ * would land after a high surrogate it is made one unit earlier, so a message that holds
+ * the cut text is well-formed (a lone `\ud83d` makes jq reject a whole JSON stream).
+ * Text no longer than `max` is returned as it is; the caller marks a cut.
+ */
+export function cutText(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const end = max > 0 && isHighSurrogate(text.charCodeAt(max - 1)) ? max - 1 : max;
+  return text.slice(0, end);
+}
+
+function isHighSurrogate(c: number): boolean {
+  return c >= 0xd800 && c <= 0xdbff;
+}
+
+/**
+ * `text` with every lone surrogate (half of a character) replaced by U+FFFD, like
+ * `String.prototype.toWellFormed` (ES2024, so not in this package's `lib`).
+ */
+export function toWellFormed(text: string): string {
+  return text.replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, "\ufffd");
 }
 
 /**

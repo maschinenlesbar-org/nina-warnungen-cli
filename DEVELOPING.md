@@ -208,8 +208,9 @@ exactly this id, not that it ended: the API redirects ended and mistyped ids ali
 **Messages.** Every rejected input is a `NinaValidationError`, also for a wrong type
 from JavaScript (`dashboard(12345678)`, `warnings.get(null)`), never a raw `TypeError`.
 An echoed value (an identifier, a region key) and server text (an error `detail`, a
-redirect target) are cut at `MAX_MESSAGE_VALUE_LENGTH` (500) characters, ending in `…`;
-the error's properties keep the full value.
+redirect target) are cut at `MAX_MESSAGE_VALUE_LENGTH` (500) characters, ending in `…`,
+never inside a surrogate pair (`cutText`), so the message stays well-formed; the error's
+properties keep the full value.
 
 **Response shapes.** Every client method checks the 2xx body against the shape its
 endpoint documents before returning it: `mapData` and `dashboard` an array of objects
@@ -386,7 +387,9 @@ and `msg`. A record is always one line: `formatLogRecord` runs `escapeForRecord`
 the message (text) or the whole JSON object (jsonl), which writes CR and LF as `\r`/`\n`,
 every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
 controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
-forge another one or steer the terminal. The areas are `cli` (usage errors, commander's messages, unexpected errors),
+forge another one or steer the terminal. Before that a lone surrogate (half a
+character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`).
+The areas are `cli` (usage errors, commander's messages, unexpected errors),
 `api` (the API's answers: HTTP errors, a warning id that is no longer live, the
 content-type warning of a download), `http` (the connection: network errors, the
 cleartext warning) and `output` (`-o`: "Wrote N bytes", a `NinaIOError` writing the file).

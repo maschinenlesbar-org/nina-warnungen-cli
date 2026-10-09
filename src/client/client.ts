@@ -8,7 +8,7 @@
 
 import { RequestEngine, type EngineOptions, type RawResponse } from "./engine.js";
 import type { NinaSource } from "./enums.js";
-import { NinaApiError, NinaNotFoundError, NinaParseError, NinaValidationError } from "./errors.js";
+import { NinaApiError, NinaNotFoundError, NinaParseError, NinaValidationError, cutText } from "./errors.js";
 import { arsProblem } from "./ars.js";
 import { assertValid, identifierProblem, normalizeIdentifier, sourceProblem } from "./validate.js";
 import type {
@@ -32,7 +32,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 /**
  * What a value is, for a shape error: its JSON type, and the `message` an error object
- * carries (control characters dropped, cut at 200 characters).
+ * carries (control characters dropped, cut at 200 characters, never inside a surrogate pair).
  */
 function describeValue(value: unknown): string {
   if (value === null) return "null";
@@ -41,7 +41,7 @@ function describeValue(value: unknown): string {
     if (Object.keys(value).length === 0) return "an empty object";
     const message = typeof value["message"] === "string" ? value["message"] : typeof value["error"] === "string" ? value["error"] : undefined;
     if (message === undefined) return "an object";
-    const clean = message.replace(/[\u0000-\u001f\u007f-\u009f]/g, "").slice(0, 200);
+    const clean = cutText(message.replace(/[\u0000-\u001f\u007f-\u009f]/g, ""), 200);
     return `an object with the message ${JSON.stringify(clean)}`;
   }
   return `a ${typeof value}`;
@@ -102,7 +102,7 @@ function expectGeoJson(path: string, response: RawResponse): RawResponse {
     value = JSON.parse(new TextDecoder().decode(response.data));
   } catch {
     const type = response.contentType.split(";")[0]?.trim() || "no Content-Type";
-    throw new NinaParseError(`Unexpected response from ${path}: expected GeoJSON, got a body that is not JSON (${type.slice(0, 100)}).`);
+    throw new NinaParseError(`Unexpected response from ${path}: expected GeoJSON, got a body that is not JSON (${cutText(type, 100)}).`);
   }
   expectShape(path, value, (v) =>
     isObject(v) && typeof v["type"] === "string" && GEOJSON_TYPES.includes(v["type"]) ? undefined : "a GeoJSON object",

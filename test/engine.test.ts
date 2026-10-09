@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RequestEngine, cleartextProblem, parseRetryAfter } from "../src/client/engine.js";
-import { NinaApiError, NinaNetworkError, NinaParseError, NinaValidationError } from "../src/client/errors.js";
+import { NinaApiError, NinaNetworkError, NinaParseError, NinaValidationError, cutForMessage, cutText, toWellFormed } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 import type { HttpResponse } from "../src/client/http.js";
 
@@ -330,4 +330,25 @@ test("cleartextProblem names the host and each secret, exempts https, loopback a
   );
   // 127.0.0.1.example is a remote name, not loopback.
   assert.match(cleartextProblem("http://127.0.0.1.example") ?? "", /127\.0\.0\.1\.example/);
+});
+
+test("cutText never cuts inside a surrogate pair; toWellFormed replaces half a character", () => {
+  assert.equal(cutText("ab\u{1f600}cd", 3), "ab");
+  assert.equal(cutText("ab\u{1f600}cd", 4), "ab\u{1f600}");
+  assert.equal(cutText("short", 10), "short");
+  assert.equal(toWellFormed("a\ud83d b\ude00 \u{1f600}"), "a\ufffd b\ufffd \u{1f600}");
+  // cutForMessage (500) too: "a" + emoji puts a high surrogate at unit 500.
+  const cut = cutForMessage("a" + "\u{1f600}".repeat(400));
+  assert.equal(toWellFormed(cut), cut);
+  assert.match(cut, /…$/);
+});
+
+test("a server detail cut at 500 characters keeps the message well-formed", async () => {
+  const detail = "a" + "\u{1f600}".repeat(400);
+  const engine = new RequestEngine({ transport: async () => ({ status: 500, headers: { "content-type": "application/json" }, body: Buffer.from(JSON.stringify({ detail })) }) });
+  await assert.rejects(engine.getJson("/api31/mowas/mapData.json"), (err: Error) => {
+    assert.equal(toWellFormed(err.message), err.message);
+    assert.match(err.message, /…$/);
+    return true;
+  });
 });
