@@ -400,7 +400,8 @@ character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellF
 and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a
 code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors),
 `api` (the API's answers: HTTP errors, a warning id that is no longer live, the
-content-type warning of a download), `http` (the connection: network errors, the
+content-type warning of a download, and a malformed answer, a `NinaParseError`: bad JSON,
+the wrong shape, an unknown charset), `http` (the connection: network errors, the
 cleartext warning) and `output` (`-o`: "Wrote N bytes", or any failure to write the file,
 a `NinaIOError` whatever the `CliIO` threw; and a stdout write error).
 Code logs through `logOf(deps)` and never writes diagnostics with `io.err` directly.

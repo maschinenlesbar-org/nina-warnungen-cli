@@ -184,6 +184,16 @@ Weiterleitungsziel gesendet. Die eine Weiterleitung, die die API im normalen Bet
 schickt – eine nicht mehr aktuelle Warnungskennung, die auf ihr Archiv zeigt –, wird als
 „nicht gefunden“ gemeldet (Exit-Code `4`).
 
+**Log-Eintrag (log record).** Jede Diagnosezeile, die die CLI nach stderr schreibt: ein
+Zeitstempel, eine Stufe (`ERROR`, `WARN`, `INFO`) und ein Thema `nina.<Bereich>`, als Text
+(im Stil von log4j) oder mit `--log-format jsonl` als ein JSON-Objekt pro Zeile. Die
+Bereiche: `cli` (Bedienfehler, Meldungen von commander, unerwartete Fehler), `api` (die
+Antworten der API: ein Fehlerstatus, eine nicht mehr aktuelle Warnungskennung, die
+Content-Type-Warnung eines Downloads und eine fehlerhafte Antwort – ungültiges JSON, die
+falsche Form, ein unbekannter Zeichensatz), `http` (die Verbindung, die Klartext-Warnung)
+und `output` (die `-o`-Datei, Schreibfehler auf stdout). Ein Eintrag ist immer eine
+Zeile; Steuerzeichen darin werden maskiert.
+
 ---
 
 ## Exit-Codes

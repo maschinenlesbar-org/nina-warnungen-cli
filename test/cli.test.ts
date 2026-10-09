@@ -178,7 +178,7 @@ test("warning geojson fails (exit 1, no file) when a 200 body is not GeoJSON", a
     const cli = makeCli(() => rawResponse(body!, type!));
     assert.equal(await run(["-o", "out.geojson", "warning", "geojson", "abc"], cli.deps), 1, body);
     assert.equal(cli.files.size, 0, body);
-    assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.cli\] Unexpected response from \/api31\/warnings\/abc\.geojson: expected (a )?GeoJSON/m, body);
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.api\] Unexpected response from \/api31\/warnings\/abc\.geojson: expected (a )?GeoJSON/m, body);
   }
 });
 
@@ -504,7 +504,7 @@ test("dashboard and map-data fail (exit 1, nothing on stdout) on a 200 that is n
       const cli = makeCli(() => jsonResponse(body));
       assert.equal(await run(argv, cli.deps), 1, `${argv.join(" ")} ${JSON.stringify(body)}`);
       assert.equal(cli.out.length, 0);
-      assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.cli\] Unexpected response from \/api31\//m);
+      assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.api\] Unexpected response from \/api31\//m);
     }
   }
   const empty = makeCli(() => jsonResponse([]));
@@ -618,5 +618,13 @@ test("every -o failure is an ERROR record of nina.output, exit 1, whatever the C
       assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.output\] /);
       assert.doesNotMatch(cli.err.join("\n"), /Unexpected error/);
     }
+  }
+});
+
+test("bad JSON and an unknown charset are ERROR records of nina.api (L9)", async () => {
+  for (const [body, type] of [["{not json", "application/json"], ["[]", "application/json; charset=x-evil"]]) {
+    const cli = makeCli(() => rawResponse(body!, type!));
+    assert.equal(await run(["map-data", "dwd"], cli.deps), 1, type);
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.api\] (Failed to parse JSON|Unsupported response charset)/, type);
   }
 });

@@ -12,6 +12,7 @@ import {
   NinaIOError,
   NinaNetworkError,
   NinaNotFoundError,
+  NinaParseError,
   NinaValidationError,
   credentialsIn,
   echoedCredentialForms,
@@ -196,6 +197,19 @@ export function processLogger(argv: readonly string[]): Logger {
   });
 }
 
+/**
+ * The log area of a `NinaError` that is neither an API error nor a usage error: the
+ * connection (`http`), a malformed answer (`api`: bad JSON, the wrong shape, an unknown
+ * charset — the API's answer as much as an error status is), the `-o` file (`output`),
+ * else `cli`.
+ */
+function areaOf(err: NinaError): string {
+  if (err instanceof NinaNetworkError) return "http";
+  if (err instanceof NinaParseError) return "api";
+  if (err instanceof NinaIOError) return "output";
+  return "cli";
+}
+
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
   // The log replaces the secrets of the run in every message, in either format.
   deps = withRedactedOutput(deps, argv);
@@ -268,7 +282,7 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       return 1;
     }
     if (err instanceof NinaError) {
-      log.error(err instanceof NinaNetworkError ? "http" : err instanceof NinaIOError ? "output" : "cli", err.message);
+      log.error(areaOf(err), err.message);
       return 1;
     }
     log.error("cli", `Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
