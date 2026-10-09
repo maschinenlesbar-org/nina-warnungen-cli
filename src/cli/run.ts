@@ -182,6 +182,20 @@ export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliD
   };
 }
 
+/**
+ * The log for what happens outside `run()`, in the bin shim: a stdout write error
+ * (`handleOutputErrors`) and Node's process warnings. Its format is the one argv asks
+ * for (`logFormatFromArgv`), and it replaces the secrets of argv like the run's own log;
+ * it writes to the raw stderr.
+ */
+export function processLogger(argv: readonly string[]): Logger {
+  return createLogger({
+    format: logFormatFromArgv(argv),
+    write: (line) => process.stderr.write(line + "\n"),
+    redact: redactionFor(argv).err,
+  });
+}
+
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
   // The log replaces the secrets of the run in every message, in either format.
   deps = withRedactedOutput(deps, argv);

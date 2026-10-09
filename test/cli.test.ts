@@ -542,6 +542,29 @@ test("handleOutputErrors treats ENOTCONN like EPIPE: exit 0 on stdout, ignored o
   assert.deepEqual(exits, [0, 0]);
 });
 
+test("another stdout write error is an ERROR record of nina.output, in the run's format, and exits 1 (L7)", async () => {
+  const { EventEmitter } = await import("node:events");
+  const { handleOutputErrors } = await import("../src/cli/io.js");
+  const { createLogger } = await import("../src/cli/log.js");
+  const stdout = new EventEmitter();
+  const stderr = new EventEmitter();
+  const exits: number[] = [];
+  const records: string[] = [];
+  const log = createLogger({ format: "jsonl", write: (line) => records.push(line), now: () => new Date("2026-01-02T03:04:05.678Z") });
+  handleOutputErrors({ stdout, stderr } as never, (code) => exits.push(code), log);
+  stdout.emit("error", Object.assign(new Error("EBADF: bad file descriptor, write"), { code: "EBADF" }));
+  assert.deepEqual(exits, [1]);
+  assert.deepEqual(records.map((line) => JSON.parse(line)), [
+    { ts: "2026-01-02T03:04:05.678Z", level: "ERROR", topic: "nina.output", msg: "Could not write to stdout: EBADF: bad file descriptor, write" },
+  ]);
+});
+
+test("processLogger logs in the format argv asks for, with argv's credentials replaced (L7)", async () => {
+  const { processLogger } = await import("../src/cli/run.js");
+  const log = processLogger(["--log-format", "jsonl", "--base-url", "https://u:s3cret-pw@mirror.example", "map-data", "dwd"]);
+  assert.equal(log.format, "jsonl");
+});
+
 test("a usage error with an http base URL prints no cleartext warning", async () => {
   const cli = makeCli(() => jsonResponse([]));
   const code = await run(["--base-url", "http://mirror.example", "map-data"], cli.deps);

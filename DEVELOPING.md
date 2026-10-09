@@ -164,8 +164,8 @@ status }` — raw bytes, never lossily decoded.
 CLI run in tests with a mocked client and captured output — no subprocess.
 The bin shim installs `handleOutputErrors()` before `run()`: when stdout's reader stops
 early (`| head`) the CLI exits 0 quietly instead of printing an `EPIPE` (or, on a socket,
-`ENOTCONN`) stack trace, and when stderr's reader is gone a failed run keeps its own exit
-code.
+`ENOTCONN`) stack trace, any other stdout write error is an ERROR record of `nina.output`
+with exit 1, and when stderr's reader is gone a failed run keeps its own exit code.
 
 **Error types.** [`errors.ts`](src/client/errors.ts): `NinaApiError` (non-2xx,
 carries `status`/`detail`/`isRetryable`), `NinaNetworkError` (transport
@@ -415,6 +415,7 @@ without an ERROR record; the logger carries the run's redaction (`withRedactedOu
 replaces a secret in the message only, before it is escaped: the frame is never touched,
 and a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps testable. stdout carries
 data only. Conformance test P23 checks all of this, and its body is shared across the
-*-cli repos (here with the `USAGE_EXIT` switch: a usage error exits 1). The bin shim's
-`Output error: …` (`handleOutputErrors`, stdout failing) stays a plain line: it is written
-straight to `process.stderr` outside `run()`.
+*-cli repos (here with the `USAGE_EXIT` switch: a usage error exits 1). A stdout write
+error other than a closed pipe (EBADF, EIO; `handleOutputErrors` in the bin shim, outside
+`run()`) is an ERROR record of `nina.output` too, `Could not write to stdout: …`, in the
+format argv asks for and with argv's credentials replaced (`processLogger`), and exits 1.
