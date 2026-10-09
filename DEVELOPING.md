@@ -421,3 +421,6 @@ data only. Conformance test P23 checks all of this, and its body is shared acros
 error other than a closed pipe (EBADF, EIO; `handleOutputErrors` in the bin shim, outside
 `run()`) is an ERROR record of `nina.output` too, `Could not write to stdout: …`, in the
 format argv asks for and with argv's credentials replaced (`processLogger`), and exits 1.
+Node's own process warnings (`NODE_TLS_REJECT_UNAUTHORIZED=0`) are WARN records of
+`nina.cli` too: the bin shim installs `installWarningLog`, which removes Node's default
+`warning` listener and logs `(node) <name>: <message>` through `processLogger(argv)`.

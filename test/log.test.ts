@@ -3,7 +3,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_RECORD_MESSAGE, escapeForRecord, formatLogRecord, logFormatFromArgv } from "../src/cli/log.js";
+import { EventEmitter } from "node:events";
+import { MAX_RECORD_MESSAGE, createLogger, escapeForRecord, formatLogRecord, installWarningLog, logFormatFromArgv } from "../src/cli/log.js";
 
 const TS = "2026-01-02T03:04:05.678Z";
 
@@ -51,4 +52,24 @@ test("logFormatFromArgv: the value of an option that takes one is never read as 
   assert.equal(logFormatFromArgv(["--user-agent", "--", "--log-format", "jsonl", "map-data"], values), "jsonl");
   assert.equal(logFormatFromArgv(["--log-format", "jsonl", "--log-format", "text"], values), "text");
   assert.equal(logFormatFromArgv(["map-data", "foo", "--log-format", "jsonl"], values), "jsonl");
+});
+
+test("installWarningLog: Node's process warnings become WARN records of nina.cli, Node's own line removed (L10)", () => {
+  const target = new EventEmitter();
+  const nodeOwn: string[] = [];
+  target.on("warning", (w: Error) => nodeOwn.push(w.message));
+  const records: string[] = [];
+  const log = createLogger({ format: "jsonl", write: (line) => records.push(line), now: () => new Date(TS) });
+  installWarningLog(target, log);
+  const warning = new Error("Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections insecure.\nsecond line");
+  warning.name = "Warning";
+  target.emit("warning", warning);
+  assert.deepEqual(nodeOwn, [], "Node's default listener is gone");
+  assert.equal(records.length, 1);
+  assert.deepEqual(JSON.parse(records[0] as string), {
+    ts: TS,
+    level: "WARN",
+    topic: "nina.cli",
+    msg: `(node) Warning: ${warning.message}`,
+  });
 });
