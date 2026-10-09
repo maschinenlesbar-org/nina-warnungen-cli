@@ -8,7 +8,7 @@
 
 import { RequestEngine, type EngineOptions, type RawResponse } from "./engine.js";
 import type { NinaSource } from "./enums.js";
-import { NinaApiError, NinaNotFoundError, NinaParseError, NinaValidationError, cutText } from "./errors.js";
+import { NinaApiError, NinaNotFoundError, NinaParseError, NinaValidationError, cutForMessage, cutText } from "./errors.js";
 import { arsProblem } from "./ars.js";
 import { assertValid, identifierProblem, normalizeIdentifier, sourceProblem } from "./validate.js";
 import type {
@@ -56,7 +56,7 @@ function describeValue(value: unknown): string {
 function expectShape<T>(path: string, value: unknown, problem: (value: unknown) => string | undefined): T {
   const reason = problem(value);
   if (reason !== undefined) {
-    throw new NinaParseError(`Unexpected response from ${path}: expected ${reason}, got ${describeValue(value)}.`);
+    throw new NinaParseError(`Unexpected response from ${cutForMessage(path)}: expected ${reason}, got ${describeValue(value)}.`);
   }
   return value as T;
 }
@@ -102,7 +102,7 @@ function expectGeoJson(path: string, response: RawResponse): RawResponse {
     value = JSON.parse(new TextDecoder().decode(response.data));
   } catch {
     const type = response.contentType.split(";")[0]?.trim() || "no Content-Type";
-    throw new NinaParseError(`Unexpected response from ${path}: expected GeoJSON, got a body that is not JSON (${cutText(type, 100)}).`);
+    throw new NinaParseError(`Unexpected response from ${cutForMessage(path)}: expected GeoJSON, got a body that is not JSON (${cutText(type, 100)}).`);
   }
   expectShape(path, value, (v) =>
     isObject(v) && typeof v["type"] === "string" && GEOJSON_TYPES.includes(v["type"]) ? undefined : "a GeoJSON object",

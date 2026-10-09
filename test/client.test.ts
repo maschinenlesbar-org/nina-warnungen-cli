@@ -244,3 +244,14 @@ test("dashboard turns a 404 into 'no such district key', naming the key; other e
     return true;
   });
 });
+
+test("a wrong-shape answer to a very long id names the request path cut, not whole (L3)", async () => {
+  const mt = constantJson({});
+  const id = "x".repeat(5000);
+  await assert.rejects(clientWith(mt).warnings.get(id), (err: Error) => {
+    assert.ok(err instanceof NinaParseError);
+    assert.match(err.message, /^Unexpected response from \/api31\/warnings\/x+…: expected/);
+    assert.ok(err.message.length < 700, `${err.message.length}`);
+    return true;
+  });
+});
