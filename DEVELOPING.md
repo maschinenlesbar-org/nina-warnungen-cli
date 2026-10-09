@@ -313,11 +313,16 @@ prints — commander's usage errors, which echo a rejected `--base-url` value, a
 messages. The log replaces it in each record's *message*, before the record is cut and
 escaped, and writes it to the raw stderr: the frame (time, level, topic) is never
 touched, and a password with DEL, C1 or bidi characters is matched in its raw form. A password with spaces, quotes, `#`, `?` or `/` is caught as well as an
-ordinary one. `redactUrl` (exported) falls back to the same text-based cut for a value
+ordinary one. The forms a server echoes a userinfo back in are replaced too
+(`echoedCredentialForms`): the `Basic` value (UTF-8, as Node sends it) and the decoded
+`user:password` on stdout and stderr, the password alone (4 characters or more) on stderr
+only, since it may well occur in the data. `redactUrl` (exported) falls back to the same text-based cut for a value
 that doesn't parse as a URL. The library keeps the base URL in a real `#private` field,
 so `console.log(client)`, `util.inspect` and `JSON.stringify` never show it;
 `NinaApiError.url` holds the request URL with its userinfo redacted; and the engine scrubs
-the userinfo (raw and percent-decoded) from error bodies and details, transport error text
+the userinfo (raw and percent-decoded) and the forms a server echoes it back in (the
+`Basic` value, the decoded `user:password`, the password alone from 4 characters) from
+error bodies and details, transport error text
 and the `cause` chain. Whatever a custom transport throws (a string, fetch's `TypeError`)
 reaches the caller as a `NinaNetworkError`, never raw.
 

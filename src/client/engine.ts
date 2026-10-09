@@ -21,7 +21,9 @@ import {
   credentialsIn,
   cutForMessage,
   cutText,
+  echoedCredentialForms,
   redactCredentials,
+  redactSecrets,
   redactUrl,
 } from "./errors.js";
 import { assertValid, baseUrlProblem, headerValueProblem } from "./validate.js";
@@ -324,6 +326,11 @@ export class RequestEngine {
   readonly #baseUrl: string;
   /** The base URL's userinfo, raw and percent-decoded, for scrubbing server and transport text. */
   readonly #credentials: string[];
+  /**
+   * The forms a server echoes that userinfo back in (the Basic value, the decoded
+   * `user:password`, the password alone; `echoedCredentialForms`), longest first.
+   */
+  readonly #echoed: string[];
   private readonly transport: Transport;
   private readonly userAgent: string;
   private readonly timeoutMs: number;
@@ -345,6 +352,8 @@ export class RequestEngine {
         return [raw];
       }
     });
+    // Longest first, so a password never leaves half of the user:password around it.
+    this.#echoed = credentialsIn(this.#baseUrl).flatMap(echoedCredentialForms).sort((a, b) => b.length - a.length);
     this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Only an omitted userAgent selects the default: a blank one is an error, not
     // a blank header, and a malformed one fails here rather than at request time.
@@ -366,10 +375,11 @@ export class RequestEngine {
 
   /**
    * `text` without the base URL's credentials: server text (an error body that echoes the
-   * request URL) and transport text (fetch's "Failed to fetch <url>") can carry them.
+   * request URL, or the Authorization header and the decoded `user:password`) and
+   * transport text (fetch's "Failed to fetch <url>") can carry them.
    */
   private scrub(text: string): string {
-    return this.#credentials.length === 0 ? text : redactCredentials(text, this.#credentials);
+    return this.#credentials.length === 0 ? text : redactSecrets(redactCredentials(text, this.#credentials), this.#echoed);
   }
 
   /**
