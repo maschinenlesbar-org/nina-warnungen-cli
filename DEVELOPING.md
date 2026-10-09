@@ -401,7 +401,8 @@ and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cu
 code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors),
 `api` (the API's answers: HTTP errors, a warning id that is no longer live, the
 content-type warning of a download), `http` (the connection: network errors, the
-cleartext warning) and `output` (`-o`: "Wrote N bytes", a `NinaIOError` writing the file).
+cleartext warning) and `output` (`-o`: "Wrote N bytes", or any failure to write the file,
+a `NinaIOError` whatever the `CliIO` threw; and a stdout write error).
 Code logs through `logOf(deps)` and never writes diagnostics with `io.err` directly.
 `run()` builds the logger from argv before commander parses it (`logFormatFromArgv`,
 which skips the value of the program's own value options and is used only for the records

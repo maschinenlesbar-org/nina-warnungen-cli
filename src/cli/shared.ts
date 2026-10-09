@@ -4,7 +4,7 @@
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import { logOf, type CliDeps } from "./io.js";
-import { NinaError, cutForMessage } from "../client/errors.js";
+import { NinaError, NinaIOError, cutForMessage } from "../client/errors.js";
 import { baseUrlProblem, headerValueProblem } from "../client/validate.js";
 import { DEFAULT_BASE_URL, cleartextProblem, type EngineOptions, type RawResponse } from "../client/engine.js";
 
@@ -146,6 +146,19 @@ export function stringifyJson(value: unknown, compact: boolean): string {
 }
 
 /**
+ * `deps.io.writeFile`, with any failure a `NinaIOError` (message and cause kept), so
+ * every `-o` failure is logged under `nina.output`, whatever the `CliIO` threw.
+ */
+function writeOutputFile(deps: CliDeps, path: string, data: Buffer): void {
+  try {
+    deps.io.writeFile(path, data);
+  } catch (cause) {
+    if (cause instanceof NinaIOError) throw cause;
+    throw new NinaIOError(cause instanceof Error ? cause.message : String(cause), { cause });
+  }
+}
+
+/**
  * Render a JSON value, pretty by default, compact with --compact. Writes to the
  * file given by --output when present (so `-o` is honoured for JSON commands, not
  * only raw downloads), otherwise to stdout. When writing a file we print a short
@@ -156,7 +169,7 @@ export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown)
   const output = resolveOutput(global.output);
   if (output !== undefined) {
     const data = Buffer.from(text + "\n", "utf8");
-    deps.io.writeFile(output, data);
+    writeOutputFile(deps, output, data);
     logOf(deps).info("output", `Wrote ${data.length} bytes to ${output}`);
   } else {
     deps.io.out(text);
@@ -204,7 +217,7 @@ export function renderRaw(
   }
   const output = resolveOutput(global.output);
   if (output !== undefined) {
-    deps.io.writeFile(output, response.data);
+    writeOutputFile(deps, output, response.data);
     logOf(deps).info("output", `Wrote ${response.data.length} bytes to ${output}`);
   } else if (deps.io.isTerminal?.() === false) {
     // A pipe or file: the bytes exactly as the server sent them.

@@ -606,3 +606,17 @@ test("a parse error after -o --log-format jsonl is logged in text, as commander 
   assert.equal(await run(["-o", "--log-format", "jsonl", "map-data", "dwd"], cli.deps), 1);
   assert.match(untimed(cli.err[0] ?? ""), /^ERROR \[nina\.cli\] unknown command 'jsonl'/);
 });
+
+test("every -o failure is an ERROR record of nina.output, exit 1, whatever the CliIO threw (L8)", async () => {
+  for (const thrown of [new NinaIOError("Failed to write out.json: EISDIR"), new Error("EACCES: permission denied, open 'out.json'")]) {
+    for (const argv of [["-o", "out.json", "map-data", "dwd"], ["-o", "out.json", "warning", "geojson", "abc"]]) {
+      const cli = makeCli(() => (argv[2] === "warning" ? rawResponse('{"type":"FeatureCollection"}', "application/geo+json") : jsonResponse([])));
+      cli.deps.io.writeFile = () => {
+        throw thrown;
+      };
+      assert.equal(await run(argv, cli.deps), 1);
+      assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.output\] /);
+      assert.doesNotMatch(cli.err.join("\n"), /Unexpected error/);
+    }
+  }
+});
