@@ -4,7 +4,7 @@ import { run } from "../src/cli/run.js";
 import { NinaClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
-import { NinaIOError, NinaNetworkError } from "../src/client/errors.js";
+import { NinaIOError, NinaNetworkError, credentialsIn } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse, untimed } from "./helpers.js";
 
 function makeCli(responder: (req: HttpRequest) => HttpResponse) {
@@ -556,4 +556,23 @@ test("dashboard: a 404 says 'no such district key' and exits 4", async () => {
   assert.equal(code, 4);
   assert.deepEqual(cli.out, []);
   assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.api\] HTTP 404 for GET \/api31\/dashboard\/059990000000\.json: no such district key "059990000000"/);
+});
+
+test("an -o path shaped like a:b@c is named as written, and a:b@c data on stdout is not rewritten (B04-1, L14)", async () => {
+  const cli = makeCli(() => jsonResponse([{ id: "1", contact: "ops:team@example.org" }]));
+  assert.equal(await run(["-o", "run:2026-10-09@nina.json", "map-data", "dwd"], cli.deps), 0);
+  assert.ok(cli.files.has("run:2026-10-09@nina.json"));
+  assert.match(untimed(cli.err.join("\n")), /^INFO  \[nina\.output\] Wrote \d+ bytes to run:2026-10-09@nina\.json$/m);
+
+  const ua = makeCli(() => jsonResponse([{ id: "1", contact: "ops:team@example.org" }]));
+  assert.equal(await run(["--user-agent", "ops:team@example.org", "map-data", "dwd"], ua.deps), 0);
+  assert.match(ua.out.join("\n"), /"contact": "ops:team@example\.org"/);
+  assert.deepEqual(credentialsIn("run:2026-10-09@nina.json"), []);
+  assert.deepEqual(credentialsIn("https://alice:pw@host"), ["alice:pw"]);
+});
+
+test("a base URL typed without its scheme is still a credential to redact (L14)", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["--base-url", "alice:s3cret-pw@mirror.example", "map-data", "dwd"], cli.deps), 1);
+  assert.ok(!cli.err.join("\n").includes("s3cret-pw"), cli.err.join("\n"));
 });

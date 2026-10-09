@@ -308,9 +308,10 @@ still cannot reach a `file:`/`ftp:` driver via the base URL.
 **Credentials in the base URL.** A base URL may carry `user:password@` (sent as Basic
 auth). The library's reasons never repeat the value, and the CLI also redacts on
 output: `run.ts` (`redactionFor` and `withRedactedOutput`) takes the exact userinfo of
-every argument (`credentialsIn`, exported) and replaces it with `***` in everything it
+every URL argument (`credentialsIn`, exported) and replaces it with `***` in everything it
 prints — commander's usage errors, which echo a rejected `--base-url` value, and its own
-messages. The log replaces it in each record's *message*, before the record is cut and
+messages. Only a value that starts with a scheme counts (a bare `a:b@c` is an `-o` file
+name or a User-Agent as often as a credential), except as the `--base-url` value. The log replaces it in each record's *message*, before the record is cut and
 escaped, and writes it to the raw stderr: the frame (time, level, topic) is never
 touched, and a password with DEL, C1 or bidi characters is matched in its raw form. A password with spaces, quotes, `#`, `?` or `/` is caught as well as an
 ordinary one. The forms a server echoes a userinfo back in are replaced too
