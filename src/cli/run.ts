@@ -28,8 +28,8 @@ interface OutputSink {
   errFrom?: Command;
 }
 
-/** Exit code of a group or program run without its command, and of `help` for an unknown command. */
-const MISSING_COMMAND_EXIT = 2;
+/** Exit code of a group or program run without its command, and of `help` for an unknown command: nina's usage-error code. */
+const MISSING_COMMAND_EXIT = 1;
 
 /**
  * Apply exitOverride + output redirection to every command in the tree.
@@ -317,7 +317,7 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // help from an explicit `--help` ("commander.helpDisplayed") or from the `help`
       // command ("commander.help", exit code 0), or the version from `--version` —
       // so we exit 0. A group or the program run without its command is also
-      // "commander.help", but with exit code 1: a usage error (exit 2) with an ERROR
+      // "commander.help", but with exit code 1: a usage error (exit 1, like the others) with an ERROR
       // record, then the help on stderr as records. Other parse errors (unknown
       // command/option, missing argument) keep their own exit code.
       const missingCommand = err.code === "commander.help" && err.exitCode !== 0;

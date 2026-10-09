@@ -276,10 +276,10 @@ test("a bare invocation prints help to stdout (not stderr) and exits 0", async (
   assert.match(cli.out.join("\n"), /Usage: nina/);
 });
 
-test("a global flag with no command, and a bare command group, log an ERROR 'missing command' before the help, exit 2", async () => {
+test("a global flag with no command, and a bare command group, log an ERROR 'missing command' before the help, exit 1", async () => {
   for (const [argv, path] of [[["--compact"], "nina"], [["warning"], "nina warning"], [["archive"], "nina archive"]] as const) {
     const cli = makeCli(() => jsonResponse([]));
-    assert.equal(await run([...argv], cli.deps), 2, argv.join(" "));
+    assert.equal(await run([...argv], cli.deps), 1, argv.join(" "));
     const records = cli.err.map(untimed);
     assert.equal(records[0], `ERROR [nina.cli] missing command: \`${path} <subcommand>\``, records.join("\n"));
     assert.ok(records.length > 2, records.join("\n"));
@@ -290,7 +290,7 @@ test("a global flag with no command, and a bare command group, log an ERROR 'mis
   }
 });
 
-test("help for an unknown command reports it like the command itself, exit 2, at every level", async () => {
+test("help for an unknown command reports it like the command itself, exit 1, at every level", async () => {
   for (const [helpArgv, plainArgv] of [
     [["help", "nope"], ["nope"]],
     [["help", "warning", "nope"], ["warning", "nope"]],
@@ -299,7 +299,7 @@ test("help for an unknown command reports it like the command itself, exit 2, at
   ] as const) {
     const viaHelp = makeCli(() => jsonResponse([]));
     const plain = makeCli(() => jsonResponse([]));
-    assert.equal(await run([...helpArgv], viaHelp.deps), 2, helpArgv.join(" "));
+    assert.equal(await run([...helpArgv], viaHelp.deps), 1, helpArgv.join(" "));
     assert.equal(await run([...plainArgv], plain.deps), 1, plainArgv.join(" "));
     assert.match(untimed(viaHelp.err[0] ?? ""), /^ERROR \[nina\.cli\] unknown command '/, helpArgv.join(" "));
     assert.deepEqual(viaHelp.err.map(untimed), plain.err.map(untimed), helpArgv.join(" "));
@@ -309,7 +309,7 @@ test("help for an unknown command reports it like the command itself, exit 2, at
   }
   // A command without subcommands is not run on the rest of the names.
   const leaf = makeCli(() => jsonResponse([]));
-  assert.equal(await run(["help", "warning", "get", "nope"], leaf.deps), 2);
+  assert.equal(await run(["help", "warning", "get", "nope"], leaf.deps), 1);
   assert.equal(untimed(leaf.err[0] ?? ""), "ERROR [nina.cli] unknown command 'nope'");
   assert.equal(leaf.mt.calls.length, 0);
 });
