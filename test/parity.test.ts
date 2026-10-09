@@ -22,7 +22,7 @@ function assertBothRejected(
   assert.deepEqual(lib.requests, [], `${label}: library sent a request`);
   const error = (lib as { error: unknown }).error;
   assert.ok(error instanceof NinaValidationError, `${label}: ${String(error)}`);
-  assert.equal(cli.err, `Error: ${error.message}`, label);
+  assert.equal(cli.err, `ERROR [nina.cli] ${error.message}`, label);
   return error;
 }
 

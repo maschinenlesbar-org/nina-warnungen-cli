@@ -4,8 +4,8 @@ import { run } from "../src/cli/run.js";
 import { NinaClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
-import { NinaNetworkError } from "../src/client/errors.js";
-import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
+import { NinaIOError, NinaNetworkError } from "../src/client/errors.js";
+import { makeMockTransport, jsonResponse, rawResponse, untimed } from "./helpers.js";
 
 function makeCli(responder: (req: HttpRequest) => HttpResponse) {
   const out: string[] = [];
@@ -58,7 +58,7 @@ test("warning geojson writes to a file with -o", async () => {
   const code = await run(["-o", "out.geojson", "warning", "geojson", "abc"], cli.deps);
   assert.equal(code, 0);
   assert.equal(cli.files.get("out.geojson")?.toString("utf8"), '{"type":"FeatureCollection"}');
-  assert.match(cli.err.join("\n"), /Wrote \d+ bytes to out\.geojson/);
+  assert.match(untimed(cli.err.join("\n")), /^INFO  \[nina\.output\] Wrote \d+ bytes to out\.geojson$/m);
 });
 
 test("dashboard builds the right path", async () => {
@@ -139,11 +139,29 @@ test("an --output write failure maps to exit code 1", async () => {
   assert.match(err.join("\n"), /EACCES/);
 });
 
+test("a NinaIOError from writing -o is an ERROR record of nina.output", async () => {
+  const err: string[] = [];
+  const mt = makeMockTransport(() => rawResponse('{"type":"FeatureCollection"}', "application/geo+json"));
+  const deps: CliDeps = {
+    io: {
+      out: () => {},
+      err: (s) => err.push(s),
+      writeFile: (path) => {
+        throw new NinaIOError(`Failed to write ${path}: EISDIR: illegal operation on a directory`);
+      },
+      outBinary: () => {},
+    },
+    createClient: (opts) => new NinaClient({ ...opts, transport: mt.transport }),
+  };
+  assert.equal(await run(["-o", "somedir", "warning", "geojson", "abc"], deps), 1);
+  assert.deepEqual(err.map(untimed), ["ERROR [nina.output] Failed to write somedir: EISDIR: illegal operation on a directory"]);
+});
+
 test("warning geojson warns when the content-type is not JSON but the body is GeoJSON", async () => {
   const cli = makeCli(() => rawResponse('{"type":"FeatureCollection","features":[]}', "text/plain"));
   const code = await run(["warning", "geojson", "abc"], cli.deps);
   assert.equal(code, 0);
-  assert.match(cli.err.join("\n"), /Warning: expected a "json" response/);
+  assert.match(untimed(cli.err.join("\n")), /^WARN  \[nina\.api\] expected a "json" response/m);
 });
 
 test("warning geojson fails (exit 1, no file) when a 200 body is not GeoJSON", async () => {
@@ -151,7 +169,7 @@ test("warning geojson fails (exit 1, no file) when a 200 body is not GeoJSON", a
     const cli = makeCli(() => rawResponse(body!, type!));
     assert.equal(await run(["-o", "out.geojson", "warning", "geojson", "abc"], cli.deps), 1, body);
     assert.equal(cli.files.size, 0, body);
-    assert.match(cli.err.join("\n"), /^Error: Unexpected response from \/api31\/warnings\/abc\.geojson: expected (a )?GeoJSON/m, body);
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.cli\] Unexpected response from \/api31\/warnings\/abc\.geojson: expected (a )?GeoJSON/m, body);
   }
 });
 
@@ -441,7 +459,7 @@ test("a deeply nested response is a clean error, not an internal one", async () 
   const deep = '[{"x":' + "[".repeat(depth) + "]".repeat(depth) + "}]";
   const cli = makeCli(() => rawResponse(deep, "application/json"));
   assert.equal(await run(["map-data", "dwd"], cli.deps), 1);
-  assert.match(cli.err.join("\n"), /^Error: The response is nested too deeply to pretty-print; try --compact\.$/m);
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.cli\] The response is nested too deeply to pretty-print; try --compact\.$/m);
   assert.doesNotMatch(cli.err.join("\n"), /Unexpected error/);
 
   // Compact output recurses less: it either prints or fails with the compact message.
@@ -477,7 +495,7 @@ test("dashboard and map-data fail (exit 1, nothing on stdout) on a 200 that is n
       const cli = makeCli(() => jsonResponse(body));
       assert.equal(await run(argv, cli.deps), 1, `${argv.join(" ")} ${JSON.stringify(body)}`);
       assert.equal(cli.out.length, 0);
-      assert.match(cli.err.join("\n"), /^Error: Unexpected response from \/api31\//m);
+      assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.cli\] Unexpected response from \/api31\//m);
     }
   }
   const empty = makeCli(() => jsonResponse([]));
@@ -519,7 +537,7 @@ test("a usage error with an http base URL prints no cleartext warning", async ()
   const cli = makeCli(() => jsonResponse([]));
   const code = await run(["--base-url", "http://mirror.example", "map-data"], cli.deps);
   assert.equal(code, 1);
-  assert.ok(!cli.err.some((l) => l.startsWith("warning:")), cli.err.join("\n"));
+  assert.ok(!cli.err.map(untimed).some((l) => l.startsWith("WARN ")), cli.err.join("\n"));
   assert.equal(cli.mt.calls.length, 0);
 });
 
@@ -528,5 +546,5 @@ test("dashboard: a 404 says 'no such district key' and exits 4", async () => {
   const code = await run(["dashboard", "059990000000"], cli.deps);
   assert.equal(code, 4);
   assert.deepEqual(cli.out, []);
-  assert.match(cli.err.join("\n"), /^Error: HTTP 404 for GET \/api31\/dashboard\/059990000000\.json: no such district key "059990000000"/);
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.api\] HTTP 404 for GET \/api31\/dashboard\/059990000000\.json: no such district key "059990000000"/);
 });

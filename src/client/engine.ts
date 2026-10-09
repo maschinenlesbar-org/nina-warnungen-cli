@@ -289,7 +289,7 @@ function isLoopbackHost(hostname: string): boolean {
  *   named first, joined with the userinfo phrase by "and".
  *
  * `<host>` is the URL's host and port, never its userinfo; the sentence never contains a
- * password or key. The CLI prints it once per run as `warning: <sentence>` on stderr.
+ * password or key. The CLI logs it once per run as a `WARN` record of `nina.http` on stderr.
  */
 export function cleartextProblem(baseUrl: string, secrets: readonly string[] = []): string | undefined {
   let url: URL;

@@ -6,7 +6,7 @@ import { NinaError, NinaValidationError } from "../src/client/errors.js";
 import { NinaClient } from "../src/client/client.js";
 import { run } from "../src/cli/run.js";
 import type { CliDeps } from "../src/cli/io.js";
-import { parity, jsonResponse } from "./helpers.js";
+import { parity, jsonResponse, untimed } from "./helpers.js";
 
 const nonBlank: Problem<string> = (v) => (v.trim() === "" ? "Expected a non-empty value." : undefined);
 
@@ -42,17 +42,17 @@ test("the validation layer is exported from the package root", () => {
   assert.equal(lib.NinaValidationError, NinaValidationError);
 });
 
-test("run() maps a NinaValidationError raised in an action to the usage exit 1, 'Error: <message>'", async () => {
+test("run() maps a NinaValidationError raised in an action to the usage exit 1 and an ERROR record", async () => {
   const cli = throwingDeps(new NinaValidationError("Invalid thing: Expected a non-empty value."));
   assert.equal(await run(["map-data", "dwd"], cli.deps), 1);
-  assert.deepEqual(cli.err, ["Error: Invalid thing: Expected a non-empty value."]);
+  assert.deepEqual(cli.err.map(untimed), ["ERROR [nina.cli] Invalid thing: Expected a non-empty value."]);
   assert.deepEqual(cli.out, []);
 });
 
 test("run() still maps a plain NinaError to exit 1", async () => {
   const cli = throwingDeps(new NinaError("boom"));
   assert.equal(await run(["map-data", "dwd"], cli.deps), 1);
-  assert.deepEqual(cli.err, ["Error: boom"]);
+  assert.deepEqual(cli.err.map(untimed), ["ERROR [nina.cli] boom"]);
 });
 
 test("parity() runs one input through the CLI and the library on one recording transport", async () => {

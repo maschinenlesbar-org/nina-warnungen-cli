@@ -3,7 +3,7 @@
 
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
-import type { CliDeps } from "./io.js";
+import { logOf, type CliDeps } from "./io.js";
 import { NinaError } from "../client/errors.js";
 import { baseUrlProblem, headerValueProblem } from "../client/validate.js";
 import { DEFAULT_BASE_URL, cleartextProblem, type EngineOptions, type RawResponse } from "../client/engine.js";
@@ -157,7 +157,7 @@ export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown)
   if (output !== undefined) {
     const data = Buffer.from(text + "\n", "utf8");
     deps.io.writeFile(output, data);
-    deps.io.err(`Wrote ${data.length} bytes to ${output}`);
+    logOf(deps).info("output", `Wrote ${data.length} bytes to ${output}`);
   } else {
     deps.io.out(text);
   }
@@ -195,15 +195,16 @@ export function renderRaw(
   expectContentType?: string,
 ): void {
   if (expectContentType && !response.contentType.toLowerCase().includes(expectContentType)) {
-    deps.io.err(
-      `Warning: expected a "${expectContentType}" response but got ` +
+    logOf(deps).warn(
+      "api",
+      `expected a "${expectContentType}" response but got ` +
         `"${response.contentType || "(none)"}". The body may not be what you expect.`,
     );
   }
   const output = resolveOutput(global.output);
   if (output !== undefined) {
     deps.io.writeFile(output, response.data);
-    deps.io.err(`Wrote ${response.data.length} bytes to ${output}`);
+    logOf(deps).info("output", `Wrote ${response.data.length} bytes to ${output}`);
   } else if (deps.io.isTerminal?.() === false) {
     // A pipe or file: the bytes exactly as the server sent them.
     deps.io.outBinary(response.data);
@@ -224,8 +225,8 @@ export interface ActionContext {
  * Wrap an async command action with consistent global-option resolution and
  * client construction. The callback receives a context (client + resolved global
  * options + this command's options) and the command's positional arguments. When the
- * effective base URL is remote plain `http:`, one `warning: …` line goes to stderr
- * first ({@link cleartextProblem}); help, version and usage errors never reach here.
+ * effective base URL is remote plain `http:`, one WARN record of `nina.http` goes to
+ * stderr first ({@link cleartextProblem}); help, version and usage errors never reach here.
  *
  * Commander invokes actions as (arg1, ..., argN, options, command); we slice off
  * the trailing options object and command instance to recover the positionals.
@@ -238,9 +239,9 @@ export function action(
     const command = args[args.length - 1] as Command;
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
-    // One stderr line before any request when the base URL is remote plain http:.
+    // One stderr record before any request when the base URL is remote plain http:.
     const cleartext = cleartextProblem(global.baseUrl ?? DEFAULT_BASE_URL);
-    if (cleartext !== undefined) deps.io.err(`warning: ${cleartext}`);
+    if (cleartext !== undefined) logOf(deps).warn("http", cleartext);
     const client = deps.createClient(toEngineOptions(global));
     await fn({ client, global, opts: command.opts() }, positionals);
   };

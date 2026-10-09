@@ -69,8 +69,8 @@ new NinaClient({
 `cleartextProblem(baseUrl, secrets?)` (exported from the library) says what a remote plain
 `http:` base URL exposes — `requests to <host> are sent unencrypted (http:, not https:)`, or
 naming the base URL's credentials when it carries userinfo — and returns `undefined` for
-`https:`, an unparseable URL and loopback hosts. It never contains the password. The CLI prints
-it once per run as `warning: <sentence>` on stderr before the first request.
+`https:`, an unparseable URL and loopback hosts. It never contains the password. The CLI logs
+it once per run as a `WARN` record of `nina.http` on stderr before the first request.
 
 ### Resource groups
 
@@ -116,7 +116,8 @@ src/
     validate.ts  # input rules (Problem functions) + assertValid, shared with the CLI
     client.ts    # NinaClient — resource groups over the engine
   cli/
-    io.ts        # injectable I/O seam (stdout/stderr/file)
+    io.ts        # injectable I/O seam (stdout/stderr/file), the logger and the clock
+    log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     shared.ts    # option parsers, global-option resolver, JSON/raw renderers
     commands/    # warnings + archive/reference (misc) command groups
     program.ts   # assembles the commander program from injectable deps
@@ -372,3 +373,23 @@ npm run serve                        # http://127.0.0.1:4000/nina-warnungen-cli/
 Dual-licensed under **[AGPL-3.0-or-later](LICENSE)** or a commercial license — see
 **[LICENSING.md](LICENSING.md)**. This project does **not** accept external code
 contributions; see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+
+## The log on stderr
+
+Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp, a level
+(`ERROR`, `WARN`, `INFO`) and a topic, `nina.<area>`. `--log-format text` (the default)
+writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
+`--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
+and `msg`. The areas are `cli` (usage errors, commander's messages, unexpected errors),
+`api` (the API's answers: HTTP errors, a warning id that is no longer live, the
+content-type warning of a download), `http` (the connection: network errors, the
+cleartext warning) and `output` (`-o`: "Wrote N bytes", a `NinaIOError` writing the file).
+Code logs through `logOf(deps)` and never writes diagnostics with `io.err` directly.
+`run()` builds the logger from argv before commander parses it, and turns commander's
+buffered stderr into records when it flushes it (help for a bare invocation still goes to
+stdout as it is); the logger sits on top of the redacted `io.err`, so a secret is kept out
+of the log in either format. `CliDeps.now` makes the timestamps testable. stdout carries
+data only. Conformance test P23 checks all of this, and its body is shared across the
+*-cli repos (here with the `USAGE_EXIT` switch: a usage error exits 1). The bin shim's
+`Output error: …` (`handleOutputErrors`, stdout failing) stays a plain line: it is written
+straight to `process.stderr` outside `run()`.

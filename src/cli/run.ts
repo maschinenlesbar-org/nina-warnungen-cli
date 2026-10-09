@@ -4,10 +4,13 @@
 
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
-import type { CliDeps } from "./io.js";
+import { logOf, type CliDeps } from "./io.js";
+import { createLogger, logFormatFromArgv } from "./log.js";
 import {
   NinaApiError,
   NinaError,
+  NinaIOError,
+  NinaNetworkError,
   NinaNotFoundError,
   NinaValidationError,
   credentialsIn,
@@ -82,6 +85,13 @@ export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliD
 
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
   deps = withRedactedOutput(deps, argv);
+  // Every record goes through the redacted `io.err`, so a secret is kept out of the
+  // log in either format.
+  const redacted = deps;
+  deps = {
+    ...deps,
+    log: createLogger({ format: logFormatFromArgv(argv), write: (line) => redacted.io.err(line), ...(deps.now === undefined ? {} : { now: deps.now }) }),
+  };
   const program = buildProgram(deps);
   const sink: OutputSink = { out: [], err: [] };
   configureTree(program, sink);
@@ -92,8 +102,15 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
   // `--help` (stdout, exit 0) rather than landing on stderr.
   const flush = (helpToStdout: boolean): void => {
     for (const line of sink.out) deps.io.out(line);
-    const errSink = helpToStdout ? deps.io.out : deps.io.err;
-    for (const line of sink.err) errSink(line);
+    // commander's own messages are log records too: its "error: …" an ERROR, the help it
+    // shows after one an INFO. Help for a bare invocation is stdout data, not a record.
+    for (const line of sink.err) {
+      if (helpToStdout) deps.io.out(line);
+      // The blank line commander writes between an error and the help it shows after.
+      else if (line === "") continue;
+      else if (line.startsWith("error: ")) logOf(deps).error("cli", line.slice("error: ".length));
+      else logOf(deps).info("cli", line);
+    }
   };
 
   try {
@@ -115,29 +132,30 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       return isHelp ? 0 : err.exitCode;
     }
     flush(false);
+    const log = logOf(deps);
     if (err instanceof NinaValidationError) {
       // The library rejected an input before any request: a usage error, with the
       // exit code commander gives a value its parsers reject (1).
-      deps.io.err(`Error: ${err.message}`);
+      log.error("cli", err.message);
       return 1;
     }
     if (err instanceof NinaNotFoundError) {
       // A warning id that is no longer live: NINA redirects it to its archive
       // instead of answering 404, so it gets the not-found exit code too.
-      deps.io.err(`Error: ${err.message}`);
+      log.error("api", err.message);
       return 4;
     }
     if (err instanceof NinaApiError) {
-      deps.io.err(`Error: ${err.message}`);
+      log.error("api", err.message);
       // Map a few notable statuses to distinct exit codes for scripting.
       if (err.status === 404) return 4;
       return 1;
     }
     if (err instanceof NinaError) {
-      deps.io.err(`Error: ${err.message}`);
+      log.error(err instanceof NinaNetworkError ? "http" : err instanceof NinaIOError ? "output" : "cli", err.message);
       return 1;
     }
-    deps.io.err(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
+    log.error("cli", `Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
     return 1;
   }
 }

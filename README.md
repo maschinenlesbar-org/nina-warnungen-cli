@@ -126,6 +126,21 @@ reported as `Unexpected response …`, exit `1`, never as an empty list. An empt
 `[]` is a real answer: no warnings. Use `set -o pipefail` (or check `nina`'s exit
 code) so a failure is not read as "0 warnings".
 
+Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `WARN`,
+`INFO`) and a topic, the program and the area it comes from (`nina.cli` for usage
+errors, `nina.api` for the API's answers, `nina.http` for the connection, `nina.output`
+for files written with `-o`). By default it is written log4j style; `--log-format jsonl`
+writes one JSON object per line instead:
+
+```text
+2026-10-09T14:03:12.481Z WARN  [nina.http] requests to mirror.test are sent unencrypted (http:, not https:)
+2026-10-09T14:03:12.902Z ERROR [nina.api] HTTP 404 for GET /api31/dashboard/059990000000.json: no such district key "059990000000": …
+```
+
+```bash
+nina --log-format jsonl dashboard 059990000000 2>log.jsonl   # {"ts":"…","level":"ERROR","topic":"nina.api","msg":"HTTP 404 …"}
+```
+
 ```bash
 # Count warnings for a region. With pipefail a failed run (exit 1 or 4) fails the
 # pipeline instead of jq printing nothing; a `Cancel` entry is an all-clear, not a warning.
@@ -197,8 +212,9 @@ These apply to every command and may be given before *or* after it:
 | `-V, --version` | Print the version number |
 | `-h, --help` | Show help for the program or a command |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
+| `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [nina.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
 | `-o, --output <file>` | Write the command's output to a file instead of stdout (JSON commands and downloads alike); `-o -` means stdout |
-| `--base-url <url>` | API base URL (default `https://warnung.bund.de`; a path prefix for a mirror is fine; a query `?` or fragment `#`, whitespace or control characters are rejected). A remote plain `http:` URL works but prints one `warning: … sent unencrypted …` line on stderr before the request (stdout and the exit code are unchanged; `localhost`, `127.0.0.0/8` and `::1` are exempt) |
+| `--base-url <url>` | API base URL (default `https://warnung.bund.de`; a path prefix for a mirror is fine; a query `?` or fragment `#`, whitespace or control characters are rejected). A remote plain `http:` URL works but logs one `WARN` record of `nina.http`, `… sent unencrypted …`, on stderr before the request (stdout and the exit code are unchanged; `localhost`, `127.0.0.0/8` and `::1` are exempt) |
 | `--timeout <ms>` | Per-request timeout (default `30000`; `0` waits indefinitely; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (a blank value, control characters or characters above U+00FF are rejected) |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (default `2`, max `10` — higher is rejected). A refused connection, a DNS failure and a timeout are not retried. Each retry waits a linear backoff (200 ms, 400 ms, …), or the server's `Retry-After` (seconds or an HTTP date) when that is longer — never less, so `Retry-After: 0` still waits the backoff; a `Retry-After` above 30 s is not retried, and the error names the requested wait |
