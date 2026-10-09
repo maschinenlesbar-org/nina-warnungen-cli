@@ -5,7 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import { logOf, type CliDeps } from "./io.js";
-import { createLogger, logFormatFromArgv } from "./log.js";
+import { createLogger, logFormatFromArgv, type Logger } from "./log.js";
 import {
   NinaApiError,
   NinaError,
@@ -42,6 +42,27 @@ function configureTree(command: Command, sink: OutputSink): void {
     writeErr: (str) => sink.err.push(str.replace(/\n$/, "")),
   });
   for (const child of command.commands) configureTree(child, sink);
+}
+
+/**
+ * One chunk of commander's stderr output as log records, one per line. Its `error: …`
+ * is an ERROR of `cli`, with a following `(Did you mean …?)` line appended to that same
+ * record; anything else (the help it shows after an error) is one INFO record per
+ * non-blank line. The blank line commander writes between an error and the help is
+ * dropped.
+ */
+function commanderRecords(log: Logger, text: string): void {
+  if (text.trim() === "") return;
+  if (text.startsWith("error: ")) {
+    log.error("cli", joinHint(text.slice("error: ".length)));
+    return;
+  }
+  for (const line of text.split("\n")) if (line.trim() !== "") log.info("cli", line.trimEnd());
+}
+
+/** `message` with a final `\n(Did you mean …?)` line joined to it by a space: one record. */
+function joinHint(message: string): string {
+  return message.replace(/\n(\(Did you mean [^\n]*\?\))$/, " $1");
 }
 
 /**
@@ -159,14 +180,11 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
   // `--help` (stdout, exit 0) rather than landing on stderr.
   const flush = (helpToStdout: boolean): void => {
     for (const line of sink.out) deps.io.out(line);
-    // commander's own messages are log records too: its "error: …" an ERROR, the help it
-    // shows after one an INFO. Help for a bare invocation is stdout data, not a record.
-    for (const line of sink.err) {
-      if (helpToStdout) deps.io.out(line);
-      // The blank line commander writes between an error and the help it shows after.
-      else if (line === "") continue;
-      else if (line.startsWith("error: ")) logOf(deps).error("cli", line.slice("error: ".length));
-      else logOf(deps).info("cli", line);
+    // commander's own messages are log records too, one per line (`commanderRecords`).
+    // Help for a bare invocation is stdout data, not a record.
+    for (const text of sink.err) {
+      if (helpToStdout) deps.io.out(text);
+      else commanderRecords(logOf(deps), text);
     }
   };
 

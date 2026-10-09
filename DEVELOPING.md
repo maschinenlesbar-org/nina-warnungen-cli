@@ -404,8 +404,11 @@ content-type warning of a download), `http` (the connection: network errors, the
 cleartext warning) and `output` (`-o`: "Wrote N bytes", a `NinaIOError` writing the file).
 Code logs through `logOf(deps)` and never writes diagnostics with `io.err` directly.
 `run()` builds the logger from argv before commander parses it, and turns commander's
-buffered stderr into records when it flushes it (help for a bare invocation still goes to
-stdout as it is); the logger carries the run's redaction (`withRedactedOutput`), which
+buffered stderr into records when it flushes it, one per line (`commanderRecords`): its
+`error: …` an ERROR of `cli`, with a `(Did you mean …?)` line joined to it, and the help it
+shows after an error an INFO record per non-blank line. Help for a bare invocation or a
+bare command group still goes to stdout as it is, with exit 0, so there is no failed run
+without an ERROR record; the logger carries the run's redaction (`withRedactedOutput`), which
 replaces a secret in the message only, before it is escaped: the frame is never touched,
 and a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps testable. stdout carries
 data only. Conformance test P23 checks all of this, and its body is shared across the
