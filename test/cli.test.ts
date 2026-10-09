@@ -276,20 +276,55 @@ test("a bare invocation prints help to stdout (not stderr) and exits 0", async (
   assert.match(cli.out.join("\n"), /Usage: nina/);
 });
 
-test("a global flag with no command prints help to stdout, exit 0", async () => {
-  const cli = makeCli(() => jsonResponse([]));
-  const code = await run(["--compact"], cli.deps);
-  assert.equal(code, 0);
-  assert.equal(cli.err.length, 0);
-  assert.match(cli.out.join("\n"), /Usage: nina/);
+test("a global flag with no command, and a bare command group, log an ERROR 'missing command' before the help, exit 2", async () => {
+  for (const [argv, path] of [[["--compact"], "nina"], [["warning"], "nina warning"], [["archive"], "nina archive"]] as const) {
+    const cli = makeCli(() => jsonResponse([]));
+    assert.equal(await run([...argv], cli.deps), 2, argv.join(" "));
+    const records = cli.err.map(untimed);
+    assert.equal(records[0], `ERROR [nina.cli] missing command: \`${path} <subcommand>\``, records.join("\n"));
+    assert.ok(records.length > 2, records.join("\n"));
+    for (const record of records.slice(1)) assert.match(record, /^INFO  \[nina\.cli\] .*\S$/);
+    assert.ok(records.some((record) => /\] Usage: nina /.test(record)), records.join("\n"));
+    assert.deepEqual(cli.out, []);
+    assert.equal(cli.mt.calls.length, 0);
+  }
 });
 
-test("a bare command group prints its help to stdout, exit 0", async () => {
-  const cli = makeCli(() => jsonResponse([]));
-  const code = await run(["warning"], cli.deps);
-  assert.equal(code, 0);
-  assert.equal(cli.err.length, 0);
-  assert.match(cli.out.join("\n"), /get|geojson/);
+test("help for an unknown command reports it like the command itself, exit 2, at every level", async () => {
+  for (const [helpArgv, plainArgv] of [
+    [["help", "nope"], ["nope"]],
+    [["help", "warning", "nope"], ["warning", "nope"]],
+    [["warning", "help", "nope"], ["warning", "nope"]],
+    [["help", "https://alice:s3cret@x.test"], ["https://alice:s3cret@x.test"]],
+  ] as const) {
+    const viaHelp = makeCli(() => jsonResponse([]));
+    const plain = makeCli(() => jsonResponse([]));
+    assert.equal(await run([...helpArgv], viaHelp.deps), 2, helpArgv.join(" "));
+    assert.equal(await run([...plainArgv], plain.deps), 1, plainArgv.join(" "));
+    assert.match(untimed(viaHelp.err[0] ?? ""), /^ERROR \[nina\.cli\] unknown command '/, helpArgv.join(" "));
+    assert.deepEqual(viaHelp.err.map(untimed), plain.err.map(untimed), helpArgv.join(" "));
+    assert.deepEqual(viaHelp.out, []);
+    assert.ok(!viaHelp.err.join("\n").includes("s3cret"));
+    assert.equal(viaHelp.mt.calls.length, 0);
+  }
+  // A command without subcommands is not run on the rest of the names.
+  const leaf = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["help", "warning", "get", "nope"], leaf.deps), 2);
+  assert.equal(untimed(leaf.err[0] ?? ""), "ERROR [nina.cli] unknown command 'nope'");
+  assert.equal(leaf.mt.calls.length, 0);
+});
+
+test("help names a command path and shows that command's help on stdout, exit 0", async () => {
+  for (const [argv, usage] of [
+    [["help"], "Usage: nina [options] [command]"],
+    [["help", "warning"], "Usage: nina warning [options] [command]"],
+    [["help", "warning", "get"], "Usage: nina warning get [options] <identifier>"],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse([]));
+    assert.equal(await run([...argv], cli.deps), 0, argv.join(" "));
+    assert.equal(cli.out.join("\n").split("\n")[0], usage, argv.join(" "));
+    assert.deepEqual(cli.err, []);
+  }
 });
 
 test("an unknown command still errors on stderr with exit 1", async () => {

@@ -411,9 +411,13 @@ of a parse error; a `preAction` hook then sets the format commander parsed, so
 `--user-agent --log-format=jsonl` logs text), and turns commander's
 buffered stderr into records when it flushes it, one per line (`commanderRecords`): its
 `error: …` an ERROR of `cli`, with a `(Did you mean …?)` line joined to it, and the help it
-shows after an error an INFO record per non-blank line. Help for a bare invocation or a
-bare command group still goes to stdout as it is, with exit 0, so there is no failed run
-without an ERROR record; the logger carries the run's redaction (`withRedactedOutput`), which
+shows after an error an INFO record per non-blank line. Help for a bare `nina` with no arguments goes to stdout, exit 0. A command group or global
+options without a command log an ERROR "missing command: `nina warning <subcommand>`" first,
+then the help as INFO records, and exit 2 (the one usage error that does; the rest exit 1).
+`run.ts` replaces commander's built-in `help [command]` with its own `help [command...]`
+(`addHelpCommand`, in `configureTree`, so the tree the website documents is unchanged): it
+walks every name, and an unknown one is reported like `nina nope` (`error: unknown command
+'nope'`) but exits 2. So there is no failed run without an ERROR record; the logger carries the run's redaction (`withRedactedOutput`), which
 replaces a secret in the message only, before it is escaped: the frame is never touched,
 and a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps testable. stdout carries
 data only. Conformance test P23 checks all of this, and its body is shared across the

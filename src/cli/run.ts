@@ -24,7 +24,12 @@ import { escapeTerminalControls } from "./shared.js";
 interface OutputSink {
   out: string[];
   err: string[];
+  /** The command that wrote the first line to `err` (the one a missing subcommand is named after). */
+  errFrom?: Command;
 }
+
+/** Exit code of a group or program run without its command, and of `help` for an unknown command. */
+const MISSING_COMMAND_EXIT = 2;
 
 /**
  * Apply exitOverride + output redirection to every command in the tree.
@@ -40,9 +45,59 @@ function configureTree(command: Command, sink: OutputSink): void {
   command.exitOverride();
   command.configureOutput({
     writeOut: (str) => sink.out.push(str.replace(/\n$/, "")),
-    writeErr: (str) => sink.err.push(str.replace(/\n$/, "")),
+    writeErr: (str) => {
+      sink.errFrom ??= command;
+      sink.err.push(str.replace(/\n$/, ""));
+    },
   });
+  if (command.commands.length > 0) addHelpCommand(command);
   for (const child of command.commands) configureTree(child, sink);
+}
+
+/** `nina warning`: the command's name with its parents'. */
+function commandPath(command: Command): string {
+  const names: string[] = [];
+  for (let c: Command | null = command; c !== null; c = c.parent) names.unshift(c.name());
+  return names.join(" ");
+}
+
+/**
+ * Replace commander's built-in `help [command]` with one that resolves every name it
+ * is given. The built-in one looked at the first name only: `nina help nope` printed
+ * the root help with no word about "nope", and `dip help vorgang nope`
+ * printed the vorgang help with exit 0. Now `help a b …` shows the help of `a b`, and
+ * an unknown name is reported exactly as `nina a nope` reports it (`error: unknown
+ * command 'nope'`, redacted like all output, the usage exit code): the remaining names
+ * are parsed by the command they were meant for, which raises commander's own error.
+ * Added here rather than in `buildProgram`, so the command tree the website documents
+ * stays as commander builds it.
+ */
+function addHelpCommand(command: Command): void {
+  command.helpCommand(false);
+  command
+    .command("help [command...]")
+    .description("display help for command")
+    .action(async (names: string[]) => {
+      let target = command;
+      for (const [i, name] of names.entries()) {
+        const sub = target.commands.find((c) => c.name() === name || c.aliases().includes(name));
+        if (sub === undefined) {
+          try {
+            // A command without subcommands would run its action on the rest of the names.
+            if (target.commands.length === 0) target.error(`error: unknown command '${name}'`, { exitCode: 1, code: "commander.unknownCommand" });
+            await target.parseAsync(names.slice(i), { from: "user" });
+          } catch (err) {
+            // The same error as `nina a nope`, but a help request that names a command
+            // that is not there ends with the usage-error exit code of a missing command.
+            if (err instanceof CommanderError && err.exitCode !== 0) throw new CommanderError(MISSING_COMMAND_EXIT, err.code, err.message);
+            throw err;
+          }
+          return;
+        }
+        target = sub;
+      }
+      target.help();
+    });
 }
 
 /**
@@ -233,7 +288,10 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
   // writeErr lines to stdout: commander emits no-command help (a bare invocation
   // or a bare command group) via writeErr, and we want that to match an explicit
   // `--help` (stdout, exit 0) rather than landing on stderr.
-  const flush = (helpToStdout: boolean): void => {
+  const flush = (helpToStdout: boolean, missingCommand = false): void => {
+    // A group or the program run without its command: commander shows its help as an
+    // error with no `error:` line, so the ERROR record comes first.
+    if (missingCommand) logOf(deps).error("cli", `missing command: \`${commandPath(sink.errFrom ?? program)} <subcommand>\``);
     for (const line of sink.out) deps.io.out(line);
     // commander's own messages are log records too, one per line (`commanderRecords`).
     // Help for a bare invocation is stdout data, not a record.
@@ -243,6 +301,12 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
     }
   };
 
+  // No arguments at all is a discovery request, not an error: the help on stdout, exit 0.
+  if (argv.length === 0) {
+    deps.io.out(program.helpInformation().replace(/\n$/, ""));
+    return 0;
+  }
+
   try {
     await program.parseAsync(argv, { from: "user" });
     flush(false);
@@ -250,16 +314,16 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
   } catch (err) {
     if (err instanceof CommanderError) {
       // A help/version display is a success: commander shows the requested text —
-      // help from an explicit `--help` ("commander.helpDisplayed") or from a bare
-      // invocation / bare command group ("commander.help"), or the version from
-      // `--version` — so we exit 0. Help written for a bare invocation lands on
-      // writeErr, so route it to stdout to match `--help`. Genuine parse errors
-      // (unknown command/option, missing argument) keep their own non-zero exit
-      // code and stay on stderr.
-      const isHelp =
-        err.code === "commander.help" || err.code === "commander.helpDisplayed";
-      flush(isHelp);
-      return isHelp ? 0 : err.exitCode;
+      // help from an explicit `--help` ("commander.helpDisplayed") or from the `help`
+      // command ("commander.help", exit code 0), or the version from `--version` —
+      // so we exit 0. A group or the program run without its command is also
+      // "commander.help", but with exit code 1: a usage error (exit 2) with an ERROR
+      // record, then the help on stderr as records. Other parse errors (unknown
+      // command/option, missing argument) keep their own exit code.
+      const missingCommand = err.code === "commander.help" && err.exitCode !== 0;
+      const isHelp = err.code === "commander.helpDisplayed" || (err.code === "commander.help" && !missingCommand);
+      flush(isHelp, missingCommand);
+      return missingCommand ? MISSING_COMMAND_EXIT : isHelp ? 0 : err.exitCode;
     }
     flush(false);
     const log = logOf(deps);

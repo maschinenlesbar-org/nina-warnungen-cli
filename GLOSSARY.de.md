@@ -202,8 +202,9 @@ Was `nina` an die Shell zurückgibt, für Skripte:
 
 | Code | Bedeutung |
 | --- | --- |
-| `0` | Erfolg – auch `--help`, `--version` und ein Befehl oder eine Gruppe ohne Unterbefehl (zeigt die Hilfe). Eine leere Liste (`[]`) ist ebenfalls ein Erfolg: keine aktiven Warnungen. |
+| `0` | Erfolg – auch `--help`, `--version` und ein `nina` ohne Argumente (zeigt die Hilfe). Eine leere Liste (`[]`) ist ebenfalls ein Erfolg: keine aktiven Warnungen. |
 | `1` | Jeder Fehler außer „nicht gefunden“: ein Netzwerkfehler oder Timeout, eine Antwort, die kein gültiges JSON ist, nicht die dokumentierte Form hat (ein HTTP 200 mit `null`, `{}` oder einem Fehlerobjekt, wo eine Liste von Warnungen stehen müsste – nie als „keine Warnungen“ gelesen) oder zu tief verschachtelt zum Ausgeben, ein API-Fehler außer `404` (auch ein `3xx`, dem nicht gefolgt wird, und `429`/`503` nach den Wiederholungen), ein fehlgeschlagenes Schreiben mit `-o` sowie eine falsche Bedienung – ein unbekannter Befehl oder eine unbekannte Option, ein ungültiger Optionswert oder ein Argument, das die CLI vor dem Senden zurückweist (ein fehlerhafter Regionalschlüssel oder einer auf Landesebene, eine unbekannte Quelle, eine Kennung mit Pfadtrenner). |
+| `2` | Eine Befehlsgruppe oder globale Optionen ohne Befehl (ein ERROR-Eintrag, dann die Hilfe) und `help` für einen unbekannten Befehl. |
 | `4` | Nicht gefunden: ein `404` der API (z. B. eine unbekannte Archivkennung oder ein Regionalschlüssel, der keinen Kreis bezeichnet – gemeldet als `no such district key "<Schlüssel>"`) oder eine Warnungskennung, die nicht mehr aktuell ist und die die API auf ihr Archiv weiterleitet, statt `404` zu antworten. |
 
 ---

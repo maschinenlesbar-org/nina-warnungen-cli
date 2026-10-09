@@ -174,6 +174,7 @@ An identifier that begins with `-` would be parsed as an option; pass it after a
 | --- | --- |
 | `0` | success (also `--help` / `--version`) |
 | `1` | error — network failure, parse error or a body without the documented shape (an HTTP 200 with `null`, `{}` or an error object; never read as an empty list), any other API error, and bad usage (an invalid option or argument, rejected before any request) |
+| `2` | a command group or global options without a command, and `help` for an unknown command: an ERROR record, then the help |
 | `4` | not found: a `404`, or a warning id that no live warning has (the API redirects it to its archive; an ended and a mistyped id look the same) |
 
 ## Troubleshooting
