@@ -21,14 +21,14 @@ the [open NINA civil-protection warning API](https://nina.api.bund.dev/)
 
 ```bash
 npm install
-npm run build        # compiles TypeScript to dist/
+npm run build        # compiles every workspace (tsc -b) to its dist/
 ```
 
 Run the locally built CLI without a global install:
 
 ```bash
-node dist/src/cli/index.js --help
-# or, after `npm link`:
+node apps/cli/dist/src/cli/index.js --help    # or: npm start -- --help
+# or, after `npm link --workspace apps/cli`:
 nina --help
 ```
 
@@ -104,9 +104,46 @@ rethrows it as a `NinaApiError` (still status 404, so CLI exit `4`) whose `detai
 
 ## Architecture
 
+The repository is an **npm workspace** with two folders: `apps/` holds the programs it
+publishes, `packages/` the libraries they are built from.
+
 ```
-src/
-  client/
+package.json         # private workspace manifest: no version, never packed
+apps/cli/            # @maschinenlesbar.org/nina-warnungen-cli — the published package
+  package.json       # its version, bin, files, bundleDependencies
+  src/index.ts       # library entry: re-exports @maschinenlesbar.org/nina-warnungen-client
+  src/cli/           # the CLI (below)
+  test/              # CLI tests and every conformance-*.test.ts
+packages/client/     # @maschinenlesbar.org/nina-warnungen-client — private, bundled into the CLI
+  src/               # the API client (below)
+  test/              # tests that only touch the client, + the transport helpers
+tools/pack/          # prepack/postpack: bundle the client and commander into the tarball
+tools/bump.mjs       # version bump + commit + tag (npm run bump)
+tsconfig.docs.json   # TypeDoc only: the package entry, with the client read from its sources
+```
+
+- **The client is its own package** so a later MCP app can share it with the CLI. It is
+  never published on its own: `apps/cli`'s `prepack` copies it (and commander) into the
+  app's `node_modules`, and `bundleDependencies` ships it inside the tarball. The library
+  entry re-exports the client's `"."`, so `import { NinaClient } from
+  "@maschinenlesbar.org/nina-warnungen-cli"` is unchanged.
+- **The client's exports:** `"."` is the public library surface (`src/index.ts`);
+  `"./internal/*"` maps to any module (`…/nina-warnungen-client/internal/engine`) for what the
+  CLI needs beyond that; `"./test/*"` reaches the client's test helpers from the CLI's
+  tests (not bundled). Only `"."` is part of the library.
+- **Dependencies point one way:** the app depends on the client, the client on nothing
+  in the workspace.
+- **The version lives in `apps/cli/package.json`.** The root has none; a plain
+  `npm version` at the root is refused. Release with `npm run bump -- <patch|minor|major>`,
+  which bumps the app, commits (the bare version as the message) and tags `vX.Y.Z`.
+- **TypeScript:** `tsconfig.base.json` holds the compiler options; every workspace has a
+  `tsconfig.json` (`src/`) and a `tsconfig.test.json` (`test/`), and the root
+  `tsconfig.json`/`tsconfig.test.json` reference them, built with `tsc -b`.
+
+The client (`packages/client/src/`) and the CLI (`apps/cli/src/`):
+
+```
+packages/client/src/
     enums.ts     # NinaSource + severity value sets (runtime + type)
     types.ts     # response interfaces (typed summaries; full warnings as JsonObject)
     query.ts     # dependency-free query-string builder
@@ -115,7 +152,8 @@ src/
     errors.ts    # NinaError / NinaApiError / NinaNetworkError / NinaParseError / NinaValidationError
     validate.ts  # input rules (Problem functions) + assertValid, shared with the CLI
     client.ts    # NinaClient — resource groups over the engine
-  cli/
+    index.ts     # the client's public surface (the library entry re-exports it)
+apps/cli/src/cli/
     io.ts        # injectable I/O seam (stdout/stderr/file), the logger and the clock
     log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     shared.ts    # option parsers, global-option resolver, JSON/raw renderers
@@ -139,7 +177,7 @@ src/
 
 ### Library / technical terms
 
-**API client.** [`NinaClient`](src/client/client.ts) — the typed,
+**API client.** [`NinaClient`](packages/client/src/client.ts) — the typed,
 resource-grouped wrapper over the API (`client.mapData`, `client.dashboard`,
 `client.warnings`, `client.archive`, `client.reference`). Usable as a library
 independently of the CLI.
@@ -149,10 +187,10 @@ independently of the CLI.
 command group.
 
 **Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
-([`http.ts`](src/client/http.ts)). The default uses Node's built-in
+([`http.ts`](packages/client/src/http.ts)). The default uses Node's built-in
 `http`/`https`; tests inject a mock. This is the only HTTP seam.
 
-**Request engine.** [`RequestEngine`](src/client/engine.ts) — builds URLs,
+**Request engine.** [`RequestEngine`](packages/client/src/engine.ts) — builds URLs,
 serialises queries, applies retry/backoff, decodes JSON/raw responses and maps
 errors. Sits between the client's resource methods and the transport.
 
@@ -160,14 +198,14 @@ errors. Sits between the client's resource methods and the transport.
 status }` — raw bytes, never lossily decoded.
 
 **CliDeps / CliIO.** The dependency-injection seam for the CLI
-([`io.ts`](src/cli/io.ts)): a client factory plus an I/O object. Lets the whole
+([`io.ts`](apps/cli/src/cli/io.ts)): a client factory plus an I/O object. Lets the whole
 CLI run in tests with a mocked client and captured output — no subprocess.
 The bin shim installs `handleOutputErrors()` before `run()`: when stdout's reader stops
 early (`| head`) the CLI exits 0 quietly instead of printing an `EPIPE` (or, on a socket,
 `ENOTCONN`) stack trace, any other stdout write error is an ERROR record of `nina.output`
 with exit 1, and when stderr's reader is gone a failed run keeps its own exit code.
 
-**Error types.** [`errors.ts`](src/client/errors.ts): `NinaApiError` (non-2xx,
+**Error types.** [`errors.ts`](packages/client/src/errors.ts): `NinaApiError` (non-2xx,
 carries `status`/`detail`/`isRetryable`), `NinaNetworkError` (transport
 failure/timeout), `NinaParseError` (bad JSON), `NinaIOError` (local write
 failure) and `NinaValidationError` (an input the library rejects before any
@@ -181,14 +219,14 @@ other errors to `1` — a `NinaValidationError` included, which is the same exit
 commander gives a usage error.
 
 **Input validation.** Every rule about what a request may contain lives in the
-library, in [`validate.ts`](src/client/validate.ts) or next to the option it
+library, in [`validate.ts`](packages/client/src/validate.ts) or next to the option it
 guards, as an exported `…Problem(value)` function that returns the reason a value
 is invalid (or `undefined`). The library enforces it with `assertValid(name,
 value, problem)`, which throws `NinaValidationError` with the message
 `Invalid <name>: <reason>` before any request (methods that return a promise
 reject; constructors throw). The CLI's option parsers call the same functions and
 turn the reason into a usage error, so the CLI keeps no rules of its own. Tests
-check this with the `parity()` helper in `test/helpers.ts`, which sends one input
+check this with the `parity()` helper in `apps/cli/test/helpers.ts`, which sends one input
 through `run()` and through the library on one recording mock transport.
 
 **Charset.** JSON bodies are decoded by the charset their `Content-Type` names (UTF-8
@@ -222,7 +260,7 @@ gateway answers with HTTP 200 — is a `NinaParseError` (`Unexpected response fr
 expected …, got …`, exit 1), never data: `jq 'length'` would read `null` and `{}` as 0, a
 false all-clear.
 
-**Query builder.** [`buildQueryString`](src/client/query.ts) — a dependency-free
+**Query builder.** [`buildQueryString`](packages/client/src/query.ts) — a dependency-free
 serialiser: omits `undefined`/`null`, repeats keys for arrays, renders booleans
 as `true`/`false`, dates as ISO-8601, and encodes spaces as `%20` (not `+`).
 
@@ -244,7 +282,7 @@ Each retry is announced: the engine option `onRetry(event: RetryEvent)` (exporte
 redacted) `}`) is called once per retry right before the sleep, never when there is none, and
 a throw in it is swallowed. The CLI's `action()` sets it to log one `WARN` record of
 `nina.http`, `HTTP 503 from <host>: retry 1 of 3 in 2 s` (`retryMessage`; host only, whole
-seconds, ms under 1 s). Tests: `test/retry-log.test.ts`.
+seconds, ms under 1 s). Tests: `apps/cli/test/retry-log.test.ts`.
 
 **Engine options.** A `null` options object counts as none; `transport` and `sleep`
 must be functions (else `NinaValidationError`, `Invalid option transport: expected a
@@ -337,8 +375,13 @@ reaches the caller as a `NinaNetworkError`, never raw.
 ## Testing
 
 ```bash
-npm test          # builds, then runs `node --test` over dist/test
+npm test          # builds, then runs `node --test` over each workspace's dist/test
+npm run coverage  # the same tests in one run, with a coverage report
+node --test apps/cli/dist/test/cli.test.js   # one file, after a build
 ```
+
+The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`),
+everything that drives the CLI is in `apps/cli/test/`.
 
 - **`query.test.ts`** — query-string serialisation.
 - **`http.test.ts`** — the default transport against a real loopback `http.createServer` (GET, unsupported protocol, size cap, timeout, no-redirect-follow).
@@ -347,7 +390,7 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`cli.test.ts`** — end-to-end command parsing, rendering, file output and exit codes, plus negative paths (network/parse/API errors, write failures, content-type warning) — mocked client.
 - **`shared.test.ts`** — the `parseIntArg` value parser (accepts plain decimals, rejects everything else).
 - **`validate.test.ts`** — `assertValid`, the `NinaValidationError` exit-code mapping and the `parity()` helper.
-- **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own
+- **`log.test.ts`** — the record helpers of `apps/cli/src/cli/log.ts` on their own
   (`escapeForRecord`, `formatLogRecord`); the CLI-level checks are P23's.
 - **`conformance-p*.test.ts`** — the workspace's shared conformance checks from the 2026-10-05 review
   (P1 credential redaction in CLI output, P2 in library objects, P4 base-URL validation, P5 transport contract, P6 retry policy, P7 closed pipes, P8/P9/P13 charsets, response shapes and error classes, and from the 2026-10-06 follow-up P20 the cleartext `http:` warning and P21 README links: a relative link in `README.md` must point at a file the npm package ships — link any other document by its `https://github.com/maschinenlesbar-org/nina-warnungen-cli/blob/main/…` URL); copied across the `*-cli` repos, only the adapter
@@ -357,9 +400,13 @@ npm test          # builds, then runs `node --test` over dist/test
 
 GitHub Actions workflows under `.github/workflows/`:
 
-- **ci.yml** — type-check, build and test on Node 22/24 for every push and PR.
-- **release.yml** — on a `v*` tag: verify the tag matches `package.json`, test, `npm pack`, and create a GitHub Release with the tarball.
-- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): publish to npm via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
+- **ci.yml** — type-check, build and test on Node 22/24 for every push and PR; then pack the
+  real tarball, check the pack left nothing behind, install it globally with the registry out
+  of reach and run the bin.
+- **release.yml** — on a `v*` tag (made by `npm run bump`): verify the tag matches
+  `apps/cli/package.json`, test, write the SBOMs (scoped to the `apps/cli` workspace), then
+  `npm pack --workspace apps/cli`, and create a GitHub Release with the tarball.
+- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): `npm publish --workspace apps/cli` via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
 - **docs.yml** — build the project website (`site/`, English and German) with the TypeDoc API docs
   under `/api/`, and deploy both to GitHub Pages on each `v*` tag.
   TypeDoc runs from the isolated, lockfile-pinned `tools/docs/` toolchain because it
@@ -376,7 +423,9 @@ TypeDoc API reference under `/api/`. Its content comes from this repository: the
 and quick start, the command tree of the built CLI (`site/scripts/cli-reference.mjs`),
 `Usage.md`, `GLOSSARY.md` and its German version `GLOSSARY.de.md`, the skills, and the skill
 examples in `EXAMPLE.md` and `EXAMPLE.de.md`. The only repo-specific files are
-`site/_config.yml` and `site/_data/project.yml` (the German intro and the access requirements);
+`site/_config.yml` (which also says where the published manifest and the built program are:
+`manifest: apps/cli/package.json`, `program: apps/cli/dist/src/cli/program.js`) and
+`site/_data/project.yml` (the German intro and the access requirements);
 the rest of `site/` is identical in every maschinenlesbar.org CLI, so change it in all of them
 together. When the README intro changes, update the German intro in `site/_data/project.yml`.
 
@@ -394,7 +443,7 @@ contributions; see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ## The log on stderr
 
-Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp, a level
+Every diagnostic line on stderr is a log record (`apps/cli/src/cli/log.ts`): a timestamp, a level
 (`ERROR`, `WARN`, `INFO`) and a topic, `nina.<area>`. `--log-format text` (the default)
 writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
 `--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`

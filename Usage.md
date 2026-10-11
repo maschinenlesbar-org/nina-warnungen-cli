@@ -12,7 +12,7 @@ npm i -g @maschinenlesbar.org/nina-warnungen-cli
 ```
 
 This installs a single bin named **`nina`**. (Without a global install you can run
-the same commands via `node dist/src/cli/index.js …`.)
+the same commands via `node apps/cli/dist/src/cli/index.js …`.)
 
 All read commands print pretty JSON to stdout, so they pipe cleanly into
 [`jq`](https://stedolan.github.io/jq/). The API needs no key and is read-only.
