@@ -271,8 +271,9 @@ false all-clear.
 
 **Numbers.** `JSON.parse` changes some numbers silently: one out of a double's range (`1e400`
 becomes `Infinity`, printed as `null`), one past 2^53 that it rounds (`12345678901234567890`
-prints as `12345678901234567000`), and a non-zero one too small for a double (`1e-400` becomes
-`0`). A JSON answer holding such a number is a `NinaParseError` (`Unexpected response from
+prints as `12345678901234567000`), a non-zero one too small for a double (`1e-400` becomes
+`0`), and a subnormal one (below 2.2250738585072014e-308, where a double has fewer digits) that
+does not print as written (`3e-324` prints as `5e-324`; `5e-324` itself passes). A JSON answer holding such a number is a `NinaParseError` (`Unexpected response from
 <path>: the number <N> cannot be represented exactly.`, exit 1), never a changed value. Past
 2^53 a number passes when it prints as written (`1e23`); below 2^53 a decimal fraction keeps a
 double's usual precision. A scan of the text after `JSON.parse` (`firstInexactNumber`) skips

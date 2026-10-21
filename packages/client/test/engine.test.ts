@@ -481,3 +481,16 @@ test("a header named __proto__ is an ordinary header, never the prototype of the
   const f = new RequestEngine({ transport: async () => ({ status: 200, headers: fetchLike as unknown as Record<string, string>, body: Buffer.from('{"a":1}') }) });
   assert.deepEqual(await f.getJson("/x"), { a: 1 });
 });
+
+test("a subnormal number that does not print as written is a parse error; one that does passes (D4)", async () => {
+  // Below the smallest normal double a double has fewer significant digits: 3e-324 became 5e-324.
+  const body = (n: string) => `{"identifier":"a","n":${n}}`;
+  for (const n of ["3e-324", "4e-324", "-4.9e-324", "7e-324", "1.23456789e-320", "1.2345678901234567e-310", "2.225073858507201e-309"]) {
+    const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
+    await assert.rejects(e.getJson("/x"), (err) => err instanceof NinaParseError && err.message.endsWith(`the number ${n} cannot be represented exactly.`), n);
+  }
+  for (const [n, value] of [["5e-324", 5e-324], ["-5e-324", -5e-324], ["1e-310", 1e-310], ["2.2250738585072014e-308", 2.2250738585072014e-308]] as const) {
+    const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
+    assert.equal((await e.getJson<{ n: number }>("/x")).n, value, n);
+  }
+});
