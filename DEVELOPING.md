@@ -66,6 +66,10 @@ new NinaClient({
 });
 ```
 
+Every option may also be given as `undefined`, which means its default, as an omitted one
+does; the types say so (`?: T | undefined`), so `{ baseUrl: process.env.NINA_BASE_URL }`
+compiles under `exactOptionalPropertyTypes` too.
+
 `cleartextProblem(baseUrl, secrets?)` (exported from the library) says what a remote plain
 `http:` base URL exposes — `requests to <host> are sent unencrypted (http:, not https:)`, or
 naming the base URL's credentials when it carries userinfo — and returns `undefined` for
@@ -398,6 +402,7 @@ everything that drives the CLI is in `apps/cli/test/`.
 - **`query.test.ts`** — query-string serialisation.
 - **`http.test.ts`** — the default transport against a real loopback `http.createServer` (GET, unsupported protocol, size cap, timeout, no-redirect-follow).
 - **`engine.test.ts`** — URL building, JSON/raw decoding, error mapping, 429/503 retry, redirect-as-error, size-cap forwarding — mocked transport.
+- **`types.test.ts`** — a consumer compiled by `tsc` with `exactOptionalPropertyTypes` (it starts a process: 30 s) can pass `undefined` for every option, and at run time `undefined` means the default.
 - **`client.test.ts`** — every endpoint's method/URL mapping, including identifier URL-encoding — mocked transport.
 - **`cli.test.ts`** — end-to-end command parsing, rendering, file output and exit codes, plus negative paths (network/parse/API errors, write failures, content-type warning) — mocked client.
 - **`shared.test.ts`** — the `parseIntArg` value parser (accepts plain decimals, rejects everything else).

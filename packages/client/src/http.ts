@@ -35,19 +35,19 @@ export interface HttpRequest {
   method: string;
   /** Fully-qualified absolute URL. */
   url: string;
-  headers?: Record<string, string>;
+  headers?: Record<string, string> | undefined;
   /** Optional request body (already serialised). */
-  body?: string | Buffer;
+  body?: string | Buffer | undefined;
   /** Per-request timeout in milliseconds. */
-  timeoutMs?: number;
+  timeoutMs?: number | undefined;
   /** Hard cap on the response body size in bytes; the request aborts if exceeded. */
-  maxResponseBytes?: number;
+  maxResponseBytes?: number | undefined;
   /**
    * Aborted when the engine's overall deadline (`timeoutMs`) passes. A transport should stop
    * the request then (`fetch(url, { signal })`); the engine rejects at the deadline either way,
    * and enforces `maxResponseBytes` on the body it gets back, so neither limit depends on it.
    */
-  signal?: AbortSignal;
+  signal?: AbortSignal | undefined;
 }
 
 export interface HttpResponse {

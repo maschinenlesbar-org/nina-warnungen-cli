@@ -43,27 +43,27 @@ export interface EngineOptions {
    * rule of {@link validateBaseUrl} (blank, whitespace or control characters, not
    * http(s), a query or fragment) throws a `NinaValidationError` from the constructor.
    */
-  baseUrl?: string;
+  baseUrl?: string | undefined;
   /**
    * Swappable transport. Defaults to the built-in node http/https transport. The engine
    * enforces `timeoutMs` and `maxResponseBytes` for any transport, reads its headers in
    * any case (a fetch `Headers` or a `Map` too) and its body as any ArrayBuffer view, and
    * turns whatever it throws into a `NinaNetworkError`.
    */
-  transport?: Transport;
+  transport?: Transport | undefined;
   /**
    * Value of the User-Agent header (default `nina-warnungen-cli`). A blank value, a
    * control character other than tab, or a character above U+00FF throws a
    * `NinaValidationError`.
    */
-  userAgent?: string;
+  userAgent?: string | undefined;
   /**
    * Per-request timeout in milliseconds (default 30 000; 0 disables), enforced by the
    * engine for every transport (the request's `signal` aborts then). Anything but
    * an integer from 0 to `MAX_TIMEOUT_MS` (2^31 - 1 ms) throws a
    * `NinaValidationError` — a negative or NaN value would otherwise mean no timeout.
    */
-  timeoutMs?: number;
+  timeoutMs?: number | undefined;
   /**
    * Number of automatic retries for transient (429/503) responses and reset connections
    * (`ECONNRESET`, `UND_ERR_SOCKET`, …) (default 2). A refused connection, a DNS failure
@@ -72,26 +72,26 @@ export interface EngineOptions {
    * one is not retried, and the error names the requested wait).
    * Anything but an integer from 0 to `MAX_RETRIES` (10) throws a `NinaValidationError`.
    */
-  maxRetries?: number;
+  maxRetries?: number | undefined;
   /**
    * Base backoff between retries in milliseconds (grows linearly; default 200). A
    * `Retry-After` can make a wait longer, never shorter. Anything but an integer from 0
    * to `MAX_RETRY_AFTER_MS` (30 000) throws a `NinaValidationError`.
    */
-  retryDelayMs?: number;
+  retryDelayMs?: number | undefined;
   /**
    * Hard cap on response body size in bytes (defends against memory exhaustion
    * from a hostile/buggy endpoint). Defaults to 100 MiB; set to 0 for no limit. A
    * negative or non-integer value throws a `NinaValidationError`.
    */
-  maxResponseBytes?: number;
+  maxResponseBytes?: number | undefined;
   /** Injectable sleep, primarily for deterministic tests. */
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: ((ms: number) => Promise<void>) | undefined;
   /**
    * Called once per retry, right before the backoff sleep, for each retried status
    * and reset connection; never when there is no retry. A throw is swallowed.
    */
-  onRetry?: (event: RetryEvent) => void;
+  onRetry?: ((event: RetryEvent) => void) | undefined;
 }
 
 /** What `EngineOptions.onRetry` is told about one retry. */
@@ -500,7 +500,7 @@ export class RequestEngine {
   async request(
     method: string,
     path: string,
-    options: { query?: QueryParams; accept: string } = { accept: "application/json" },
+    options: { query?: QueryParams | undefined; accept: string } = { accept: "application/json" },
   ): Promise<RawResponse> {
     const url = this.buildUrl(path, options.query);
     const headers: Record<string, string> = {
