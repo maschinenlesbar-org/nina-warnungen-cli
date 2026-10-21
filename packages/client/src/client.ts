@@ -8,7 +8,7 @@
 
 import { RequestEngine, type EngineOptions, type RawResponse } from "./engine.js";
 import type { NinaSource } from "./enums.js";
-import { NinaApiError, NinaNotFoundError, NinaParseError, NinaValidationError, cutForMessage, cutText } from "./errors.js";
+import { NinaApiError, NinaNotFoundError, NinaParseError, NinaValidationError, cutText } from "./errors.js";
 import { arsProblem } from "./ars.js";
 import { assertValid, identifierProblem, normalizeIdentifier, sourceProblem } from "./validate.js";
 import type {
@@ -69,16 +69,21 @@ function describeValue(value: unknown): string {
   return `a ${typeof value}`;
 }
 
+/** The request a GET of `path` makes, as an answer error names it: `GET <url>` (userinfo redacted, cut). */
+function answerOf(engine: RequestEngine, path: string): string {
+  return `GET ${engine.describeUrl(path)}`;
+}
+
 /**
  * Check a 2xx body against the shape the endpoint documents and return it; anything else
- * throws a `NinaParseError` (exit 1 in the CLI), never data. A gateway or CDN answering
+ * throws a `NinaParseError` (exit 1 in the CLI) naming the request (`GET <url>: …`), never data. A gateway or CDN answering
  * HTTP 200 with `null`, `{}` or an error object would otherwise pass as success: for a
  * list, `jq 'length'` reads `null` and `{}` as 0 — a false all-clear.
  */
-function expectShape<T>(path: string, value: unknown, problem: (value: unknown) => string | undefined): T {
+function expectShape<T>(request: string, value: unknown, problem: (value: unknown) => string | undefined): T {
   const reason = problem(value);
   if (reason !== undefined) {
-    throw new NinaParseError(`Unexpected response from ${cutForMessage(path)}: expected ${reason}, got ${describeValue(value)}.`);
+    throw new NinaParseError(`${request}: unexpected response shape: expected ${reason}, got ${describeValue(value)}.`);
   }
   return value as T;
 }
@@ -118,15 +123,15 @@ const GEOJSON_TYPES = [
  * to be saved as the `.geojson` file with exit 0. The bytes themselves are returned
  * unchanged.
  */
-function expectGeoJson(path: string, response: RawResponse): RawResponse {
+function expectGeoJson(request: string, response: RawResponse): RawResponse {
   let value: unknown;
   try {
     value = JSON.parse(new TextDecoder().decode(response.data));
   } catch {
     const type = response.contentType.split(";")[0]?.trim() || "no Content-Type";
-    throw new NinaParseError(`Unexpected response from ${cutForMessage(path)}: expected GeoJSON, got a body that is not JSON (${cutText(type, 100)}).`);
+    throw new NinaParseError(`${request}: unexpected response shape: expected GeoJSON, got a body that is not JSON (${cutText(type, 100)}).`);
   }
-  expectShape(path, value, (v) =>
+  expectShape(request, value, (v) =>
     isObject(v) && typeof v["type"] === "string" && GEOJSON_TYPES.includes(v["type"]) ? undefined : "a GeoJSON object",
   );
   return response;
@@ -188,7 +193,7 @@ class WarningsResource {
     const id = assertValid("identifier", normalizeIdentifier(identifier), identifierProblem);
     try {
       const path = `${API}/warnings/${enc(id)}.json`;
-      return expectShape(path, await this.engine.getJson(path), capWarning);
+      return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), capWarning);
     } catch (err) {
       throw notLive(id, err);
     }
@@ -204,7 +209,7 @@ class WarningsResource {
     const id = assertValid("identifier", normalizeIdentifier(identifier), identifierProblem);
     try {
       const path = `${API}/warnings/${enc(id)}.geojson`;
-      return expectGeoJson(path, await this.engine.getRaw(path, ACCEPT_GEOJSON));
+      return expectGeoJson(answerOf(this.engine, path), await this.engine.getRaw(path, ACCEPT_GEOJSON));
     } catch (err) {
       throw notLive(id, err);
     }
@@ -222,7 +227,7 @@ class ArchiveResource {
   async mapping(identifier: string): Promise<ArchiveMapping> {
     const id = assertValid("identifier", normalizeIdentifier(identifier), identifierProblem);
     const path = `${API}/archive.mowas/${enc(id)}-mapping.json`;
-    return expectShape(path, await this.engine.getJson(path), archiveMapping);
+    return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), archiveMapping);
   }
 
   /**
@@ -234,7 +239,7 @@ class ArchiveResource {
   async get(identifier: string): Promise<WarningDetail> {
     const id = assertValid("identifier", normalizeIdentifier(identifier), identifierProblem);
     const path = `${API}/archive.mowas/${enc(id)}.json`;
-    return expectShape(path, await this.engine.getJson(path), capWarning);
+    return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), capWarning);
   }
 }
 
@@ -245,13 +250,13 @@ class ReferenceResource {
   /** Emergency-preparedness tips (Notfalltipps), German. */
   async notfalltipps(): Promise<Notfalltipps> {
     const path = `${API}/appdata/gsb/notfalltipps/DE/notfalltipps.json`;
-    return expectShape(path, await this.engine.getJson(path), referenceData);
+    return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), referenceData);
   }
 
   /** The CAP event-code catalogue (maps event keys to icons/labels). */
   async eventCodes(): Promise<EventCodes> {
     const path = `${API}/appdata/gsb/eventCodes/eventCodes.json`;
-    return expectShape(path, await this.engine.getJson(path), referenceData);
+    return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), referenceData);
   }
 
   /**
@@ -260,7 +265,7 @@ class ReferenceResource {
    */
   async dataVersion(): Promise<DataVersion> {
     const path = `${API}/dynamic/version/dataVersion.json`;
-    return expectShape(path, await this.engine.getJson(path), referenceData);
+    return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), referenceData);
   }
 }
 
@@ -289,7 +294,7 @@ export class NinaClient {
     const problem = sourceProblem(source);
     if (problem !== undefined) throw new NinaValidationError(problem);
     const path = `${API}/${enc(source)}/mapData.json`;
-    return expectShape(path, await this.engine.getJson(path), warningList);
+    return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), warningList);
   }
 
   /**
@@ -310,7 +315,7 @@ export class NinaClient {
     if (problem !== undefined) throw new NinaValidationError(problem);
     const path = `${API}/dashboard/${enc(ars)}.json`;
     try {
-      return expectShape(path, await this.engine.getJson(path), warningList);
+      return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), warningList);
     } catch (err) {
       throw noSuchDistrict(ars, err);
     }

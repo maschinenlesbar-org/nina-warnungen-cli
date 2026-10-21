@@ -56,7 +56,7 @@ name. **Prefer `-o`** — this CLI's
 stdout pipe can come back empty when piped straight into another process under some Node
 builds, and the geojson bytes are binary-faithful, so a file is the reliable path.
 
-> If the CLI exits **`1`** with `Unexpected response … expected GeoJSON`, the API answered
+> If the CLI exits **`1`** with `unexpected response shape: expected GeoJSON`, the API answered
 > HTTP 200 with something that isn't GeoJSON (often a gateway/error page); **nothing is
 > written**. The identifier may be bad — re-resolve it (Step 1) — or the API is having
 > trouble; don't report an empty or missing area. A content-type warning on stderr

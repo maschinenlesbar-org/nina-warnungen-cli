@@ -112,7 +112,7 @@ test("a malformed JSON body maps to exit code 1 (NinaParseError)", async () => {
   const cli = makeCli(() => rawResponse("not json", "application/json"));
   const code = await run(["map-data", "dwd"], cli.deps);
   assert.equal(code, 1);
-  assert.match(cli.err.join("\n"), /Failed to parse JSON/);
+  assert.match(cli.err.join("\n"), /GET https:\/\/warnung\.bund\.de\/api31\/dwd\/mapData\.json: the answer is not valid JSON\./);
 });
 
 test("an --output write failure maps to exit code 1", async () => {
@@ -178,7 +178,7 @@ test("warning geojson fails (exit 1, no file) when a 200 body is not GeoJSON", a
     const cli = makeCli(() => rawResponse(body!, type!));
     assert.equal(await run(["-o", "out.geojson", "warning", "geojson", "abc"], cli.deps), 1, body);
     assert.equal(cli.files.size, 0, body);
-    assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.api\] Unexpected response from \/api31\/warnings\/abc\.geojson: expected (a )?GeoJSON/m, body);
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.api\] GET https:\/\/warnung\.bund\.de\/api31\/warnings\/abc\.geojson: unexpected response shape: expected (a )?GeoJSON/m, body);
   }
 });
 
@@ -539,7 +539,7 @@ test("dashboard and map-data fail (exit 1, nothing on stdout) on a 200 that is n
       const cli = makeCli(() => jsonResponse(body));
       assert.equal(await run(argv, cli.deps), 1, `${argv.join(" ")} ${JSON.stringify(body)}`);
       assert.equal(cli.out.length, 0);
-      assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.api\] Unexpected response from \/api31\//m);
+      assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.api\] GET https:\/\/warnung\.bund\.de\/api31\/.*: unexpected response shape: expected a JSON array/m);
     }
   }
   const empty = makeCli(() => jsonResponse([]));
@@ -660,7 +660,7 @@ test("bad JSON and an unknown charset are ERROR records of nina.api (L9)", async
   for (const [body, type] of [["{not json", "application/json"], ["[]", "application/json; charset=x-evil"]]) {
     const cli = makeCli(() => rawResponse(body!, type!));
     assert.equal(await run(["map-data", "dwd"], cli.deps), 1, type);
-    assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.api\] (Failed to parse JSON|Unsupported response charset)/, type);
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.api\] GET https:\/\/warnung\.bund\.de\/api31\/dwd\/mapData\.json: (the answer is not valid JSON|unsupported response charset "x-evil")\./, type);
   }
 });
 

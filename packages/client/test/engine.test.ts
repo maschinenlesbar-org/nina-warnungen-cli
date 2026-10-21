@@ -80,7 +80,7 @@ test("a number the JSON cannot carry exactly is a parse error, never a changed v
     const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
     await assert.rejects(e.getJson("/api31/warnings/a.json"), (err: unknown) => {
       assert.ok(err instanceof NinaParseError, n);
-      assert.equal(err.message, `Unexpected response from /api31/warnings/a.json: the number ${n} cannot be represented exactly.`);
+      assert.equal(err.message, `GET https://warnung.bund.de/api31/warnings/a.json: the number ${n} cannot be represented exactly.`);
       return true;
     });
   }
@@ -492,5 +492,19 @@ test("a subnormal number that does not print as written is a parse error; one th
   for (const [n, value] of [["5e-324", 5e-324], ["-5e-324", -5e-324], ["1e-310", 1e-310], ["2.2250738585072014e-308", 2.2250738585072014e-308]] as const) {
     const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
     assert.equal((await e.getJson<{ n: number }>("/x")).n, value, n);
+  }
+});
+
+test("an answer error names the request: method and URL, userinfo redacted (D9)", async () => {
+  const cases: Array<[HttpResponse, RegExp]> = [
+    [rawResponse("<html>down</html>", "text/html"), /^GET https:\/\/\*\*\*@h\.test\/api31\/x\.json: the answer is not valid JSON \(expected JSON, got Content-Type "text\/html"\)\.$/],
+    [rawResponse("{", "application/json"), /^GET https:\/\/\*\*\*@h\.test\/api31\/x\.json: the answer is not valid JSON\.$/],
+    [rawResponse(" \n", "application/json"), /^GET https:\/\/\*\*\*@h\.test\/api31\/x\.json: empty response body\.$/],
+    [rawResponse("[]", "application/json; charset=x-evil"), /^GET https:\/\/\*\*\*@h\.test\/api31\/x\.json: unsupported response charset "x-evil"\.$/],
+    [rawResponse("[1e400]", "application/json"), /^GET https:\/\/\*\*\*@h\.test\/api31\/x\.json: the number 1e400 cannot be represented exactly\.$/],
+  ];
+  for (const [response, message] of cases) {
+    const e = new RequestEngine({ baseUrl: "https://alice:s3cret@h.test", transport: makeMockTransport(() => response).transport });
+    await assert.rejects(e.getJson("/api31/x.json"), (err: unknown) => err instanceof NinaParseError && message.test(err.message) && !err.message.includes("s3cret"), String(message));
   }
 });

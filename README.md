@@ -122,7 +122,7 @@ Every command prints **pretty JSON to stdout**. Errors and diagnostics go to
 stderr, so piping stdout into `jq` stays clean. A failed run prints nothing on
 stdout and exits non-zero — including an HTTP 200 whose body is not the documented
 shape (`null`, `{}` or an error object where a list of warnings belongs), which is
-reported as `Unexpected response …`, exit `1`, never as an empty list. An empty list
+reported as `GET <url>: unexpected response shape …`, exit `1`, never as an empty list. An empty list
 `[]` is a real answer: no warnings. Use `set -o pipefail` (or check `nina`'s exit
 code) so a failure is not read as "0 warnings".
 
@@ -204,7 +204,7 @@ An identifier that begins with `-` would be parsed as an option; pass it after a
   refused connection, a DNS failure or a timeout.
 - **Empty result from `map-data`** — the source has no active warnings right now.
   Try a different source or come back later.
-- **`warning geojson` fails with `Unexpected response … expected GeoJSON`** (exit `1`)
+- **`warning geojson` fails with `unexpected response shape: expected GeoJSON`** (exit `1`)
   — the API answered HTTP 200 with something that isn't GeoJSON (e.g. a gateway error
   page or an error object). Nothing is written. Check whether the identifier is valid,
   or try again later.

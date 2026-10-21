@@ -514,6 +514,15 @@ export class RequestEngine {
     return `${this.#baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
   }
 
+  /**
+   * The request URL as error messages show it: absolute (so a message names the host that gave a
+   * bad answer, which matters with a custom base URL), userinfo redacted and cut at
+   * MAX_MESSAGE_VALUE_LENGTH characters.
+   */
+  describeUrl(path: string, query?: QueryParams): string {
+    return cutForMessage(redactUrl(this.buildUrl(path, query)));
+  }
+
   /** Perform a request with Accept negotiation and transient-error retries. */
   async request(
     method: string,
@@ -597,23 +606,35 @@ export class RequestEngine {
     }
   }
 
-  /** Perform a GET expecting JSON and parse it into `T`. */
+  /**
+   * Perform a GET expecting JSON and parse it into `T`. An empty (or whitespace-only) body is a
+   * NinaParseError: every endpoint answers with a JSON document. Every error about the answer
+   * names the request (`GET <url>: …`, userinfo redacted).
+   */
   async getJson<T>(path: string, query?: QueryParams): Promise<T> {
     const res = await this.request("GET", path, { query, accept: "application/json" });
-    const text = decodeBody(res.data, res.contentType, path);
+    const request = `GET ${this.describeUrl(path, query)}`;
+    const text = decodeBody(res.data, res.contentType, request);
+    if (text.trim() === "") {
+      // A broken answer, not "no warnings": printed as nothing with exit 0, it would let a
+      // script carry on as if the API had found nothing.
+      throw new NinaParseError(`${request}: empty response body.`);
+    }
     let parsed: T;
     try {
       parsed = JSON.parse(text) as T;
     } catch (cause) {
-      throw new NinaParseError(`Failed to parse JSON response from ${cutForMessage(path)}`, { cause: this.scrubCause(cause) });
+      // An HTML maintenance or proxy page is the usual non-JSON answer: name its type, so it
+      // reads as an upstream problem rather than a client bug.
+      const type = res.contentType.split(";")[0]?.trim() ?? "";
+      const hint = type !== "" && !/json/i.test(type) ? ` (expected JSON, got Content-Type "${cutText(type, 100)}")` : "";
+      throw new NinaParseError(`${request}: the answer is not valid JSON${hint}.`, { cause: this.scrubCause(cause) });
     }
     // JSON.parse rounds and overflows numbers silently: refuse the answer rather than print a
     // changed value.
     const inexact = firstInexactNumber(text);
     if (inexact !== undefined) {
-      throw new NinaParseError(
-        `Unexpected response from ${cutForMessage(path)}: the number ${cutForMessage(inexact)} cannot be represented exactly.`,
-      );
+      throw new NinaParseError(`${request}: the number ${cutForMessage(inexact)} cannot be represented exactly.`);
     }
     return parsed;
   }
@@ -658,15 +679,15 @@ export class RequestEngine {
  * none). TextDecoder drops a leading byte order mark, which Buffer#toString keeps and
  * JSON.parse then rejects, so a BOM added by a proxy cannot turn a valid answer into a
  * parse error; a Latin-1 body is no longer misread as UTF-8. An unknown charset label
- * is a NinaParseError.
+ * is a NinaParseError naming `request`.
  */
-function decodeBody(body: Buffer, contentType: string, path: string): string {
+function decodeBody(body: Buffer, contentType: string, request: string): string {
   const charset = /;\s*charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType)?.[1] ?? "utf-8";
   let decoder: TextDecoder;
   try {
     decoder = new TextDecoder(charset);
   } catch {
-    throw new NinaParseError(`Unsupported response charset "${cutText(sanitizeServerText(charset), 100)}" from ${cutForMessage(path)}.`);
+    throw new NinaParseError(`${request}: unsupported response charset "${cutText(sanitizeServerText(charset), 100)}".`);
   }
   return decoder.decode(body);
 }

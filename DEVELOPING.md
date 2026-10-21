@@ -241,6 +241,11 @@ through `run()` and through the library on one recording mock transport.
 **Charset.** JSON bodies are decoded by the charset their `Content-Type` names (UTF-8
 when it names none) with `TextDecoder`, which also drops a leading byte order mark; an
 unknown charset label is a `NinaParseError`. Raw downloads (`warning geojson`) stay bytes.
+Every error about an answer names the request, `GET <url>: …` (the URL absolute, its userinfo
+redacted, cut at 500 characters; `RequestEngine.describeUrl`): an unknown charset (`unsupported
+response charset "…"`), an empty body (`empty response body`), a body that is not JSON (`the
+answer is not valid JSON`, plus `(expected JSON, got Content-Type "text/html")` when the server
+named another type), an inexact number and the wrong shape.
 
 **Identifiers.** The four identifier methods (`warnings.get`/`geojson`,
 `archive.get`/`mapping`) pass the id through the exported `normalizeIdentifier` first:
@@ -265,7 +270,7 @@ endpoint documents before returning it: `mapData` and `dashboard` an array of ob
 string `identifier`, `archive.mapping` an object with a `history` array, the reference
 files a JSON object or array, and `warnings.geojson` GeoJSON (UTF-8 JSON for an object
 with a GeoJSON `type`; the bytes are still returned unchanged). Anything else — `null`, `{}`, a scalar, an error object a
-gateway answers with HTTP 200 — is a `NinaParseError` (`Unexpected response from <path>:
+gateway answers with HTTP 200 — is a `NinaParseError` (`GET <url>: unexpected response shape:
 expected …, got …`, exit 1), never data: `jq 'length'` would read `null` and `{}` as 0, a
 false all-clear.
 
@@ -273,8 +278,8 @@ false all-clear.
 becomes `Infinity`, printed as `null`), one past 2^53 that it rounds (`12345678901234567890`
 prints as `12345678901234567000`), a non-zero one too small for a double (`1e-400` becomes
 `0`), and a subnormal one (below 2.2250738585072014e-308, where a double has fewer digits) that
-does not print as written (`3e-324` prints as `5e-324`; `5e-324` itself passes). A JSON answer holding such a number is a `NinaParseError` (`Unexpected response from
-<path>: the number <N> cannot be represented exactly.`, exit 1), never a changed value. Past
+does not print as written (`3e-324` prints as `5e-324`; `5e-324` itself passes). A JSON answer holding such a number is a `NinaParseError` (`GET <url>: the number <N>
+cannot be represented exactly.`, exit 1), never a changed value. Past
 2^53 a number passes when it prints as written (`1e23`); below 2^53 a decimal fraction keeps a
 double's usual precision. A scan of the text after `JSON.parse` (`firstInexactNumber`) skips
 strings. Raw downloads (`warning geojson`) are bytes and are not checked.
