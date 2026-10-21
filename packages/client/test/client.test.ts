@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { TextDecoder } from "node:util";
 import assert from "node:assert/strict";
 import { NinaClient } from "../src/client.js";
 import { NinaApiError, NinaError, NinaNotFoundError, NinaParseError, NinaValidationError } from "../src/errors.js";
@@ -299,4 +300,20 @@ test("an array whose items are not warnings says which item, not \"got an array\
       });
     }
   }
+});
+
+test("a GeoJSON download too large to read as text is a NinaParseError naming the request (T14)", async (t) => {
+  const huge = Buffer.from('{"type":"FeatureCollection","features":[]}                    ');
+  const tooLong = Object.assign(new Error("Cannot create a string longer than 0x1fffffe8 characters"), { code: "ERR_STRING_TOO_LONG" });
+  const decode = TextDecoder.prototype.decode;
+  t.mock.method(TextDecoder.prototype, "decode", function (this: InstanceType<typeof TextDecoder>, input?: Uint8Array, options?: { stream?: boolean }) {
+    if (input !== undefined && input.byteLength === huge.length) throw tooLong;
+    return decode.call(this, input, options);
+  });
+  const mt = makeMockTransport(() => rawResponse(huge, "application/geo+json"));
+  await assert.rejects(new NinaClient({ maxResponseBytes: 0, transport: mt.transport }).warnings.geojson("a"), (err: Error) => {
+    assert.ok(err instanceof NinaParseError, String(err));
+    assert.equal(err.message, `GET https://warnung.bund.de/api31/warnings/a.geojson: the answer is too large to read as text (${huge.length} bytes; the longest string is 536870888 characters).`);
+    return true;
+  });
 });

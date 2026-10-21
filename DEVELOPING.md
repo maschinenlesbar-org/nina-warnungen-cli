@@ -249,7 +249,11 @@ written as a JSON escape (`\ud800`, which `jq` refuses, the whole output with it
 and `getJson` tells the engine option `onWarning` how many (`GET <url>: 2 characters of the
 answer were not valid text (invalid bytes or a lone surrogate) and replaced with U+FFFD.`); the
 CLI's `action()` logs it as a `WARN` record of `nina.api`. One bad character never sinks a whole
-answer. Every error about an answer names the request, `GET <url>: …` (the URL absolute, its userinfo
+answer. A body too large to become one string (512 MB and more, possible only with
+`maxResponseBytes: 0` or `--max-response-bytes 0`), a GeoJSON download too, is a `NinaParseError`,
+`GET <url>: the answer is too large to read as text (N bytes; the longest string is 536870888
+characters).`, not a plain `Error` ("Unexpected error" in the CLI); an error status with such a
+body keeps its `NinaApiError`, without the body. Every error about an answer names the request, `GET <url>: …` (the URL absolute, its userinfo
 redacted, cut at 500 characters; `RequestEngine.describeUrl`): an unknown charset (`unsupported
 response charset "…"`), an empty body (`empty response body`), a body that is not JSON (`the
 answer is not valid JSON`, plus `(expected JSON, got Content-Type "text/html")` when the server

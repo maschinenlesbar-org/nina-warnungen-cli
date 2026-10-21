@@ -6,7 +6,7 @@
 //   client.warnings.get(id)        // full CAP warning
 //   client.dashboard(ars)          // alerts for a region (Amtlicher Regionalschlüssel)
 
-import { RequestEngine, type EngineOptions, type RawResponse } from "./engine.js";
+import { RequestEngine, isStringTooLong, tooLargeForText, type EngineOptions, type RawResponse } from "./engine.js";
 import type { NinaSource } from "./enums.js";
 import { NinaApiError, NinaNotFoundError, NinaParseError, NinaValidationError, cutText } from "./errors.js";
 import { arsProblem } from "./ars.js";
@@ -137,7 +137,9 @@ function expectGeoJson(request: string, response: RawResponse): RawResponse {
   let value: unknown;
   try {
     value = JSON.parse(new TextDecoder().decode(response.data));
-  } catch {
+  } catch (err) {
+    // Past V8's longest string (512 MB and more, with the size cap lifted) it can't be read.
+    if (isStringTooLong(err)) throw tooLargeForText(request, response.data);
     const type = response.contentType.split(";")[0]?.trim() || "no Content-Type";
     throw new NinaParseError(`${request}: unexpected response shape: expected GeoJSON, got a body that is not JSON (${cutText(type, 100)}).`);
   }
