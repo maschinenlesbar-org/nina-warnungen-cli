@@ -175,10 +175,19 @@ function sanitizeServerText(text: string): string {
   for (const ch of text) {
     const n = ch.codePointAt(0) ?? 0;
     if (n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f)) continue;
-    if (n === 0x061c || n === 0x200e || n === 0x200f || (n >= 0x202a && n <= 0x202e) || (n >= 0x2066 && n <= 0x2069)) continue;
+    if (isBidiControl(n)) continue;
     out += ch;
   }
   return out;
+}
+
+/**
+ * True for a bidi formatting character: U+061C, U+200E, U+200F, U+202A–U+202E and
+ * U+2066–U+2069. An override such as U+202E shows the text after it reversed ("Trojan
+ * Source"), so neither a message nor printed JSON carries one raw.
+ */
+export function isBidiControl(c: number): boolean {
+  return c === 0x061c || c === 0x200e || c === 0x200f || (c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069);
 }
 
 /** Why `value` is not a usable HttpResponse, or undefined when it is. */

@@ -126,6 +126,10 @@ reported as `Unexpected response …`, exit `1`, never as an empty list. An empt
 `[]` is a real answer: no warnings. Use `set -o pipefail` (or check `nina`'s exit
 code) so a failure is not read as "0 warnings".
 
+The JSON (on stdout and in an `-o` file) writes the characters a terminal acts on as
+escapes: DEL, the C1 controls U+0080–U+009F and the bidi controls (`\u202e`); it is still
+the same JSON, `jq` reads the original text.
+
 Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `WARN`,
 `INFO`) and a topic, the program and the area it comes from (`nina.cli` for usage
 errors, `nina.api` for the API's answers, a malformed one included, `nina.http` for the
