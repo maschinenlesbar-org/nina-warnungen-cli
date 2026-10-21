@@ -541,7 +541,11 @@ data only. Conformance test P23 checks all of this, and its body is shared acros
 *-cli repos (here with the `USAGE_EXIT` switch: a usage error exits 1). A stdout write
 error other than a closed pipe (EBADF, EIO; `handleOutputErrors` in the bin shim, outside
 `run()`) is an ERROR record of `nina.output` too, `Could not write to stdout: …`, in the
-format argv asks for and with argv's credentials replaced (`processLogger`), and exits 1.
+format argv asks for and with argv's credentials replaced (`processLogger`), and exits 1. When
+stdout is a regular file (`> out.json`), `defaultIO.out` and `outBinary` write every byte
+themselves (`stdoutWriter`, a `writeSync` loop): Node's stream ignored a short count, so a
+file-size limit or a full disk cut the output short with exit 0 and nothing on stderr; now the
+failure (EFBIG, ENOSPC) is that ERROR record with exit 1.
 Node's own process warnings (`NODE_TLS_REJECT_UNAUTHORIZED=0`) are WARN records of
 `nina.cli` too: the bin shim installs `installWarningLog`, which removes Node's default
 `warning` listener and logs `(node) <name>: <message>` through `processLogger(argv)`.
