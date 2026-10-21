@@ -512,15 +512,23 @@ too large (more than 536870888 characters of JSON) to print.`, where "try --comp
 only when the compact form of that very answer prints, probed rather than assumed).
 
 **`-o` and `--force`.** `action()` runs `checkOutputTarget` before any request: `--force`
-without `-o`, a directory, and an existing path (a dangling link too, `CliIO.outputState`)
-without `--force` are usage errors (`NinaValidationError`, exit 1, `nina.cli`); `-o -` is
-stdout. The write (`CliIO.writeFile(path, data, overwrite)`; the real one is `nodeWriteFile`
-in `io.ts`) is atomic: without `--force` it claims the name with an exclusive create (so a
-file that appeared during the request is refused too, `nina.output`), writes a temporary file
-beside the target and renames it over it; on failure neither the temporary file nor the
-claimed name is left. `--force` keeps the old file's mode and writes through a symlink.
-Messages: `Refusing to overwrite existing file "<p>"; pass --force to overwrite.`,
-`"<p>" is a directory; give a file path to --output.`, `Could not write to "<p>": <reason>`.
+without `-o`, a directory, an existing path (a dangling link too, `CliIO.outputState`)
+without `--force`, and a file whose directory is missing, not a directory or not writable, or
+whose links loop (`CliIO.outputParentProblem`) are usage errors (`NinaValidationError`, exit 1,
+`nina.cli`); `-o -` is stdout. A stream — a character device (`/dev/null`), a FIFO, a socket,
+or a descriptor path (`/dev/stdout`, `/dev/fd/N`, `>(…)`) — needs no `--force` and is written
+in place, every byte, with no claim and no temporary file. A file (`CliIO.writeFile(path, data,
+overwrite)`; the real one is `nodeWriteFile` in `io.ts`) is written atomically: without
+`--force` it claims the name with an exclusive create (so a file that appeared during the
+request is refused too, `nina.output`), writes a temporary file beside the target (its name cut
+to stay within 255 bytes, the random part kept) and renames it over it; on failure neither the
+temporary file nor the claimed name is left, and SIGINT, SIGTERM and SIGHUP during the write
+remove both, then exit 130, 143 or 129. `--force` keeps the old file's mode and writes through a
+symlink, also a dangling one or a chain of them: the file the link names is created, the link
+stays. Messages: `Refusing to overwrite existing file "<p>"; pass --force to overwrite.`,
+`"<p>" is a directory; give a file path to --output.`, `Cannot write to "<p>": the directory
+"<d>" does not exist.` (or `… is not a directory.`, `… no permission to create files in "<d>".`),
+`Could not write to "<p>": <reason>` (Node's reason without the path of the temporary file).
 Code logs through `logOf(deps)` and never writes diagnostics with `io.err` directly.
 `run()` builds the logger from argv before commander parses it (`logFormatFromArgv`,
 which skips the value of the program's own value options and is used only for the records

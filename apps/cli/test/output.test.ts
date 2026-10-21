@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, closeSync, mkdirSync, openSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, lstatSync, mkdirSync, openSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { renderJson } from "../src/cli/shared.js";
@@ -76,8 +76,9 @@ const GEOJSON = '{"type":"FeatureCollection","features":[]}';
 function fsCli(responder: (req: HttpRequest) => HttpResponse | Promise<HttpResponse> = () => jsonResponse(ANSWER)) {
   const cli = makeCli(responder);
   cli.deps.io.writeFile = defaultIO.writeFile;
-  const outputState = defaultIO.outputState;
+  const { outputState, outputParentProblem } = defaultIO;
   if (outputState !== undefined) cli.deps.io.outputState = outputState;
+  if (outputParentProblem !== undefined) cli.deps.io.outputParentProblem = outputParentProblem;
   return cli;
 }
 
@@ -172,17 +173,79 @@ test("--force replaces an existing file, keeps its mode, and writes through a sy
   });
 });
 
-test("--force to a new path creates the file; over a dangling link it replaces the link with the file", async () => {
+test("--force to a new path creates the file; through a dangling link it creates the file the link names (D1)", async () => {
   await inTempDir(async (dir) => {
     const fresh = join(dir, "fresh.json");
     assert.equal(await run(["--compact", "-o", fresh, "--force", "map-data", "dwd"], fsCli().deps), 0);
     assert.deepEqual(JSON.parse(readFileSync(fresh, "utf8")), ANSWER);
+    // "--force writes through a symlink", also when the file it points at doesn't exist yet; a
+    // relative link is resolved from the link's directory, through a chain of links.
+    mkdirSync(join(dir, "sub"));
+    symlinkSync("sub/nowhere.json", join(dir, "hop.json"));
     const dangling = join(dir, "dangling.json");
-    symlinkSync(join(dir, "nowhere"), dangling);
+    symlinkSync("hop.json", dangling);
     assert.equal(await run(["--compact", "-o", dangling, "--force", "map-data", "dwd"], fsCli().deps), 0);
-    assert.deepEqual(JSON.parse(readFileSync(dangling, "utf8")), ANSWER);
-    assert.deepEqual(readdirSync(dir).sort(), ["dangling.json", "fresh.json"]);
+    assert.ok(lstatSync(dangling).isSymbolicLink(), "the link stays a link");
+    assert.deepEqual(JSON.parse(readFileSync(join(dir, "sub", "nowhere.json"), "utf8")), ANSWER);
+    assert.deepEqual(readdirSync(dir).sort(), ["dangling.json", "fresh.json", "hop.json", "sub"]);
+    assert.deepEqual(readdirSync(join(dir, "sub")), ["nowhere.json"], "no temporary file is left");
   });
+});
+
+test("a target whose directory can't take the file is a usage error before any request (D5)", async () => {
+  await inTempDir(async (dir) => {
+    const file = join(dir, "file.json");
+    writeFileSync(file, "x");
+    const readOnly = join(dir, "ro");
+    mkdirSync(readOnly);
+    chmodSync(readOnly, 0o555);
+    const loop = join(dir, "loop.json");
+    symlinkSync("loop.json", loop);
+    const danglingIntoMissing = join(dir, "away.json");
+    symlinkSync("missing/x.json", danglingIntoMissing);
+    const cases: Array<[string[], RegExp]> = [
+      [["-o", join(dir, "missing", "x.json")], /the directory ".*missing" does not exist\./],
+      [["-o", join(file, "x.json")], /".*file\.json" is not a directory\./],
+      [["-o", join(readOnly, "x.json")], /no permission to create files in ".*ro"\./],
+      [["-o", danglingIntoMissing, "--force"], /the directory ".*missing" does not exist\./],
+      [["-o", loop, "--force"], /too many levels of symbolic links/],
+    ];
+    try {
+      for (const [argv, message] of cases) {
+        const cli = fsCli();
+        assert.equal(await run([...argv, "map-data", "dwd"], cli.deps), 1, argv.join(" "));
+        assert.equal(cli.mt.calls.length, 0, `${argv.join(" ")} sent a request`);
+        assert.match(cli.err.join("\n"), /^ERROR \[nina\.cli\] Cannot write to "/, argv.join(" "));
+        assert.match(cli.err.join("\n"), message, argv.join(" "));
+      }
+    } finally {
+      chmodSync(readOnly, 0o755);
+    }
+  });
+});
+
+test("a file name of up to 255 bytes is written: the temporary name stays within NAME_MAX (D5)", async () => {
+  await inTempDir(async (dir) => {
+    for (const name of [`${"x".repeat(250)}.json`, `${"ü".repeat(125)}.json`, `${"😀".repeat(62)}.json`]) {
+      assert.ok(Buffer.byteLength(name) <= 255, name);
+      const path = join(dir, name);
+      const cli = fsCli();
+      assert.equal(await run(["--compact", "-o", path, "map-data", "dwd"], cli.deps), 0, cli.err.join("\n"));
+      assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), ANSWER);
+      assert.equal(await run(["--compact", "-o", path, "--force", "map-data", "dwd"], fsCli().deps), 0);
+    }
+    assert.equal(readdirSync(dir).length, 3, "no temporary file is left");
+  });
+});
+
+test("a stream target (/dev/null) needs no --force and is written in place (D5)", async () => {
+  for (const argv of [["-o", "/dev/null"], ["-o", "/dev/null", "--force"]]) {
+    const cli = fsCli();
+    assert.equal(await run([...argv, "map-data", "dwd"], cli.deps), 0, cli.err.join("\n"));
+    assert.equal(cli.mt.calls.length, 1);
+    assert.match(cli.err.join("\n"), /^INFO  \[nina\.output\] Wrote \d+ bytes to \/dev\/null$/);
+  }
+  assert.ok(statSync("/dev/null").isCharacterDevice(), "/dev/null is still the device");
 });
 
 test("a file that appears during the request is not overwritten: exit 1, an ERROR of nina.output", async () => {
@@ -199,14 +262,19 @@ test("a file that appears during the request is not overwritten: exit 1, an ERRO
   });
 });
 
-test("a write the file system refuses is an ERROR of nina.output naming the file, exit 1", async () => {
+test("a write the file system refuses is an ERROR of nina.output naming the file, not the temporary one; exit 1", async () => {
   await inTempDir(async (dir) => {
-    const path = join(dir, "missing-dir", "out.json");
-    const cli = fsCli();
+    const sub = join(dir, "gone");
+    mkdirSync(sub);
+    const path = join(sub, "out.json");
+    // The directory is there when -o is checked, and gone when the answer is written.
+    const cli = fsCli(() => {
+      rmSync(sub, { recursive: true });
+      return jsonResponse(ANSWER);
+    });
     assert.equal(await run(["-o", path, "map-data", "dwd"], cli.deps), 1);
     assert.equal(cli.err.length, 1);
-    assert.match(cli.err[0]!, new RegExp(`^ERROR \\[nina\\.output\\] Could not write to ".*out\\.json": ENOENT`));
-    assert.deepEqual(readdirSync(dir), []);
+    assert.match(cli.err[0]!, new RegExp(`^ERROR \\[nina\\.output\\] Could not write to ".*out\\.json": ENOENT: no such file or directory$`));
   });
 });
 

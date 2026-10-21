@@ -107,20 +107,25 @@ export function parseOutputPath(value: string): string {
 
 /**
  * Check `-o` before any request, so a refused target costs none: `--force` without `-o`, a
- * directory, and an existing path (a dangling link too) without `--force` are usage errors
- * (a NinaValidationError: exit 1, an ERROR record of nina.cli). `-o -` is stdout. The write
- * checks again: a file that appears during the request is not overwritten either (a
- * NinaIOError then, of nina.output).
+ * directory, an existing path (a dangling link too) without `--force`, and a file whose
+ * directory is missing, not a directory or not writable are usage errors (a
+ * NinaValidationError: exit 1, an ERROR record of nina.cli). A stream (`/dev/null`, a FIFO,
+ * `/dev/stdout`, `>(…)`) needs no `--force`: it is written in place, and nothing in it can be
+ * lost. `-o -` is stdout. The write checks again: a file that appears during the request is
+ * not overwritten either (a NinaIOError then, of nina.output).
  */
 export function checkOutputTarget(deps: CliDeps, global: GlobalOptions): void {
   if (global.force === true && global.output === undefined) {
     throw new NinaValidationError("--force needs --output (it only allows overwriting the -o file).");
   }
   const path = resolveOutput(global.output);
-  if (path === undefined || deps.io.outputState === undefined) return;
-  const state = deps.io.outputState(path);
+  if (path === undefined) return;
+  const state = deps.io.outputState?.(path);
   if (state === "directory") throw new NinaValidationError(isDirectoryMessage(path));
+  if (state === "stream") return;
   if (state === "exists" && global.force !== true) throw new NinaValidationError(refuseOverwrite(path));
+  const problem = deps.io.outputParentProblem?.(path, global.force === true);
+  if (problem !== undefined) throw new NinaValidationError(problem);
 }
 
 /** Translate resolved global CLI options into client EngineOptions. */
