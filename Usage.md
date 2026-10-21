@@ -190,7 +190,9 @@ These flags apply to every command (real flags only):
 | `-o, --output <file>` | Write the command's output to a file instead of stdout (JSON commands and downloads alike); `-o -` means stdout. An existing file at that path is **overwritten silently** — there is no prompt or `--force`, so point `-o` at a fresh path or one you intend to replace |
 | `-h, --help` | Display help for a command |
 
-Notes: numeric options accept only plain non-negative decimal integers. An
+Notes: numeric options accept only plain non-negative decimal integers. An option that
+takes a value may be given only once (`--timeout 100 --timeout 200` is a usage error, exit 1,
+before any request); flags such as `--compact` may repeat. An
 identifier that starts with `-` must be passed after a `--` separator, e.g.
 `nina warning get -- -odd.identifier`. Whitespace, invisible characters and quotes
 around an identifier and a `.json`/`.geojson` suffix are dropped before the request.

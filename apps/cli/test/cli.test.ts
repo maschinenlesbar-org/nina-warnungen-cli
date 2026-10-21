@@ -692,3 +692,25 @@ test("stderr waits for stdout: a record is held while stdout has a backlog, and 
   stdout.emit("error", new Error("EPIPE"));
   assert.deepEqual(written, ["first", "second", "third", "fourth", "fifth"]);
 });
+
+test("a single-value option given twice is a usage error before any request (K5)", async () => {
+  for (const argv of [
+    ["--timeout", "100", "--timeout", "200", "map-data", "dwd"],
+    ["--base-url", "https://a.example", "--base-url=https://b.example", "map-data", "dwd"],
+    ["--log-format", "text", "--log-format", "jsonl", "map-data", "dwd"],
+    ["--log-format=jsonl", "--log-format=jsonl", "map-data", "dwd"],
+    ["--max-retries", "1", "--max-retries", "1", "map-data", "dwd"],
+    ["--max-response-bytes", "10", "--max-response-bytes", "20", "map-data", "dwd"],
+    ["--user-agent", "a", "--user-agent", "b", "map-data", "dwd"],
+    ["-o", "a.json", "--output", "b.json", "map-data", "dwd"],
+  ]) {
+    const cli = makeCli(() => jsonResponse([]));
+    assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
+    assert.equal(cli.mt.calls.length, 0, `${argv.join(" ")} sent a request`);
+    // (A repeated --log-format jsonl logs the refusal in jsonl, the format argv's scan finds.)
+    assert.match(untimed(cli.err.join("\n")), /(^ERROR \[nina\.cli\] |"level":"ERROR","topic":"nina\.cli").*--[a-z-]+ may be given only once\./m, argv.join(" "));
+  }
+  // Flags may repeat.
+  const flags = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["--compact", "--compact", "map-data", "dwd"], flags.deps), 0, flags.err.join("\n"));
+});

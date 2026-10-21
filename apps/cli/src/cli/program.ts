@@ -11,6 +11,7 @@ import { NinaClient } from "@maschinenlesbar.org/nina-warnungen-client/internal/
 import { MAX_TIMEOUT_MS } from "@maschinenlesbar.org/nina-warnungen-client/internal/http";
 import { MAX_RETRIES } from "@maschinenlesbar.org/nina-warnungen-client/internal/engine";
 import {
+  forbidRepeatedOptions,
   parseBaseUrl,
   parseBoundedInt,
   parseHeaderValue,
@@ -94,6 +95,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
 
   registerWarningCommands(program, deps);
   registerMiscCommands(program, deps);
+  forbidRepeatedOptions(program);
 
   return program;
 }

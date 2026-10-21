@@ -227,6 +227,10 @@ These apply to every command and may be given before *or* after it:
 Numeric options accept only plain non-negative decimal integers — values like
 `5.0`, `0x10`, `1e3`, or `-1` are rejected as usage errors.
 
+An option that takes a value may be given only once: `--timeout 100 --timeout 200` is a
+usage error (`--timeout may be given only once.`, exit 1) before any request, never "the last
+one wins". Flags such as `--compact` may repeat.
+
 ## Learn more
 
 - **[SKILLS.md](https://github.com/maschinenlesbar-org/nina-warnungen-cli/blob/main/SKILLS.md)** — Claude Code Agent Skills that drive this CLI for live warning briefings, region watches and GeoJSON maps.
