@@ -1,17 +1,30 @@
 // I/O seam for the CLI. Everything the CLI writes goes through a CliIO object so
 // tests can capture output instead of hitting the real stdout/stderr/filesystem.
 
-import { writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { chmodSync, closeSync, lstatSync, openSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import type { NinaClient } from "@maschinenlesbar.org/nina-warnungen-client/internal/client";
 import type { EngineOptions } from "@maschinenlesbar.org/nina-warnungen-client/internal/engine";
-import { NinaIOError } from "@maschinenlesbar.org/nina-warnungen-client/internal/errors";
+import { NinaIOError, cutForMessage } from "@maschinenlesbar.org/nina-warnungen-client/internal/errors";
 import { createLogger, type Logger } from "./log.js";
 
 export interface CliIO {
   out(text: string): void;
   err(text: string): void;
-  /** Persist raw bytes to a file. */
-  writeFile(path: string, data: Buffer): void;
+  /**
+   * Write `data` to the `-o` file. Without `overwrite` an existing path is refused (the
+   * default one claims the name with an exclusive create, so a file that appeared during the
+   * request is not replaced either); with it the file is replaced. The default one writes
+   * atomically (`nodeWriteFile`). A failure throws, its message naming the file.
+   */
+  writeFile(path: string, data: Buffer, overwrite: boolean): void;
+  /**
+   * What the `-o` path is now, checked before any request: `"absent"`, `"directory"` (one, or
+   * a link to one) or `"exists"` (a file, a link to one, a dangling link). An I/O without it
+   * skips the early check; the default write still refuses an existing file.
+   */
+  outputState?(path: string): OutputState;
   /** Write raw bytes to stdout (binary-safe). */
   outBinary(data: Buffer): void;
   /**
@@ -33,6 +46,97 @@ export interface CliDeps {
   log?: Logger;
   /** The clock the log's timestamps come from. Unset, the real one. */
   now?: () => Date;
+}
+
+/** What an `-o` path is before the write (`CliIO.outputState`). */
+export type OutputState = "absent" | "directory" | "exists";
+
+/** The message for an existing `-o` path without `--force`. */
+export function refuseOverwrite(path: string): string {
+  return `Refusing to overwrite existing file "${cutForMessage(path)}"; pass --force to overwrite.`;
+}
+
+/** The message for an `-o` path that is a directory, which `--force` can't fix. */
+export function isDirectoryMessage(path: string): string {
+  return `"${cutForMessage(path)}" is a directory; give a file path to --output.`;
+}
+
+/** What is at `path` on the real file system (`CliIO.outputState`). */
+export function nodeOutputState(path: string): OutputState {
+  try {
+    return statSync(path).isDirectory() ? "directory" : "exists";
+  } catch {
+    // statSync follows a link; a dangling one is still something an exclusive create
+    // refuses, so lstat decides between "exists" and "absent".
+    try {
+      lstatSync(path);
+      return "exists";
+    } catch {
+      return "absent";
+    }
+  }
+}
+
+/**
+ * The real `-o` write (`CliIO.writeFile`). Atomic: the data goes to a temporary file beside
+ * the target, renamed over it when complete, so a write cut short (a full disk, a quota)
+ * leaves the old file as it was, never half of the new one. Without `overwrite` the name is
+ * claimed first with an exclusive create, which fails for any existing path (a dangling link
+ * too: it never follows one), and is removed again if the write fails, so the next run isn't
+ * refused for a file that holds half a result. With `overwrite` a symlink is written through
+ * (the file it points at is replaced) and an existing file's mode is kept. Every failure is a
+ * `NinaIOError`: `refuseOverwrite`, `isDirectoryMessage`, or `Could not write to "<path>": …`.
+ */
+export function nodeWriteFile(path: string, data: Buffer, overwrite: boolean): void {
+  if (nodeOutputState(path) === "directory") throw new NinaIOError(isDirectoryMessage(path));
+  let claimed = false;
+  try {
+    if (!overwrite) {
+      closeSync(openSync(path, "wx"));
+      claimed = true;
+    }
+    replaceFile(overwrite ? throughLinks(path) : path, data);
+  } catch (cause) {
+    if (claimed) rmSync(path, { force: true });
+    const code = (cause as NodeJS.ErrnoException | undefined)?.code;
+    if (code === "EEXIST" && !claimed) throw new NinaIOError(refuseOverwrite(path), { cause });
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    throw new NinaIOError(`Could not write to "${cutForMessage(path)}": ${reason}`, { cause });
+  }
+}
+
+/**
+ * Replace `target` with `data` atomically: a temporary file beside it, created exclusively,
+ * renamed over it. An existing file's mode is kept.
+ */
+function replaceFile(target: string, data: Buffer): void {
+  const temporary = join(dirname(target), `.${basename(target)}.${process.pid}-${randomBytes(4).toString("hex")}.tmp`);
+  try {
+    writeFileSync(temporary, data, { flag: "wx" });
+    const mode = modeOf(target);
+    if (mode !== undefined) chmodSync(temporary, mode);
+    renameSync(temporary, target);
+  } catch (err) {
+    rmSync(temporary, { force: true });
+    throw err;
+  }
+}
+
+function modeOf(path: string): number | undefined {
+  try {
+    return statSync(path).mode & 0o7777;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The file a path names, through any symlinks, so --force writes where a link points. A dangling link is replaced itself. */
+function throughLinks(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
 }
 
 /** The deps' logger, or one that writes text records through `io.err`. */
@@ -130,17 +234,8 @@ export const defaultIO: CliIO = {
   out: (text) => process.stdout.write(text + "\n"),
   // A record never lands inside the data when both streams share a pipe.
   err: stderrLine,
-  writeFile: (path, data) => {
-    // A failed file write (no such dir, EISDIR, EACCES) is a routine,
-    // user-caused condition — classify it as a NinaError so run() prints a clean
-    // "Error: ..." rather than the "Unexpected error:" wording for internal bugs.
-    try {
-      writeFileSync(path, data);
-    } catch (cause) {
-      const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new NinaIOError(`Failed to write ${path}: ${reason}`, { cause });
-    }
-  },
+  writeFile: nodeWriteFile,
+  outputState: nodeOutputState,
   outBinary: (data) => process.stdout.write(data),
   isTerminal: () => process.stdout.isTTY === true,
 };

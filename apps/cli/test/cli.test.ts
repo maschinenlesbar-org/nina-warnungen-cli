@@ -147,14 +147,14 @@ test("a NinaIOError from writing -o is an ERROR record of nina.output", async ()
       out: () => {},
       err: (s) => err.push(s),
       writeFile: (path) => {
-        throw new NinaIOError(`Failed to write ${path}: EISDIR: illegal operation on a directory`);
+        throw new NinaIOError(`Could not write to "${path}": EISDIR: illegal operation on a directory`);
       },
       outBinary: () => {},
     },
     createClient: (opts) => new NinaClient({ ...opts, transport: mt.transport }),
   };
   assert.equal(await run(["-o", "somedir", "warning", "geojson", "abc"], deps), 1);
-  assert.deepEqual(err.map(untimed), ["ERROR [nina.output] Failed to write somedir: EISDIR: illegal operation on a directory"]);
+  assert.deepEqual(err.map(untimed), ['ERROR [nina.output] Could not write to "somedir": EISDIR: illegal operation on a directory']);
 });
 
 test("warning geojson warns when the content-type is not JSON but the body is GeoJSON", async () => {
@@ -643,7 +643,7 @@ test("a parse error after -o --log-format jsonl is logged in text, as commander 
 });
 
 test("every -o failure is an ERROR record of nina.output, exit 1, whatever the CliIO threw (L8)", async () => {
-  for (const thrown of [new NinaIOError("Failed to write out.json: EISDIR"), new Error("EACCES: permission denied, open 'out.json'")]) {
+  for (const thrown of [new NinaIOError('Could not write to "out.json": EISDIR'), new Error("EACCES: permission denied, open 'out.json'")]) {
     for (const argv of [["-o", "out.json", "map-data", "dwd"], ["-o", "out.json", "warning", "geojson", "abc"]]) {
       const cli = makeCli(() => (argv[2] === "warning" ? rawResponse('{"type":"FeatureCollection"}', "application/geo+json") : jsonResponse([])));
       cli.deps.io.writeFile = () => {

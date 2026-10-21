@@ -221,7 +221,8 @@ These apply to every command and may be given before *or* after it:
 | `-h, --help` | Show help for the program or a command |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
 | `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [nina.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
-| `-o, --output <file>` | Write the command's output to a file instead of stdout (JSON commands and downloads alike); `-o -` means stdout |
+| `-o, --output <file>` | Write the command's output to a file instead of stdout (JSON commands and downloads alike); `-o -` means stdout. An existing file (a dangling link too) or a directory is refused before any request (exit 1); the file is written atomically, so a failed write leaves an old file as it was and no half-written one |
+| `--force` | With `-o`, replace an existing file (its mode is kept; a symlink is written through). `--force` without `-o` is a usage error |
 | `--base-url <url>` | API base URL (default `https://warnung.bund.de`; a path prefix for a mirror is fine; a query `?` or fragment `#`, whitespace or control characters are rejected). A remote plain `http:` URL works but logs one `WARN` record of `nina.http`, `… sent unencrypted …`, on stderr before the request (stdout and the exit code are unchanged; `localhost`, `127.0.0.0/8` and `::1` are exempt) |
 | `--timeout <ms>` | Per-request timeout (default `30000`; `0` waits indefinitely; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value (a blank value, control characters or characters above U+00FF are rejected) |

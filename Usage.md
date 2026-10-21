@@ -187,7 +187,8 @@ These flags apply to every command (real flags only):
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
 | `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [nina.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
-| `-o, --output <file>` | Write the command's output to a file instead of stdout (JSON commands and downloads alike); `-o -` means stdout. An existing file at that path is **overwritten silently** — there is no prompt or `--force`, so point `-o` at a fresh path or one you intend to replace |
+| `-o, --output <file>` | Write the command's output to a file instead of stdout (JSON commands and downloads alike); `-o -` means stdout. An existing file at that path (a dangling link too) or a directory is refused before any request (`Refusing to overwrite existing file "warn.geojson"; pass --force to overwrite.`, exit 1). The file is written atomically: a temporary file beside it, renamed over it when complete, so a failed write (a full disk) leaves an old file as it was and no half-written one |
+| `--force` | With `-o`, replace an existing file (its mode is kept; a symlink is written through to the file it points at). `--force` without `-o` is a usage error |
 | `-h, --help` | Display help for a command |
 
 Notes: numeric options accept only plain non-negative decimal integers. An option that

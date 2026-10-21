@@ -16,6 +16,7 @@ import {
   parseBoundedInt,
   parseHeaderValue,
   parseIntArg,
+  parseOutputPath,
 } from "./shared.js";
 import { registerWarningCommands } from "./commands/warnings.js";
 import { registerMiscCommands } from "./commands/misc.js";
@@ -90,7 +91,12 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
       parseLogFormat,
     )
     .option("--compact", "print JSON on a single line instead of pretty-printed")
-    .option("-o, --output <file>", "write the command's output to this file instead of stdout (\"-\" means stdout)")
+    .option(
+      "-o, --output <file>",
+      "write the command's output to this file instead of stdout (\"-\" means stdout); an existing file is refused unless --force",
+      parseOutputPath,
+    )
+    .option("--force", "with -o, replace an existing file (atomically; its mode is kept)")
     .showHelpAfterError();
 
   registerWarningCommands(program, deps);

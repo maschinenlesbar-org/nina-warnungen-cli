@@ -407,7 +407,7 @@ everything that drives the CLI is in `apps/cli/test/`.
 - **`types.test.ts`** — a consumer compiled by `tsc` with `exactOptionalPropertyTypes` (it starts a process: 30 s) can pass `undefined` for every option, and at run time `undefined` means the default.
 - **`client.test.ts`** — every endpoint's method/URL mapping, including identifier URL-encoding — mocked transport.
 - **`cli.test.ts`** — end-to-end command parsing, rendering, file output and exit codes, plus negative paths (network/parse/API errors, write failures, content-type warning) — mocked client.
-- **`output.test.ts`** — the output path: which `JSON.stringify` path `--compact` takes (the fast one, or the gap path for an answer holding a string of 64 Mi characters or more, on which Node 26's fast path aborts the process).
+- **`output.test.ts`** — the output path: `-o` and `--force` on real files in a temp directory (refusals before any request, the atomic write, mode and symlinks, a file that appears during the request, printed JSON's escapes), and which `JSON.stringify` path `--compact` takes (the fast one, or the gap path for an answer holding a string of 64 Mi characters or more, on which Node 26's fast path aborts the process).
 - **`shared.test.ts`** — the `parseIntArg` value parser (accepts plain decimals, rejects everything else).
 - **`validate.test.ts`** — `assertValid`, the `NinaValidationError` exit-code mapping and the `parity()` helper.
 - **`log.test.ts`** — the record helpers of `apps/cli/src/cli/log.ts` on their own
@@ -485,6 +485,17 @@ content-type warning of a download, and a malformed answer, a `NinaParseError`: 
 the wrong shape, an unknown charset), `http` (the connection: network errors, the
 cleartext warning) and `output` (`-o`: "Wrote N bytes", or any failure to write the file,
 a `NinaIOError` whatever the `CliIO` threw; and a stdout write error).
+
+**`-o` and `--force`.** `action()` runs `checkOutputTarget` before any request: `--force`
+without `-o`, a directory, and an existing path (a dangling link too, `CliIO.outputState`)
+without `--force` are usage errors (`NinaValidationError`, exit 1, `nina.cli`); `-o -` is
+stdout. The write (`CliIO.writeFile(path, data, overwrite)`; the real one is `nodeWriteFile`
+in `io.ts`) is atomic: without `--force` it claims the name with an exclusive create (so a
+file that appeared during the request is refused too, `nina.output`), writes a temporary file
+beside the target and renames it over it; on failure neither the temporary file nor the
+claimed name is left. `--force` keeps the old file's mode and writes through a symlink.
+Messages: `Refusing to overwrite existing file "<p>"; pass --force to overwrite.`,
+`"<p>" is a directory; give a file path to --output.`, `Could not write to "<p>": <reason>`.
 Code logs through `logOf(deps)` and never writes diagnostics with `io.err` directly.
 `run()` builds the logger from argv before commander parses it (`logFormatFromArgv`,
 which skips the value of the program's own value options and is used only for the records

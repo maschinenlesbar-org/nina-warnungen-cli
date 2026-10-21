@@ -3,8 +3,8 @@
 
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
-import { logOf, type CliDeps } from "./io.js";
-import { NinaError, NinaIOError, cutForMessage } from "@maschinenlesbar.org/nina-warnungen-client/internal/errors";
+import { isDirectoryMessage, logOf, refuseOverwrite, type CliDeps } from "./io.js";
+import { NinaError, NinaIOError, NinaValidationError, cutForMessage } from "@maschinenlesbar.org/nina-warnungen-client/internal/errors";
 import { baseUrlProblem, headerValueProblem } from "@maschinenlesbar.org/nina-warnungen-client/internal/validate";
 import { DEFAULT_BASE_URL, cleartextProblem, isBidiControl, type EngineOptions, type RawResponse } from "@maschinenlesbar.org/nina-warnungen-client/internal/engine";
 import type { RetryEvent } from "@maschinenlesbar.org/nina-warnungen-client/internal/engine";
@@ -95,6 +95,31 @@ export interface GlobalOptions {
   maxResponseBytes?: number;
   compact?: boolean;
   output?: string;
+  force?: boolean;
+}
+
+/** commander value-parser for `-o, --output <file>`: a blank path is a usage error. `-` is stdout. */
+export function parseOutputPath(value: string): string {
+  if (value.trim() === "") throw new InvalidArgumentError("Expected a non-empty value.");
+  return value;
+}
+
+/**
+ * Check `-o` before any request, so a refused target costs none: `--force` without `-o`, a
+ * directory, and an existing path (a dangling link too) without `--force` are usage errors
+ * (a NinaValidationError: exit 1, an ERROR record of nina.cli). `-o -` is stdout. The write
+ * checks again: a file that appears during the request is not overwritten either (a
+ * NinaIOError then, of nina.output).
+ */
+export function checkOutputTarget(deps: CliDeps, global: GlobalOptions): void {
+  if (global.force === true && global.output === undefined) {
+    throw new NinaValidationError("--force needs --output (it only allows overwriting the -o file).");
+  }
+  const path = resolveOutput(global.output);
+  if (path === undefined || deps.io.outputState === undefined) return;
+  const state = deps.io.outputState(path);
+  if (state === "directory") throw new NinaValidationError(isDirectoryMessage(path));
+  if (state === "exists" && global.force !== true) throw new NinaValidationError(refuseOverwrite(path));
 }
 
 /** Translate resolved global CLI options into client EngineOptions. */
@@ -199,11 +224,12 @@ function holdsHugeString(value: unknown): boolean {
 
 /**
  * `deps.io.writeFile`, with any failure a `NinaIOError` (message and cause kept), so
- * every `-o` failure is logged under `nina.output`, whatever the `CliIO` threw.
+ * every `-o` failure is logged under `nina.output`, whatever the `CliIO` threw. Without
+ * `--force` an existing file is refused.
  */
-function writeOutputFile(deps: CliDeps, path: string, data: Buffer): void {
+function writeOutputFile(deps: CliDeps, global: GlobalOptions, path: string, data: Buffer): void {
   try {
-    deps.io.writeFile(path, data);
+    deps.io.writeFile(path, data, global.force === true);
   } catch (cause) {
     if (cause instanceof NinaIOError) throw cause;
     throw new NinaIOError(cause instanceof Error ? cause.message : String(cause), { cause });
@@ -221,7 +247,7 @@ export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown)
   const output = resolveOutput(global.output);
   if (output !== undefined) {
     const data = Buffer.from(text + "\n", "utf8");
-    writeOutputFile(deps, output, data);
+    writeOutputFile(deps, global, output, data);
     logOf(deps).info("output", `Wrote ${data.length} bytes to ${output}`);
   } else {
     deps.io.out(text);
@@ -269,7 +295,7 @@ export function renderRaw(
   }
   const output = resolveOutput(global.output);
   if (output !== undefined) {
-    writeOutputFile(deps, output, response.data);
+    writeOutputFile(deps, global, output, response.data);
     logOf(deps).info("output", `Wrote ${response.data.length} bytes to ${output}`);
   } else if (deps.io.isTerminal?.() === false) {
     // A pipe or file: the bytes exactly as the server sent them.
@@ -318,6 +344,8 @@ export function action(
     const command = args[args.length - 1] as Command;
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
+    // A refused -o target costs no request.
+    checkOutputTarget(deps, global);
     // One stderr record before any request when the base URL is remote plain http:.
     const cleartext = cleartextProblem(global.baseUrl ?? DEFAULT_BASE_URL);
     if (cleartext !== undefined) logOf(deps).warn("http", cleartext);

@@ -49,7 +49,10 @@ with `-o` (don't pipe — see the shell trap below):
 nina warning geojson mow.DE-HE-KS-SE106-20260610-106-000 -o warn.geojson
 ```
 
-`-o` is the global output flag; omit it to stream to stdout. **Prefer `-o`** — this CLI's
+`-o` is the global output flag; omit it to stream to stdout. If `warn.geojson` (or the
+name you chose) exists, the CLI refuses it (`Refusing to overwrite existing file …`, exit 1,
+before any request): ask the user whether to replace it, then add `--force`, or pick another
+name. **Prefer `-o`** — this CLI's
 stdout pipe can come back empty when piped straight into another process under some Node
 builds, and the geojson bytes are binary-faithful, so a file is the reliable path.
 
@@ -79,8 +82,8 @@ order.
 
 ## Step 4 — Output
 
-Report the saved path and feature/polygon count. If the `-o` name the user supplied already
-exists, confirm before overwriting it (re-running with the default name to refresh is fine).
+Report the saved path and feature/polygon count. The CLI never overwrites an existing
+file on its own: to refresh one, confirm with the user and re-run with `--force`.
 Offer to:
 - open it at https://geojson.io (drag the file in), or
 - enrich it: merge in `headline`/`severity` from `warning get` as feature properties so the
