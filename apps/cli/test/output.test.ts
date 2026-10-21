@@ -9,6 +9,7 @@ import { renderJson } from "../src/cli/shared.js";
 import { run } from "../src/cli/run.js";
 import { defaultIO, type CliDeps } from "../src/cli/io.js";
 import { NinaClient } from "@maschinenlesbar.org/nina-warnungen-client/internal/client";
+import { NinaIOError } from "@maschinenlesbar.org/nina-warnungen-client/internal/errors";
 import type { HttpRequest, HttpResponse } from "@maschinenlesbar.org/nina-warnungen-client/internal/http";
 import { jsonResponse, makeMockTransport, untimed } from "./helpers.js";
 
@@ -207,4 +208,19 @@ test("a write the file system refuses is an ERROR of nina.output naming the file
     assert.match(cli.err[0]!, new RegExp(`^ERROR \\[nina\\.output\\] Could not write to ".*out\\.json": ENOENT`));
     assert.deepEqual(readdirSync(dir), []);
   });
+});
+
+test("an answer too large to print is called too large, not too deep; the hint only where --compact prints (D7)", (t) => {
+  const { deps } = makeCli();
+  const real = JSON.stringify;
+  // V8's own error for a text past its longest string, stood in for: a real one needs 512 MB.
+  const tooLarge = (gap: unknown): boolean => gap === 2 || gap === "big";
+  t.mock.method(JSON, "stringify", (value: unknown, replacer: never, gap: unknown) => {
+    if (tooLarge(gap) || (gap === undefined && (value as { all?: boolean }).all === true)) throw new RangeError("Invalid string length");
+    return real(value, replacer, gap as number);
+  });
+  const isOutputError = (pattern: RegExp) => (err: Error) => err instanceof NinaIOError && pattern.test(err.message);
+  assert.throws(() => renderJson(deps, {}, { id: "a1" }), isOutputError(/^The answer is too large \(more than \d+ characters of JSON\) to pretty-print; try --compact\.$/));
+  assert.throws(() => renderJson(deps, {}, { all: true }), isOutputError(/^The answer is too large \(more than \d+ characters of JSON\) to pretty-print\.$/));
+  assert.throws(() => renderJson(deps, { compact: true }, { all: true }), isOutputError(/^The answer is too large \(more than \d+ characters of JSON\) to print\.$/));
 });

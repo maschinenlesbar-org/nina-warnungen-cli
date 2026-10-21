@@ -506,7 +506,10 @@ code point and ends in `… (N more characters)`. The areas are `cli` (usage err
 content-type warning of a download, and a malformed answer, a `NinaParseError`: bad JSON,
 the wrong shape, an unknown charset), `http` (the connection: network errors, the
 cleartext warning) and `output` (`-o`: "Wrote N bytes", or any failure to write the file,
-a `NinaIOError` whatever the `CliIO` threw; and a stdout write error).
+a `NinaIOError` whatever the `CliIO` threw; a stdout write error; and an answer that can't be
+printed: `The answer is nested too deeply to pretty-print[; try --compact].` or `The answer is
+too large (more than 536870888 characters of JSON) to print.`, where "try --compact" is added
+only when the compact form of that very answer prints, probed rather than assumed).
 
 **`-o` and `--force`.** `action()` runs `checkOutputTarget` before any request: `--force`
 without `-o`, a directory, and an existing path (a dangling link too, `CliIO.outputState`)

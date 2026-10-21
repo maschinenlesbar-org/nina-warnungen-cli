@@ -497,19 +497,28 @@ test("warning geojson to a terminal escapes control characters; to a pipe it is 
   assert.ok(written[0]!.equals(body));
 });
 
-test("a deeply nested response is a clean error, not an internal one", async () => {
+test("an answer nested too deeply is a clean error; it suggests --compact only where --compact prints it (D7)", async () => {
+  // A hostile or broken answer: JSON.parse reads it, the pretty printer's recursion can't. Whether
+  // the compact printer can depends on the Node version (iterative from Node 26) and the stack:
+  // probed here, never assumed.
   const depth = 200_000;
   // Inside a warning entry, so the body still has the documented list shape.
   const deep = '[{"x":' + "[".repeat(depth) + "]".repeat(depth) + "}]";
+  let compactPrints = true;
+  try {
+    JSON.stringify(JSON.parse(deep));
+  } catch {
+    compactPrints = false;
+  }
   const cli = makeCli(() => rawResponse(deep, "application/json"));
   assert.equal(await run(["map-data", "dwd"], cli.deps), 1);
-  assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.cli\] The response is nested too deeply to pretty-print; try --compact\.$/m);
-  assert.doesNotMatch(cli.err.join("\n"), /Unexpected error/);
-
-  // Compact output recurses less: it either prints or fails with the compact message.
+  assert.deepEqual(cli.out, []);
+  assert.deepEqual(cli.err.map(untimed), [
+    `ERROR [nina.output] The answer is nested too deeply to pretty-print${compactPrints ? "; try --compact" : ""}.`,
+  ]);
   const compact = makeCli(() => rawResponse(deep, "application/json"));
-  const code = await run(["--compact", "map-data", "dwd"], compact.deps);
-  if (code !== 0) assert.match(compact.err.join("\n"), /nested too deeply to print\./);
+  assert.equal(await run(["--compact", "map-data", "dwd"], compact.deps), compactPrints ? 0 : 1);
+  if (!compactPrints) assert.deepEqual(compact.err.map(untimed), ["ERROR [nina.output] The answer is nested too deeply to print."]);
 });
 
 test("--user-agent rejects blank, control-character and non-Latin-1 values as a usage error", async () => {
