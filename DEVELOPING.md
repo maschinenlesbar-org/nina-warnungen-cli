@@ -63,6 +63,7 @@ new NinaClient({
   maxResponseBytes: 50 << 20, // example: abort over 50 MiB; the default is 100 MiB (0 = unlimited)
   userAgent: "my-app/1.0",
   transport: customTransport, // inject your own HTTP transport
+  bigIntegerKeys: new Set(["someId"]), // members whose numbers may pass 2^53: delivered as strings
 });
 ```
 
@@ -282,8 +283,12 @@ prints as `12345678901234567000`), a non-zero one too small for a double (`1e-40
 does not print as written (`3e-324` prints as `5e-324`; `5e-324` itself passes). A JSON answer holding such a number is a `NinaParseError` (`GET <url>: the number <N>
 cannot be represented exactly.`, exit 1), never a changed value. Past
 2^53 a number passes when it prints as written (`1e23`); below 2^53 a decimal fraction keeps a
-double's usual precision. A scan of the text after `JSON.parse` (`firstInexactNumber`) skips
-strings. Raw downloads (`warning geojson`) are bytes and are not checked.
+double's usual precision. A member named in the engine option `bigIntegerKeys` (a set or list of
+non-empty member names, copied; default none, and the NINA client declares none) is the one
+exception: its number value is delivered as its exact literal, as written, as a JSON string
+(`"1858054135406919680"`, `"5"`), whatever its size, so its type is stable. The engine does both
+in one linear scan of the text before `JSON.parse` (`scanNumbers`, which skips strings and quotes
+the declared values in place; no reviver). Raw downloads (`warning geojson`) are bytes and are not checked.
 
 **Query builder.** [`buildQueryString`](packages/client/src/query.ts) — a dependency-free
 serialiser: omits `undefined`/`null`, repeats keys for arrays, renders booleans
