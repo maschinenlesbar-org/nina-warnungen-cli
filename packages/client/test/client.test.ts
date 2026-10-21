@@ -282,3 +282,21 @@ test("a server detail carries no bidi controls (B02-1)", async () => {
     return true;
   });
 });
+
+test("an array whose items are not warnings says which item, not \"got an array\" (bug 4 of 2026-10-21)", async () => {
+  const cases: Array<[unknown, string]> = [
+    [[null], "an array whose item 1 of 1 is null"],
+    [[1, 2], "an array whose item 1 of 2 is a number"],
+    [[{ id: "a" }, "b"], "an array whose item 2 of 2 is a string"],
+    [[{ id: "a" }, [1]], "an array whose item 2 of 2 is an array"],
+  ];
+  for (const [body, got] of cases) {
+    for (const call of [(c: NinaClient) => c.mapData("dwd"), (c: NinaClient) => c.dashboard("055150000000")]) {
+      await assert.rejects(call(clientWith(constantJson(body))), (err: Error) => {
+        assert.ok(err instanceof NinaParseError);
+        assert.match(err.message, new RegExp(`: unexpected response shape: expected a JSON array of warning objects, got ${got}\\.$`));
+        return true;
+      });
+    }
+  }
+});

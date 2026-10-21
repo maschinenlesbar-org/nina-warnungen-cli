@@ -52,13 +52,17 @@ function quoteServerText(text: string): string {
 }
 
 /**
- * What a value is, for a shape error: its JSON type, and the `message` an error object
- * carries (control characters dropped, cut at 200 characters, never inside a surrogate
+ * What a value is, for a shape error: its JSON type (for an array, the first item that is not
+ * an object, by position), and the `message` an error object carries (control characters dropped, cut at 200 characters, never inside a surrogate
  * pair, quoted with the separators and bidi controls escaped).
  */
 function describeValue(value: unknown): string {
   if (value === null) return "null";
-  if (Array.isArray(value)) return "an array";
+  if (Array.isArray(value)) {
+    // A list whose items are not warnings: say which item is what, not "got an array".
+    const at = value.findIndex((item) => !isObject(item));
+    return at < 0 ? "an array" : `an array whose item ${at + 1} of ${value.length} is ${describeItem(value[at])}`;
+  }
   if (isObject(value)) {
     if (Object.keys(value).length === 0) return "an empty object";
     const message = typeof value["message"] === "string" ? value["message"] : typeof value["error"] === "string" ? value["error"] : undefined;
@@ -72,6 +76,12 @@ function describeValue(value: unknown): string {
 /** The request a GET of `path` makes, as an answer error names it: `GET <url>` (userinfo redacted, cut). */
 function answerOf(engine: RequestEngine, path: string): string {
   return `GET ${engine.describeUrl(path)}`;
+}
+
+/** What a list item that is not an object is: `null`, `an array`, `a number`, … */
+function describeItem(item: unknown): string {
+  if (item === null) return "null";
+  return Array.isArray(item) ? "an array" : `a ${typeof item}`;
 }
 
 /**
