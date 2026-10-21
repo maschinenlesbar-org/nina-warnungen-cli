@@ -413,3 +413,60 @@ test("credentials a server echoes are scrubbed from the error: Basic, user:passw
     return true;
   });
 });
+
+test("a timeout, the size cap, a refused connection and a DNS failure name the request (K3)", async () => {
+  const { createServer } = await import("node:http");
+  const sockets = new Set<import("node:net").Socket>();
+  // One loopback server: /slow never answers, /big sends 64 bytes.
+  const server = createServer((req, res) => {
+    if (req.url === "/big") res.end("x".repeat(64));
+  });
+  server.on("connection", (s) => sockets.add(s));
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const port = (server.address() as import("node:net").AddressInfo).port;
+  // A port nothing listens on: listen, note it, close.
+  const closed = createServer();
+  await new Promise<void>((r) => closed.listen(0, "127.0.0.1", r));
+  const closedPort = (closed.address() as import("node:net").AddressInfo).port;
+  await new Promise<void>((r) => closed.close(() => r()));
+  try {
+    const base = `http://user:secret@127.0.0.1:${port}`;
+    const cases: Array<[EngineArgs, string, RegExp]> = [
+      [{ baseUrl: base, timeoutMs: 50 }, "/slow", /^GET http:\/\/\*\*\*@127\.0\.0\.1:\d+\/slow failed: Request (timed out after 50ms|exceeded the 50ms deadline)$/],
+      [{ baseUrl: base, maxResponseBytes: 10 }, "/big", /^GET http:\/\/\*\*\*@127\.0\.0\.1:\d+\/big failed: Response exceeded the size limit of 10 bytes/],
+      [{ baseUrl: `http://127.0.0.1:${closedPort}`, maxRetries: 0 }, "/x", /^GET http:\/\/127\.0\.0\.1:\d+\/x failed: Could not connect to 127\.0\.0\.1:\d+ \(connection refused\)/],
+    ];
+    for (const [options, path, message] of cases) {
+      const e = new RequestEngine(options);
+      await assert.rejects(e.getJson(path), (err: unknown) => {
+        assert.ok(err instanceof NinaNetworkError, String(err));
+        assert.match(err.message, message);
+        assert.doesNotMatch(err.message, /secret/);
+        assert.ok(err.cause instanceof NinaNetworkError, "the original is the cause");
+        return true;
+      });
+    }
+  } finally {
+    for (const s of sockets) s.destroy();
+    await new Promise<void>((r) => server.close(() => r()));
+  }
+  // A DNS failure as the default transport reports it (no lookup here), and the engine's own
+  // size check of a body a custom transport returned.
+  const dns = new NinaNetworkError("Could not resolve host nowhere.example. Check the --base-url and your network/DNS.", {
+    cause: Object.assign(new Error("getaddrinfo ENOTFOUND nowhere.example"), { code: "ENOTFOUND" }),
+  });
+  const e = new RequestEngine({ baseUrl: "https://nowhere.example", transport: () => Promise.reject(dns) });
+  await assert.rejects(e.getJson("/x"), (err: unknown) =>
+    err instanceof NinaNetworkError && err.cause === dns &&
+    err.message === "GET https://nowhere.example/x failed: Could not resolve host nowhere.example. Check the --base-url and your network/DNS.",
+  );
+  const big = new RequestEngine({ maxResponseBytes: 3, transport: makeMockTransport(() => rawResponse("[1,2,3]", "application/json")).transport });
+  await assert.rejects(big.getJson("/x"), (err: unknown) =>
+    err instanceof NinaNetworkError && err.message.startsWith("GET https://warnung.bund.de/x failed: Response exceeded the size limit of 3 bytes"),
+  );
+  // Anything a custom transport throws names the request too.
+  const odd = new RequestEngine({ transport: () => Promise.reject("plain string") });
+  await assert.rejects(odd.getJson("/x"), (err: unknown) => err instanceof NinaNetworkError && err.message === "GET https://warnung.bund.de/x failed: plain string");
+});
+
+type EngineArgs = ConstructorParameters<typeof RequestEngine>[0];

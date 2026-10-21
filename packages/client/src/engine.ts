@@ -441,20 +441,27 @@ export class RequestEngine {
   }
 
   /**
-   * What the transport threw, as the error the engine raises. The default transport
-   * rejects with `NinaNetworkError` only; an injected one may throw anything (a string, a
-   * `TypeError` from fetch). Every failure becomes a `NinaNetworkError` — a `NinaError` a
-   * caller and the CLI can rely on — with the base URL's credentials scrubbed from its
-   * message and cause chain; any other `NinaError` passes through, and a clean
-   * `NinaNetworkError` stays as it is.
+   * What the transport threw, as the error the engine raises, naming the request:
+   * `<METHOD> <url> failed: <reason>` (userinfo redacted), with the original as `cause`. The
+   * default transport rejects with `NinaNetworkError` only (a timeout, the size cap, a refused
+   * connection, a DNS failure, a reset) and the engine's own deadline does too; their messages
+   * carry no URL, so a caller making several calls could not tell which one failed. An
+   * injected transport may throw anything (a string, a `TypeError` from fetch), and that
+   * becomes the same `NinaNetworkError` — a `NinaError` a caller and the CLI can rely on —
+   * with the base URL's credentials scrubbed from its message and cause chain. A message that
+   * already names the request is kept (scrubbed); any other `NinaError` passes through.
    */
-  private transportError(cause: unknown): NinaError {
+  private transportError(method: string, url: string, cause: unknown): NinaError {
     if (cause instanceof NinaError && !(cause instanceof NinaNetworkError)) return cause;
+    const prefix = `${method} ${redactUrl(url)} failed: `;
     const reason = cause instanceof Error ? cause.message : String(cause);
     const message = sanitizeServerText(this.scrub(reason));
-    const scrubbed = this.scrubCause(cause);
-    if (cause instanceof NinaNetworkError && message === cause.message && scrubbed === cause) return cause;
-    return new NinaNetworkError(message, { cause: scrubbed });
+    if (message.startsWith(prefix)) {
+      const inner = cause instanceof Error ? this.scrubCause(cause.cause) : undefined;
+      if (cause instanceof NinaNetworkError && message === cause.message && inner === cause.cause) return cause;
+      return new NinaNetworkError(message, inner === undefined ? undefined : { cause: inner });
+    }
+    return new NinaNetworkError(`${prefix}${message}`, { cause: this.scrubCause(cause) });
   }
 
   /**
@@ -533,14 +540,14 @@ export class RequestEngine {
           await this.backOff(attempt, this.retryDelayMs * attempt, url);
           continue;
         }
-        throw this.transportError(cause);
+        throw this.transportError(method, url, cause);
       }
 
       // An injected transport may resolve with anything; a malformed HttpResponse would
       // otherwise surface below as a raw TypeError, outside the NinaError contract.
       const invalid = responseProblem(response);
       if (invalid !== undefined) {
-        throw new NinaNetworkError(`The transport returned an invalid response (${invalid}).`);
+        throw new NinaNetworkError(`${method} ${redactUrl(url)} failed: the transport returned an invalid response (${invalid}).`);
       }
       const status = response.status;
       const responseHeaders = plainHeaders(response.headers);
@@ -549,7 +556,7 @@ export class RequestEngine {
       // The size cap holds whatever the transport did: the default one aborts early, a custom
       // one may have read everything.
       if (this.maxResponseBytes > 0 && body.byteLength > this.maxResponseBytes) {
-        throw new NinaNetworkError(sizeLimitMessage(this.maxResponseBytes));
+        throw new NinaNetworkError(`${method} ${redactUrl(url)} failed: ${sizeLimitMessage(this.maxResponseBytes)}`);
       }
       const retryable = status === 429 || status === 503;
       const retryAfter = retryable ? parseRetryAfter(responseHeaders["retry-after"]) : undefined;
