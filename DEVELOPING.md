@@ -215,7 +215,8 @@ with exit 1, and when stderr's reader is gone a failed run keeps its own exit co
 **Error types.** [`errors.ts`](packages/client/src/errors.ts): `NinaApiError` (non-2xx,
 carries `status`/`detail`/`isRetryable`), `NinaNetworkError` (transport
 failure/timeout; its message names the request, `GET <url> failed: <reason>` with the
-URL's userinfo redacted, for a timeout, the size cap, a refused connection, a DNS failure and
+URL's userinfo redacted and the URL cut at 500 characters (so a very long id never pushes the
+reason out of a log record), for a timeout, the size cap, a refused connection, a DNS failure and
 a reset alike, and the transport's own error is its `cause`), `NinaParseError` (bad JSON), `NinaIOError` (local write
 failure) and `NinaValidationError` (an input the library rejects before any
 request), all extending `NinaError`, plus `NinaNotFoundError` (a warning id that is

@@ -508,3 +508,24 @@ test("an answer error names the request: method and URL, userinfo redacted (D9)"
     await assert.rejects(e.getJson("/api31/x.json"), (err: unknown) => err instanceof NinaParseError && message.test(err.message) && !err.message.includes("s3cret"), String(message));
   }
 });
+
+test("a network error for a very long URL keeps its reason: the URL is cut at 500 characters (bug 2 of 2026-10-21)", async () => {
+  // A 100 000-character id made a record of 4 000 characters of URL; the reason was cut off.
+  const path = `/api31/warnings/${"a".repeat(100_000)}.json`;
+  const reset = Object.assign(new Error("socket hang up"), { code: "ECONNRESET" });
+  const failures: Array<[EngineArgs, RegExp]> = [
+    [{ maxRetries: 0, transport: () => Promise.reject(reset) }, /failed: socket hang up$/],
+    [{ maxResponseBytes: 3, transport: makeMockTransport(() => rawResponse("[1,2,3]", "application/json")).transport }, /failed: Response exceeded the size limit of 3 bytes/],
+    [{ transport: (() => Promise.resolve(null)) as unknown as EngineArgs extends { transport?: infer T } ? T : never }, /failed: the transport returned an invalid response \(not an object\)\.$/],
+  ];
+  for (const [options, reason] of failures) {
+    const e = new RequestEngine(options);
+    await assert.rejects(e.getJson(path), (err: unknown) => {
+      assert.ok(err instanceof NinaNetworkError, String(err));
+      assert.match(err.message, /^GET https:\/\/warnung\.bund\.de\/api31\/warnings\/a+…/);
+      assert.match(err.message, reason);
+      assert.ok(err.message.length < 700, `${err.message.length} characters`);
+      return true;
+    });
+  }
+});
