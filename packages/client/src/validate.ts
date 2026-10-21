@@ -10,7 +10,7 @@
 //   Methods that return a promise call it inside the async body, so they reject
 //   rather than throw synchronously; constructors throw.
 
-import { NinaValidationError, cutForMessage } from "./errors.js";
+import { NinaValidationError, cutForMessage, quoteValue } from "./errors.js";
 import { NinaSourceValues } from "./enums.js";
 
 /** A validation rule: the reason `value` is invalid, or `undefined` when it is valid. */
@@ -78,15 +78,15 @@ export const identifierProblem: Problem<unknown> = (value) => {
   if (blank !== undefined) return blank;
   const text = value as string;
   if (/[/\\]/.test(text)) {
-    return `${cutForMessage(JSON.stringify(text))} must not contain a path separator (/ or \\).`;
+    return `${quoteValue(text)} must not contain a path separator (/ or \\).`;
   }
   // "." and ".." are no warning ids: kept out of a path segment, as every *-cli does (P24).
-  if (text === "." || text === "..") return `${JSON.stringify(text)} is a dot segment, not a warning identifier.`;
+  if (text === "." || text === "..") return `${quoteValue(text)} is a dot segment, not a warning identifier.`;
   const hidden = /[\s\p{Cc}\p{Cf}]/u.exec(text);
   if (hidden !== null) {
     const code = hidden[0].codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0");
     return (
-      `${cutForMessage(JSON.stringify(text))} contains whitespace or an invisible character ` +
+      `${quoteValue(text)} contains whitespace or an invisible character ` +
       `(U+${code}); a warning identifier has none. Copy it again from map-data or dashboard.`
     );
   }
@@ -152,9 +152,10 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
 /**
  * A `mapData` source must be one of `NinaSourceValues` (an array lookup, so an
  * inherited name such as `toString` is no source). The message quotes the value
- * with JSON.stringify, so a control character in it is escaped, never printed raw.
+ * with `quoteValue`, so a control or invisible character in it is escaped, never printed raw.
  */
 export const sourceProblem: Problem<unknown> = (value) => {
   if ((NinaSourceValues as readonly unknown[]).includes(value)) return undefined;
-  return `Invalid source ${cutForMessage(String(JSON.stringify(value)))}. Expected one of: ${NinaSourceValues.join(", ")}.`;
+  const quoted = typeof value === "string" ? quoteValue(value) : cutForMessage(String(JSON.stringify(value)));
+  return `Invalid source ${quoted}. Expected one of: ${NinaSourceValues.join(", ")}.`;
 };

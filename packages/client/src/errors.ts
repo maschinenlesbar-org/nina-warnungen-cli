@@ -148,6 +148,34 @@ export function toWellFormed(text: string): string {
   return text.replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, "\ufffd");
 }
 
+/** A Unicode format character (General Category Cf): a zero-width space, a soft hyphen, a BOM, a bidi control. */
+const FORMAT_CHAR = /\p{Cf}/u;
+
+/**
+ * Quote a value for an error message, as `JSON.stringify` does, and also escape what it
+ * leaves raw although a terminal acts on it or a reader can't see it: DEL, the C1 controls,
+ * every Unicode format character (bidi overrides, zero-width characters, a soft hyphen) and the
+ * line and paragraph separators U+2028/U+2029. A region key copied with a zero-width space was
+ * echoed as `"​055150000000"`, which reads as the valid key being refused. A value longer than
+ * MAX_MESSAGE_VALUE_LENGTH characters is cut, and the "…" goes after the closing quote
+ * (`"AAAA"…`), so it does not read as part of the value. The quoted part stays a valid JSON
+ * string.
+ */
+export function quoteValue(value: string): string {
+  const cut = value.length > MAX_MESSAGE_VALUE_LENGTH;
+  let out = "";
+  for (const ch of JSON.stringify(cut ? cutText(value, MAX_MESSAGE_VALUE_LENGTH) : value)) {
+    const n = ch.codePointAt(0) ?? 0;
+    if ((n >= 0x7f && n <= 0x9f) || n === 0x2028 || n === 0x2029 || FORMAT_CHAR.test(ch)) {
+      // One escape per UTF-16 unit, so a character above U+FFFF stays valid JSON.
+      for (let i = 0; i < ch.length; i++) out += `\\u${ch.charCodeAt(i).toString(16).padStart(4, "0")}`;
+    } else {
+      out += ch;
+    }
+  }
+  return cut ? `${out}…` : out;
+}
+
 /**
  * The userinfo a URL carries, exactly as written — `["alice:pa#ss"]` for
  * `https://alice:pa#ss@host` — or `[]` when it carries none. Only a value that starts
@@ -248,7 +276,7 @@ export class NinaNotFoundError extends NinaError {
     // The API redirects *every* id it has no live warning for — an ended warning, a
     // mistyped one, one in the wrong case — so the message must not claim the warning ended.
     super(
-      `Warning ${cutForMessage(JSON.stringify(identifier))} is not a live warning: no live ` +
+      `Warning ${quoteValue(identifier)} is not a live warning: no live ` +
         `warning has exactly this id (ids are case-sensitive). It may have expired, been updated ` +
         `or cancelled, or be mistyped. The API redirects it to its archive` +
         `${location ? ` (${location})` : ""}, which is not followed. Take a current id ` +

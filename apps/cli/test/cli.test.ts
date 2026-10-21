@@ -733,3 +733,11 @@ test("text in an answer that is not valid is replaced with U+FFFD and said in on
     "WARN  [nina.api] GET https://warnung.bund.de/api31/dwd/mapData.json: 2 characters of the answer were not valid text (invalid bytes or a lone surrogate) and replaced with U+FFFD.",
   ]);
 });
+
+test("commander's echo of a refused value shows an invisible character escaped, never raw (D10)", async () => {
+  const cli = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["--user-agent", "a​b", "map-data", "dwd"], cli.deps), 1);
+  const err = cli.err.join("\n");
+  assert.ok(err.includes("a\\u200bb"), err);
+  assert.doesNotMatch(err, /​/);
+});

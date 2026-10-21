@@ -8,7 +8,7 @@
 
 import { RequestEngine, isStringTooLong, tooLargeForText, type EngineOptions, type RawResponse } from "./engine.js";
 import type { NinaSource } from "./enums.js";
-import { NinaApiError, NinaNotFoundError, NinaParseError, NinaValidationError, cutText } from "./errors.js";
+import { NinaApiError, NinaNotFoundError, NinaParseError, NinaValidationError, cutText, quoteValue } from "./errors.js";
 import { arsProblem } from "./ars.js";
 import { assertValid, identifierProblem, normalizeIdentifier, sourceProblem } from "./validate.js";
 import type {
@@ -174,7 +174,7 @@ function notLive(identifier: string, err: unknown): unknown {
 function noSuchDistrict(ars: string, err: unknown): unknown {
   if (!(err instanceof NinaApiError) || err.status !== 404) return err;
   const detail =
-    `no such district key ${JSON.stringify(ars)}: NINA has no dashboard for it. ` +
+    `no such district key ${quoteValue(ars)}: NINA has no dashboard for it. ` +
     `A district key is the district's first five digits followed by 0000000 (e.g. ` +
     `055150000000 for Münster); a Regierungsbezirk key such as 051000000000 is not one` +
     (err.detail ? ` (server: ${err.detail})` : "");

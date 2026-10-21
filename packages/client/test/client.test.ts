@@ -317,3 +317,25 @@ test("a GeoJSON download too large to read as text is a NinaParseError naming th
     return true;
   });
 });
+
+test("a refused region key, id or source shows an invisible character escaped, never raw (D10, bug 1 of 2026-10-21)", async () => {
+  // A key copied with a zero-width space read as the valid key being refused.
+  const zwsp = "​";
+  const cases: Array<[(c: NinaClient) => Promise<unknown>, string]> = [
+    [(c) => c.dashboard(`${zwsp}05515000000`), "\\u200b"],
+    [(c) => c.dashboard(`0551500⁠000`), "\\u2060"],
+    [(c) => c.mapData(`dw${zwsp}d` as NinaSource), "\\u200b"],
+    [(c) => c.warnings.get(`a${zwsp}b`), "\\u200b"],
+    [(c) => c.archive.mapping(`a/­b`), "\\u00ad"],
+  ];
+  for (const [call, escape] of cases) {
+    const mt = constantJson([]);
+    await assert.rejects(call(clientWith(mt)), (err: Error) => {
+      assert.ok(err instanceof NinaValidationError, String(err));
+      assert.ok(err.message.includes(escape), err.message);
+      assert.doesNotMatch(err.message, /[​⁠­]/);
+      return true;
+    });
+    assert.equal(mt.calls.length, 0);
+  }
+});

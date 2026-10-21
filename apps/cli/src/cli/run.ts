@@ -125,10 +125,21 @@ function valueOptionsOf(program: Command): Set<string> {
 function commanderRecords(log: Logger, text: string): void {
   if (text.trim() === "") return;
   if (text.startsWith("error: ")) {
-    log.error("cli", joinHint(text.slice("error: ".length)));
+    log.error("cli", joinHint(escapeFormatChars(text.slice("error: ".length))));
     return;
   }
   for (const line of text.split("\n")) if (line.trim() !== "") log.info("cli", line.trimEnd());
+}
+
+/**
+ * `text` with every Unicode format character (General Category Cf: a zero-width space, a soft
+ * hyphen, a BOM, the bidi controls) written as a `\uXXXX` escape. commander echoes a refused
+ * value as typed (`argument 'a<ZWSP>b' is invalid`); the record escapes control and bidi
+ * characters, this keeps the invisible ones visible too, as the library's own messages do
+ * (`quoteValue`).
+ */
+export function escapeFormatChars(text: string): string {
+  return text.replace(/\p{Cf}/gu, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
 
 /** `message` with a final `\n(Did you mean …?)` line joined to it by a space: one record. */
@@ -199,6 +210,9 @@ export function redactionFor(argv: readonly string[]): Redaction {
       secrets.add(secret);
       secrets.add(escapeTerminalControls(secret));
       secrets.add(JSON.stringify(secret).slice(1, -1));
+      // As a commander echo or a quoted refusal shows it: invisible characters escaped.
+      secrets.add(escapeFormatChars(secret));
+      secrets.add(escapeFormatChars(JSON.stringify(secret).slice(1, -1)));
       // What a server echoes back: the Basic value and the decoded user:password on
       // stdout and stderr, the password alone (it may well occur in the data) on stderr.
       const [basic, pair, password] = echoedCredentialForms(secret);

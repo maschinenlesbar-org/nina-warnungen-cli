@@ -274,7 +274,12 @@ from JavaScript (`dashboard(12345678)`, `warnings.get(null)`), never a raw `Type
 An echoed value (an identifier, a region key, a request path holding one) and server text
 (an error `detail`, a redirect target) are cut at `MAX_MESSAGE_VALUE_LENGTH` (500) characters, ending in `…`,
 never inside a surrogate pair (`cutText`), so the message stays well-formed; the error's
-properties keep the full value.
+properties keep the full value. A value the user gave (an identifier, a region key, a source) is
+quoted with `quoteValue` (`errors.ts`): as `JSON.stringify` does, and with DEL, C1, U+2028/2029
+and every Unicode format character (a zero-width space, a soft hyphen, a BOM, a bidi control)
+written as `\uXXXX`, so a key copied with a zero-width space never reads as the valid key being
+refused. commander's own echo of a refused option value gets the same escapes in its record
+(`escapeFormatChars` in `run.ts`).
 
 **Response shapes.** Every client method checks the 2xx body against the shape its
 endpoint documents before returning it: `mapData` and `dashboard` an array of objects

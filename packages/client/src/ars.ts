@@ -1,7 +1,7 @@
 // Checks for the region key (Amtlicher Regionalschlüssel, ARS) the dashboard
 // endpoint is addressed by. Shared by the client (library callers) and the CLI.
 
-import { cutForMessage } from "./errors.js";
+import { quoteValue } from "./errors.js";
 
 /**
  * District keys whose district part (digits 3-5) is `000`: the city-states Hamburg
@@ -24,7 +24,7 @@ const DISTRICT_ARS = /^\d{5}0{7}$/;
 export function arsProblem(ars: string): string | undefined {
   // A JavaScript caller may pass anything; a number used to reach `ars.slice` (TypeError).
   if (typeof ars !== "string") return `Invalid region key: expected a string, got ${ars === null ? "null" : typeof ars}.`;
-  const key = cutForMessage(JSON.stringify(ars));
+  const key = quoteValue(ars);
   if (!/^\d{12}$/.test(ars)) {
     // The district key the input most likely meant, if its shape tells.
     let candidate: string | undefined;
