@@ -407,6 +407,7 @@ everything that drives the CLI is in `apps/cli/test/`.
 - **`types.test.ts`** — a consumer compiled by `tsc` with `exactOptionalPropertyTypes` (it starts a process: 30 s) can pass `undefined` for every option, and at run time `undefined` means the default.
 - **`client.test.ts`** — every endpoint's method/URL mapping, including identifier URL-encoding — mocked transport.
 - **`cli.test.ts`** — end-to-end command parsing, rendering, file output and exit codes, plus negative paths (network/parse/API errors, write failures, content-type warning) — mocked client.
+- **`output.test.ts`** — the output path: which `JSON.stringify` path `--compact` takes (the fast one, or the gap path for an answer holding a string of 64 Mi characters or more, on which Node 26's fast path aborts the process).
 - **`shared.test.ts`** — the `parseIntArg` value parser (accepts plain decimals, rejects everything else).
 - **`validate.test.ts`** — `assertValid`, the `NinaValidationError` exit-code mapping and the `parity()` helper.
 - **`log.test.ts`** — the record helpers of `apps/cli/src/cli/log.ts` on their own
