@@ -263,6 +263,15 @@ gateway answers with HTTP 200 — is a `NinaParseError` (`Unexpected response fr
 expected …, got …`, exit 1), never data: `jq 'length'` would read `null` and `{}` as 0, a
 false all-clear.
 
+**Numbers.** `JSON.parse` changes some numbers silently: one out of a double's range (`1e400`
+becomes `Infinity`, printed as `null`), one past 2^53 that it rounds (`12345678901234567890`
+prints as `12345678901234567000`), and a non-zero one too small for a double (`1e-400` becomes
+`0`). A JSON answer holding such a number is a `NinaParseError` (`Unexpected response from
+<path>: the number <N> cannot be represented exactly.`, exit 1), never a changed value. Past
+2^53 a number passes when it prints as written (`1e23`); below 2^53 a decimal fraction keeps a
+double's usual precision. A scan of the text after `JSON.parse` (`firstInexactNumber`) skips
+strings. Raw downloads (`warning geojson`) are bytes and are not checked.
+
 **Query builder.** [`buildQueryString`](packages/client/src/query.ts) — a dependency-free
 serialiser: omits `undefined`/`null`, repeats keys for arrays, renders booleans
 as `true`/`false`, dates as ISO-8601, and encodes spaces as `%20` (not `+`).
