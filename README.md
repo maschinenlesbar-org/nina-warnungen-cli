@@ -138,7 +138,9 @@ style; `--log-format jsonl` writes one JSON object per line instead. A record is
 control character or a bidi control in a message (a server's text, a value you typed) is
 written as an escape (`\n`, `\u001b`, `\u202e`), so it can neither split a record nor
 forge another one, nor steer the terminal; a message longer than 4000 characters is cut
-and ends in `… (N more characters)`:
+and ends in `… (N more characters)`. Text in an answer that is not valid (bytes invalid in its
+charset, a lone surrogate) is replaced with U+FFFD and said in one `WARN` record of `nina.api`
+naming the count and the request, so the output stays valid JSON for `jq`:
 
 ```text
 2026-10-09T14:03:12.481Z WARN  [nina.http] requests to mirror.test are sent unencrypted (http:, not https:)

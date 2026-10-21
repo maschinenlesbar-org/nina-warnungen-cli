@@ -188,7 +188,8 @@ live pointing to its archive, is reported as not found (exit `4`).
 `--log-format jsonl` as one JSON object per line. The areas: `cli` (usage errors,
 commander's messages, unexpected errors), `api` (the API's answers: an error status, a
 warning id that is no longer live, the content-type warning of a download, and a
-malformed answer — bad JSON, the wrong shape, an unknown charset), `http` (the
+malformed answer — bad JSON, the wrong shape, an unknown charset — each naming the request, and
+a WARN when characters of an answer were not valid text and were replaced with U+FFFD), `http` (the
 connection, the cleartext warning, and one WARN per retry before it waits) and `output` (the `-o` file, stdout failures). A
 record is always one line; control characters in it are escaped.
 

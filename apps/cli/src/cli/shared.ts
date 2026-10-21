@@ -351,6 +351,8 @@ export function action(
     if (cleartext !== undefined) logOf(deps).warn("http", cleartext);
     const options = toEngineOptions(global);
     options.onRetry = (event) => logOf(deps).warn("http", retryMessage(event));
+    // Text in an answer replaced with U+FFFD is said, never silent (D2).
+    options.onWarning = (message) => logOf(deps).warn("api", message);
     const client = deps.createClient(options);
     await fn({ client, global, opts: command.opts() }, positionals);
   };

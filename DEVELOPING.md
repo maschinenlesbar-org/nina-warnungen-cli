@@ -63,6 +63,7 @@ new NinaClient({
   maxResponseBytes: 50 << 20, // example: abort over 50 MiB; the default is 100 MiB (0 = unlimited)
   userAgent: "my-app/1.0",
   transport: customTransport, // inject your own HTTP transport
+  onWarning: (message) => console.warn(message), // an answer delivered changed (U+FFFD), see Charset
   bigIntegerKeys: new Set(["someId"]), // members whose numbers may pass 2^53: delivered as strings
 });
 ```
@@ -243,7 +244,12 @@ through `run()` and through the library on one recording mock transport.
 **Charset.** JSON bodies are decoded by the charset their `Content-Type` names (UTF-8
 when it names none) with `TextDecoder`, which also drops a leading byte order mark; an
 unknown charset label is a `NinaParseError`. Raw downloads (`warning geojson`) stay bytes.
-Every error about an answer names the request, `GET <url>: …` (the URL absolute, its userinfo
+Text is never changed silently: bytes that are not valid in the charset and a lone surrogate
+written as a JSON escape (`\ud800`, which `jq` refuses, the whole output with it) become U+FFFD,
+and `getJson` tells the engine option `onWarning` how many (`GET <url>: 2 characters of the
+answer were not valid text (invalid bytes or a lone surrogate) and replaced with U+FFFD.`); the
+CLI's `action()` logs it as a `WARN` record of `nina.api`. One bad character never sinks a whole
+answer. Every error about an answer names the request, `GET <url>: …` (the URL absolute, its userinfo
 redacted, cut at 500 characters; `RequestEngine.describeUrl`): an unknown charset (`unsupported
 response charset "…"`), an empty body (`empty response body`), a body that is not JSON (`the
 answer is not valid JSON`, plus `(expected JSON, got Content-Type "text/html")` when the server

@@ -714,3 +714,13 @@ test("a single-value option given twice is a usage error before any request (K5)
   const flags = makeCli(() => jsonResponse([]));
   assert.equal(await run(["--compact", "--compact", "map-data", "dwd"], flags.deps), 0, flags.err.join("\n"));
 });
+
+test("text in an answer that is not valid is replaced with U+FFFD and said in one WARN of nina.api (D2)", async () => {
+  const body = Buffer.concat([Buffer.from('[{"id":"a","t":"x'), Buffer.from([0xff]), Buffer.from('y","u":"\\ud800"}]')]);
+  const cli = makeCli(() => rawResponse(body, "application/json"));
+  assert.equal(await run(["--compact", "map-data", "dwd"], cli.deps), 0);
+  assert.deepEqual(JSON.parse(cli.out.join("\n")), [{ id: "a", t: "x\ufffdy", u: "\ufffd" }]);
+  assert.deepEqual(cli.err.map(untimed), [
+    "WARN  [nina.api] GET https://warnung.bund.de/api31/dwd/mapData.json: 2 characters of the answer were not valid text (invalid bytes or a lone surrogate) and replaced with U+FFFD.",
+  ]);
+});

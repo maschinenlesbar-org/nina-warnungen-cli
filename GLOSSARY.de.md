@@ -190,7 +190,8 @@ Zeitstempel, eine Stufe (`ERROR`, `WARN`, `INFO`) und ein Thema `nina.<Bereich>`
 Bereiche: `cli` (Bedienfehler, Meldungen von commander, unerwartete Fehler), `api` (die
 Antworten der API: ein Fehlerstatus, eine nicht mehr aktuelle Warnungskennung, die
 Content-Type-Warnung eines Downloads und eine fehlerhafte Antwort – ungültiges JSON, die
-falsche Form, ein unbekannter Zeichensatz), `http` (die Verbindung, die Klartext-Warnung und je Wiederholung eine WARN-Zeile vor dem Warten)
+falsche Form, ein unbekannter Zeichensatz —, jeweils mit der Anfrage, und eine WARN-Zeile, wenn
+Zeichen einer Antwort kein gültiger Text waren und durch U+FFFD ersetzt wurden), `http` (die Verbindung, die Klartext-Warnung und je Wiederholung eine WARN-Zeile vor dem Warten)
 und `output` (die `-o`-Datei, Schreibfehler auf stdout). Ein Eintrag ist immer eine
 Zeile; Steuerzeichen darin werden maskiert.
 
