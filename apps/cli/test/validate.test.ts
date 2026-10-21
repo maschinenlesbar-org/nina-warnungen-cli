@@ -6,6 +6,7 @@ import { NinaError, NinaValidationError } from "@maschinenlesbar.org/nina-warnun
 import { NinaClient } from "@maschinenlesbar.org/nina-warnungen-client/internal/client";
 import { run } from "../src/cli/run.js";
 import type { CliDeps } from "../src/cli/io.js";
+import type { Transport } from "@maschinenlesbar.org/nina-warnungen-client/internal/http";
 import { parity, jsonResponse, untimed } from "./helpers.js";
 
 const nonBlank: Problem<string> = (v) => (v.trim() === "" ? "Expected a non-empty value." : undefined);
@@ -80,6 +81,25 @@ test("identifierProblem rejects a blank, non-string or separator-bearing identif
   assert.equal(identifierProblem("a/b"), '"a/b" must not contain a path separator (/ or \\).');
   assert.equal(identifierProblem("a\\b"), '"a\\\\b" must not contain a path separator (/ or \\).');
   assert.equal(lib.identifierProblem, identifierProblem);
+});
+
+test("an identifier that is a dot segment is refused, on the CLI and in the library, before any request", async () => {
+  const { identifierProblem } = await import("@maschinenlesbar.org/nina-warnungen-client/internal/validate");
+  assert.equal(identifierProblem("."), '"." is a dot segment, not a warning identifier.');
+  assert.equal(identifierProblem(".."), '".." is a dot segment, not a warning identifier.');
+  assert.equal(identifierProblem("..."), undefined);
+  for (const [argv, call] of [
+    [["warning", "get", "--", " .. "], (t: Transport) => new NinaClient({ transport: t }).warnings.get(" .. ")],
+    [["archive", "get", "--", "..json"], (t: Transport) => new NinaClient({ transport: t }).archive.get("..json")],
+    [["archive", "mapping", "--", "."], (t: Transport) => new NinaClient({ transport: t }).archive.mapping(".")],
+    [["warning", "geojson", "--", ".geojson"], (t: Transport) => new NinaClient({ transport: t }).warnings.geojson(".geojson")],
+  ] as const) {
+    const { cli, lib: outcome } = await parity([...argv], call);
+    assert.equal(cli.code, 1, argv.join(" "));
+    assert.deepEqual(cli.requests, [], argv.join(" "));
+    assert.ok(!outcome.ok && outcome.error instanceof NinaValidationError, argv.join(" "));
+    assert.deepEqual(outcome.requests, [], argv.join(" "));
+  }
 });
 
 test("headerValueProblem rejects blank, control characters other than tab, DEL and non-Latin-1", async () => {

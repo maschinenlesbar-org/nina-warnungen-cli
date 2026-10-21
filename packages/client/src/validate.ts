@@ -70,7 +70,7 @@ export function normalizeIdentifier(value: string): string {
  * (`/warnings/.json`, `/archive.mowas/-mapping.json`); one with a separator is
  * percent-encoded and can never match a real id (a `../../etc/passwd` attempt included);
  * and no real id contains whitespace or an invisible character, which the API answers with
- * a redirect to its archive. All are refused before any request rather than ending in a
+ * a redirect to its archive; `.` and `..` are dot segments, not ids. All are refused before any request rather than ending in a
  * remote 404 or a "not a live warning" that reads like an expired id.
  */
 export const identifierProblem: Problem<unknown> = (value) => {
@@ -80,6 +80,8 @@ export const identifierProblem: Problem<unknown> = (value) => {
   if (/[/\\]/.test(text)) {
     return `${cutForMessage(JSON.stringify(text))} must not contain a path separator (/ or \\).`;
   }
+  // "." and ".." are no warning ids: kept out of a path segment, as every *-cli does (P24).
+  if (text === "." || text === "..") return `${JSON.stringify(text)} is a dot segment, not a warning identifier.`;
   const hidden = /[\s\p{Cc}\p{Cf}]/u.exec(text);
   if (hidden !== null) {
     const code = hidden[0].codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0");

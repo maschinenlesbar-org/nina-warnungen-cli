@@ -248,8 +248,8 @@ NFC, surrounding whitespace (CR, NBSP, BOM included), Unicode format characters 
 quotes dropped, and a `.json`/`.geojson` suffix in any case removed. The API answers each
 such variant of a live id with the archive redirect, which read as "the warning has
 expired". Case is kept — the API's ids are case-sensitive and mixed-case. Then
-`identifierProblem` refuses a blank id, a path separator, and whitespace or an
-invisible character inside. `NinaNotFoundError`'s message says no live warning has
+`identifierProblem` refuses a blank id, a path separator, a dot segment (`.` or `..`), and
+whitespace or an invisible character inside. `NinaNotFoundError`'s message says no live warning has
 exactly this id, not that it ended: the API redirects ended and mistyped ids alike.
 
 **Messages.** Every rejected input is a `NinaValidationError`, also for a wrong type
