@@ -413,7 +413,7 @@ everything that drives the CLI is in `apps/cli/test/`.
 - **`log.test.ts`** — the record helpers of `apps/cli/src/cli/log.ts` on their own
   (`escapeForRecord`, `formatLogRecord`); the CLI-level checks are P23's.
 - **`conformance-p*.test.ts`** — the workspace's shared conformance checks from the 2026-10-05 review
-  (P1 credential redaction in CLI output, P2 in library objects, P4 base-URL validation, P5 transport contract, P6 retry policy, P7 closed pipes, P8/P9/P13 charsets, response shapes and error classes, and from the 2026-10-06 follow-up P20 the cleartext `http:` warning and P21 README links: a relative link in `README.md` must point at a file the npm package ships — link any other document by its `https://github.com/maschinenlesbar-org/nina-warnungen-cli/blob/main/…` URL); copied across the `*-cli` repos, only the adapter
+  (P1 credential redaction in CLI output, P2 in library objects, P4 base-URL validation, P5 transport contract, P6 retry policy, P7 closed pipes, P8/P9/P13 charsets, response shapes and error classes, and from the 2026-10-06 follow-up P20 the cleartext `http:` warning and P21 README links: a relative link in `README.md` must point at a file the npm package ships — link any other document by its `https://github.com/maschinenlesbar-org/nina-warnungen-cli/blob/main/…` URL; from the 2026-10-21 kit rollout P24 the input corpus (every id in a path is sent canonical or refused; nina has no text filter), P25 the response corpus (a number JSON can't carry exactly, an empty answer) and P26 `-o` integrity (a write cut short under `ulimit -f` leaves the old file and nothing else; it starts the built bin: 30 s)); copied across the `*-cli` repos, only the adapter
   block at the top differs.
 
 ## Continuous integration
