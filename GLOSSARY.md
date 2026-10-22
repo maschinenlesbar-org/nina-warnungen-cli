@@ -157,6 +157,11 @@ an entry in the event-code catalogue (see `reference event-codes`).
 (`DashboardEntry`) records: the human-readable headline and the time the message
 was sent.
 
+**effective / onset / expires.** On dashboard entries (`DashboardEntry`), top-level
+timestamps next to `sent`: when the warning takes effect, when the event starts and when
+the warning expires. DWD entries carry the window; on MoWaS entries the three are `null`,
+and the expiry, if any, is in `warning get` (`info[].expires`).
+
 ---
 
 ## API behaviour

@@ -157,6 +157,11 @@ auf einen Eintrag im Katalog der Ereigniscodes (siehe `reference event-codes`).
 Dashboards (`DashboardEntry`): die menschenlesbare Überschrift und der Zeitpunkt, zu dem
 die Meldung versendet wurde.
 
+**effective / onset / expires.** In Einträgen des Dashboards (`DashboardEntry`) Zeitstempel
+auf oberster Ebene neben `sent`: wann die Warnung gilt, wann das Ereignis beginnt und wann
+die Warnung abläuft. DWD-Einträge enthalten das Zeitfenster; in MoWaS-Einträgen sind alle
+drei `null`, und ein Ablauf steht, wenn überhaupt, in `warning get` (`info[].expires`).
+
 ---
 
 ## API-Verhalten

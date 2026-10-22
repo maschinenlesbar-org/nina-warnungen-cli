@@ -37,7 +37,14 @@ export interface DashboardEntry {
   id: string;
   payload: JsonObject;
   i18nTitle?: I18nText;
+  /** When the message was sent. */
   sent?: string;
+  /** When it takes effect; `null` on some entries (MoWaS). */
+  effective?: string | null;
+  /** When the event starts (DWD); `null` on MoWaS entries. */
+  onset?: string | null;
+  /** When the warning expires (DWD); `null` on MoWaS entries. */
+  expires?: string | null;
 }
 
 /** One entry of an archive `…-mapping.json` history list. */

@@ -78,16 +78,18 @@ not assume the summary fields. The fields that matter (checked live on 2026-09-1
 | `payload.data.provider` | Which source it came from (DWD, MOWAS, KATWARN, …). |
 | `payload.data.area` | **Not a readable place.** An encoded area reference, e.g. `{"type":"GRID","data":"268119,268731+1,500001"}` or `{"type":"ZGEM","data":"5981,100001"}`. The readable area is in `nina warning get <id>` → `info[].area[].areaDesc` (e.g. `Teile von Lauterbach`). |
 | `payload.hash` | A per-entry hash — compare it between checks to spot a changed entry (Step 5). |
-| `sent` / `effective` | Top-level ISO timestamps: when the message was sent, and (not on every entry) when it takes effect. **There is no `onset` or `expires` on dashboard entries.** |
+| `sent` / `effective` | Top-level ISO timestamps: when the message was sent, and (not on every entry) when it takes effect. |
+| `onset` / `expires` | Top-level ISO timestamps of the warning window: when the event starts and when the warning expires. Set on DWD entries; present but **`null`** on MoWaS entries (and possibly others). |
 
 ## Step 3 — Filter and rank
 
 Same triage as a national briefing, but scoped to this region:
 
 - **Drop `payload.data.msgType === "Cancel"`** (Entwarnung) — withdrawn, not active.
-- **Expiry isn't on the dashboard.** If the end time matters, look it up per entry:
+- **Expiry: use the entry's top-level `expires`.** If it is set and in the past, the warning
+  is over — drop it. When it is `null` (MoWaS) and the end time matters, look it up per entry:
   `nina warning get <id>` → `info[].expires`, or the entry's `expiresDate` in
-  `nina map-data <source>`. Both are often missing or `null` — then say "no expiry given"
+  `nina map-data <source>`. Both are often missing or `null` too — then say "no expiry given"
   and treat the warning as active; don't guess one.
 - Rank survivors by `payload.data.severity` (`Extreme`→`Minor`→`Unknown`), then
   `urgency === "Immediate"` first, then most recent `sent`.
@@ -98,15 +100,15 @@ Same triage as a national briefing, but scoped to this region:
 Lkr. Rosenheim (091870000000) — ⚠ 1 active warning
 
  🟠 MODERATE  Amtliche WARNUNG vor DAUERREGEN (DWD)
-              effective 09.06 06:00 · expires 11.06 00:00 (from warning get) · Immediate
+              effective 09.06 06:00 · expires 11.06 00:00 · Immediate
 ```
 
 Rules:
 - **Name the region and its key** so the user can confirm you resolved it correctly.
 - Empty `[]` → "No active warnings for <region> right now." Be explicit it's a real
   all-clear, not a lookup failure — and that it depends on the key being right.
-- Lead with severity; show `effective` (or `sent`), an expiry only if you looked one up
-  (Step 3), and the `provider`.
+- Lead with severity; show `effective` (or `sent`, or `onset` when it is later), an expiry
+  only when the entry or a look-up gives one (Step 3), and the `provider`.
 - For a readable area, use `info[].area[].areaDesc` from `nina warning get <id>`, never
   the encoded `payload.data.area`.
 - Offer `nina warning get <id>` for the full CAP detail (instructions, area descriptions)
