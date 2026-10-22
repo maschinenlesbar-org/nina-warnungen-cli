@@ -647,9 +647,9 @@ test("a base URL typed without its scheme is still a credential to redact (L14)"
 
 test("a parse error after -o --log-format jsonl is logged in text, as commander read it (L6)", async () => {
   const cli = makeCli(() => jsonResponse([]));
-  // commander takes "--log-format" as the -o file and "jsonl" as an unknown command.
+  // commander takes "--log-format" as the -o file, which -o refuses as the next option (T13).
   assert.equal(await run(["-o", "--log-format", "jsonl", "map-data", "dwd"], cli.deps), 1);
-  assert.match(untimed(cli.err[0] ?? ""), /^ERROR \[nina\.cli\] unknown command 'jsonl'/);
+  assert.match(untimed(cli.err[0] ?? ""), /^ERROR \[nina\.cli\] option '-o, --output <file>' argument '--log-format' is invalid\. looks like a missing value/);
 });
 
 test("every -o failure is an ERROR record of nina.output, exit 1, whatever the CliIO threw (L8)", async () => {
@@ -741,4 +741,18 @@ test("commander's echo of a refused value shows an invisible character escaped, 
   const err = cli.err.join("\n");
   assert.ok(err.includes("a\\u200bb"), err);
   assert.doesNotMatch(err, /​/);
+});
+
+test("-o refuses the next option as its file name: a dash-leading value is a usage error before any request (T13)", async () => {
+  for (const argv of [["-o", "--compact", "map-data", "dwd"], ["--output=-v", "map-data", "dwd"], ["map-data", "dwd", "-o", "-x"]]) {
+    const cli = makeCli(() => jsonResponse([]));
+    assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
+    assert.equal(cli.mt.calls.length, 0, argv.join(" "));
+    assert.equal(cli.files.size, 0, argv.join(" "));
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[nina\.cli\] .*looks like a missing value — "-\S*" is the next option.*write \.\/-name\./m, argv.join(" "));
+  }
+  // "-" is stdout, and a file whose name starts with a dash is written as ./-name.
+  const ok = makeCli(() => jsonResponse([]));
+  assert.equal(await run(["-o", "./-x", "map-data", "dwd"], ok.deps), 0);
+  assert.deepEqual([...ok.files.keys()], ["./-x"]);
 });

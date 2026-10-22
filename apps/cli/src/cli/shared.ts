@@ -5,7 +5,7 @@ import { constants } from "node:buffer";
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import { isDirectoryMessage, logOf, refuseOverwrite, type CliDeps } from "./io.js";
-import { NinaError, NinaIOError, NinaValidationError, cutForMessage } from "@maschinenlesbar.org/nina-warnungen-client/internal/errors";
+import { NinaError, NinaIOError, NinaValidationError, cutForMessage, quoteValue } from "@maschinenlesbar.org/nina-warnungen-client/internal/errors";
 import { baseUrlProblem, headerValueProblem } from "@maschinenlesbar.org/nina-warnungen-client/internal/validate";
 import { DEFAULT_BASE_URL, cleartextProblem, isBidiControl, type EngineOptions, type RawResponse } from "@maschinenlesbar.org/nina-warnungen-client/internal/engine";
 import type { RetryEvent } from "@maschinenlesbar.org/nina-warnungen-client/internal/engine";
@@ -99,9 +99,22 @@ export interface GlobalOptions {
   force?: boolean;
 }
 
-/** commander value-parser for `-o, --output <file>`: a blank path is a usage error. `-` is stdout. */
+/**
+ * commander value-parser for `-o, --output <file>`: a blank path is a usage error. `-` is stdout;
+ * any other value starting with a dash is refused as the next option.
+ */
 export function parseOutputPath(value: string): string {
   if (value.trim() === "") throw new InvalidArgumentError("Expected a non-empty value.");
+  // Any other dash-leading value is the next option, consumed because -o was left without a
+  // value: `nina map-data dwd -o --compact` wrote a pretty-printed file named "--compact" with
+  // exit 0. commander hands the parser the same string for `-o -x` and `--output=-x`, so a file
+  // whose name starts with a dash is written as `./-x`.
+  if (value !== "-" && value.startsWith("-")) {
+    throw new InvalidArgumentError(
+      `looks like a missing value — ${quoteValue(value)} is the next option, consumed because ` +
+        "this one was left without a value. For a file whose name starts with a dash, write ./-name.",
+    );
+  }
   return value;
 }
 
