@@ -230,7 +230,6 @@ export function redactionFor(argv: readonly string[]): Redaction {
   return { out, err: (text) => redactSecrets(out(text), passwordList) };
 }
 
-/** Where a scheme (`https://`) starts inside a value: anywhere, not only at its start. */
 /** The most URLs `urlsWithin` reads inside one argument, after the one it may start with. */
 const MAX_URLS_WITHIN = 64;
 
