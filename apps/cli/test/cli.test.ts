@@ -777,3 +777,18 @@ test("a password in a URL anywhere in an argument is redacted in every message, 
     assert.doesNotMatch(err, /p w|bob:/, `${argv.join(" ")}: ${err}`);
   }
 });
+
+test("warning geojson on a terminal escapes the bidi controls like C1 and DEL; piped it stays byte-exact (bug 3 of 2026-10-21)", async () => {
+  const chars = [0x9b, 0x7f, 0x202e, 0x2066, 0x200f, 0x061c].map((c) => String.fromCharCode(c)).join("");
+  const body = Buffer.from(`{"type":"FeatureCollection","features":[],"name":"a${chars}b"}`, "utf8");
+  const tty = makeCli(() => rawResponse(body, "application/geo+json"));
+  tty.deps.io.isTerminal = () => true;
+  assert.equal(await run(["warning", "geojson", "x"], tty.deps), 0);
+  const shown = tty.out.join("");
+  assert.ok(shown.includes("a\\u009b\\u007f\\u202e\\u2066\\u200f\\u061cb"), shown);
+  assert.doesNotMatch(shown, /[‮⁦‏؜]/);
+  const piped = makeCli(() => rawResponse(body, "application/geo+json"));
+  piped.deps.io.isTerminal = () => false;
+  assert.equal(await run(["warning", "geojson", "x"], piped.deps), 0);
+  assert.equal(piped.out.join(""), body.toString("utf8"));
+});

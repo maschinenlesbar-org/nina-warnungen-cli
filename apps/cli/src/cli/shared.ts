@@ -201,16 +201,18 @@ export function escapeControlChars(json: string): string {
 
 /**
  * Escape the control characters in raw text bound for a terminal: C0 except tab,
- * newline and carriage return, DEL and C1 become `\uXXXX`. Keeps a server's
- * OSC/CSI sequences (window title, colours, worse) from reaching the terminal, and
- * a JSON body stays JSON (these characters are only legal escaped inside strings).
+ * newline and carriage return, DEL, C1 and the bidi controls (`isBidiControl`) become
+ * `\uXXXX`. Keeps a server's OSC/CSI sequences (window title, colours, worse) from reaching
+ * the terminal, and an override such as U+202E from showing the rest of the line reversed, as
+ * on every JSON command; a JSON body stays JSON (these characters are only legal escaped inside
+ * strings, or are the same character escaped).
  */
 export function escapeTerminalControls(text: string): string {
   let result = "";
   let from = 0;
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i);
-    const control = (c < 0x20 && c !== 0x09 && c !== 0x0a && c !== 0x0d) || (c >= 0x7f && c <= 0x9f);
+    const control = (c < 0x20 && c !== 0x09 && c !== 0x0a && c !== 0x0d) || (c >= 0x7f && c <= 0x9f) || isBidiControl(c);
     if (control) {
       result += text.slice(from, i) + "\\u" + c.toString(16).padStart(4, "0");
       from = i + 1;

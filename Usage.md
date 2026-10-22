@@ -82,7 +82,8 @@ nina warning geojson mow.DE-SL-SLS-W038-20260113-000 -o warn.geojson
 `geojson` writes the raw bytes — use `-o/--output <file>` to save them, or omit it
 to stream the GeoJSON to stdout (e.g. for piping into another tool). Piped or redirected,
 stdout gets the bytes exactly as the server sent them; on a terminal, control characters
-are escaped as `\uXXXX` so the body cannot send escape sequences to it. A body that isn't
+and bidi controls are escaped as `\uXXXX` so the body cannot send escape sequences to it or
+show the rest of a line reversed. A body that isn't
 GeoJSON (a gateway's HTML page, an error object) is an error (exit `1`), and nothing is
 written. `-o -` also means stdout.
 
