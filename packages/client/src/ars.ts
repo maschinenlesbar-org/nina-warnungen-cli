@@ -2,6 +2,7 @@
 // endpoint is addressed by. Shared by the client (library callers) and the CLI.
 
 import { quoteValue } from "./errors.js";
+import { tokenProblem } from "./validate.js";
 
 /**
  * District keys whose district part (digits 3-5) is `000`: the city-states Hamburg
@@ -14,16 +15,22 @@ export const CITY_STATE_DISTRICT_KEYS: readonly string[] = ["020000000000", "110
 const DISTRICT_ARS = /^\d{5}0{7}$/;
 
 /**
- * Why `ars` cannot address the dashboard, or `undefined` if it can. The dashboard
+ * Why `value` cannot address the dashboard, or `undefined` if it can. The key is a token
+ * (`tokenProblem`), sent trimmed (`normalizeToken`). The dashboard
  * takes a district-level ARS only: 12 digits, the last seven `0`. Anything else gets
  * an opaque HTTP 400 or 404 from the API, so it is refused with the recipe (and, where
  * the intended district is clear, the key to use). The dashboard also answers a
  * state-level key with `[]` and HTTP 200 even while a district in that state has
  * warnings, which reads as an all-clear; so such keys are refused too.
  */
-export function arsProblem(ars: string): string | undefined {
+export function arsProblem(value: string): string | undefined {
   // A JavaScript caller may pass anything; a number used to reach `ars.slice` (TypeError).
-  if (typeof ars !== "string") return `Invalid region key: expected a string, got ${ars === null ? "null" : typeof ars}.`;
+  if (typeof value !== "string") return `Invalid region key: expected a string, got ${value === null ? "null" : typeof value}.`;
+  // A key is a token: surrounding whitespace (a CR from a CRLF file) is trimmed, an invisible
+  // character is refused, visibly.
+  const token = tokenProblem(value);
+  if (token !== undefined) return `Invalid region key: ${token}`;
+  const ars = value.trim();
   const key = quoteValue(ars);
   if (!/^\d{12}$/.test(ars)) {
     // The district key the input most likely meant, if its shape tells.

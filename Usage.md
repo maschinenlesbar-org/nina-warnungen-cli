@@ -195,8 +195,10 @@ Notes: numeric options accept only plain non-negative decimal integers. An optio
 takes a value may be given only once (`--timeout 100 --timeout 200` is a usage error, exit 1,
 before any request); flags such as `--compact` may repeat. An
 identifier that starts with `-` must be passed after a `--` separator, e.g.
-`nina warning get -- -odd.identifier`. Whitespace, invisible characters and quotes
-around an identifier and a `.json`/`.geojson` suffix are dropped before the request.
+`nina warning get -- -odd.identifier`. Whitespace and quotes around an identifier and a
+`.json`/`.geojson` suffix are dropped before the request, and whitespace around a region key
+or a source; an invisible or control character (a zero-width space, a soft hyphen, a bidi
+control) in any of them is refused before the request and shown escaped (`\u200b`).
 Exit codes: `0` success, `4` on a `404`
 from the API or for a warning id that no live warning has (the API redirects it to its
 archive instead of answering `404`, for an ended and a mistyped id alike), `1` for any

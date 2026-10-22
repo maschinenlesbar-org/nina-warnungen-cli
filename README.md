@@ -194,8 +194,9 @@ An identifier that begins with `-` would be parsed as an option; pass it after a
   redirects to its archive (`/api31/archive/alerts/<id>`). The CLI does not follow
   the redirect; it prints `… is not a live warning …` with that archive URL and exits `4`.
   The API redirects a mistyped id the same way, and ids are case-sensitive, so exit `4`
-  does not prove that a warning ended. Whitespace, invisible characters and quotes around
-  an id and a `.json`/`.geojson` suffix are dropped before the request.
+  does not prove that a warning ended. Whitespace and quotes around an id and a
+  `.json`/`.geojson` suffix are dropped before the request; an invisible character (a
+  zero-width space, a bidi control) anywhere in it is refused, shown as `\u200b`.
 - **Exit `4` / `no such district key` from `dashboard`** — the key has the right shape
   but NINA knows no district by it (e.g. a Regierungsbezirk key such as `051000000000`, or
   an unassigned number), and the API answered `404`. Look the district's key up again:

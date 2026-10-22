@@ -99,7 +99,9 @@ to these methods.
 
 `client.dashboard(ars)` checks the key first with the exported `arsProblem(ars)` (a
 message, or `undefined` for a usable key) and rejects with a `NinaValidationError`
-carrying that message before any
+carrying that message before any request; the key is a token (`tokenProblem`: blank, a
+control, format or invisible character, a lone surrogate are refused) and is sent trimmed
+(`normalizeToken`). Refused before any
 request: anything but 12 digits with the last seven `0` (the API answers an AGS with an
 opaque 400 and a municipality key with 404), and a state-level key (digits 3–5 `000`, other than `CITY_STATE_DISTRICT_KEYS`,
 Hamburg and Berlin) would get `[]` from the API, a false all-clear. The CLI's
@@ -259,14 +261,22 @@ response charset "…"`), an empty body (`empty response body`), a body that is 
 answer is not valid JSON`, plus `(expected JSON, got Content-Type "text/html")` when the server
 named another type), an inexact number and the wrong shape.
 
+**Tokens.** Every value that goes into a request path is a token: an identifier, a region key,
+a source. The exported `tokenProblem(value)` refuses a blank one (also one of only invisible
+characters or combining marks), a lone surrogate, and any control or format character (Cc, Cf:
+a zero-width space, ZWJ, a soft hyphen, a BOM inside, a bidi control) after trimming, quoting the
+value visibly; `normalizeToken(value)` is what is sent: trimmed, NFC. A source is then looked up
+exactly (case is not folded), a region key checked by `arsProblem`.
+
 **Identifiers.** The four identifier methods (`warnings.get`/`geojson`,
-`archive.get`/`mapping`) pass the id through the exported `normalizeIdentifier` first:
-NFC, surrounding whitespace (CR, NBSP, BOM included), Unicode format characters and
-quotes dropped, and a `.json`/`.geojson` suffix in any case removed. The API answers each
+`archive.get`/`mapping`) check the id with `identifierProblem` (the token rules, then the rules
+below) and send the exported `normalizeIdentifier`'s form:
+NFC, surrounding whitespace (CR, NBSP, BOM included) and quotes dropped, and a
+`.json`/`.geojson` suffix in any case removed. The API answers each
 such variant of a live id with the archive redirect, which read as "the warning has
 expired". Case is kept — the API's ids are case-sensitive and mixed-case. Then
 `identifierProblem` refuses a blank id, a path separator, a dot segment (`.` or `..`), and
-whitespace or an invisible character inside. `NinaNotFoundError`'s message says no live warning has
+whitespace inside; an invisible character anywhere is a token's refusal. `NinaNotFoundError`'s message says no live warning has
 exactly this id, not that it ended: the API redirects ended and mistyped ids alike.
 
 **Messages.** Every rejected input is a `NinaValidationError`, also for a wrong type

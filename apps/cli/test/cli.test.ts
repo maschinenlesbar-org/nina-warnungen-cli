@@ -429,7 +429,8 @@ test("dashboard rejects a state-level key (a false all-clear) before any request
 test("dashboard checks the ARS shape locally and suggests the district key", async () => {
   const cases: Array<[string, RegExp]> = [
     ["55150000000", /Invalid region key "55150000000": expected a 12-digit district-level ARS.*try "055150000000"/],
-    [" 055150000000", /Invalid region key " 055150000000": expected a 12-digit/],
+    ["\u200b055150000000", /Invalid region key: "\\u200b055150000000" contains an invisible or control character \(U\+200B\)/],
+    [" 05515000000 ", /Invalid region key "05515000000": expected a 12-digit/],
     ["10042", /use "100420000000"/],
     ["10044000000a", /Invalid region key "10044000000a"/],
     ["06535011", /AGS .* district "065350000000"/],

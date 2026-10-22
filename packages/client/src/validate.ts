@@ -34,19 +34,67 @@ export const nonBlankProblem: Problem<unknown> = (value) => {
   return undefined;
 };
 
+/** Characters that never make a value non-blank: whitespace, controls, format characters, combining marks. */
+const INVISIBLE = /[\s\p{Cc}\p{Cf}\p{M}]/gu;
+
+/** A lone surrogate: half of a character, which a URL would carry as U+FFFD. */
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+
 /**
- * What a copy-paste leaves around an identifier: whitespace (a space, a CR from a CRLF
- * file, a tab, a non-breaking space, a BOM), invisible format characters (a zero-width
- * space) and quotes (straight, curly, guillemets).
+ * True when nothing in `value` would match anything: it holds only whitespace, control and
+ * format characters (a zero-width space, a soft hyphen) and combining marks. Such a value is
+ * refused as blank.
  */
-const IDENTIFIER_EDGE = /^[\s\p{Cf}"'\u2018-\u201f\u00ab\u00bb\u2039\u203a]+|[\s\p{Cf}"'\u2018-\u201f\u00ab\u00bb\u2039\u203a]+$/gu;
+function isBlank(value: string): boolean {
+  return value.replace(INVISIBLE, "") === "";
+}
+
+/** `U+200B` for the first character of `text` that `pattern` matches. */
+function codePointOf(text: string, pattern: RegExp): string {
+  const ch = pattern.exec(text)?.[0] ?? "";
+  return `U+${(ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`;
+}
+
+/** A control or format character in a token (after trimming): every Cc and every Cf. */
+const TOKEN_INVISIBLE = /[\p{Cc}\p{Cf}]/u;
+
+/**
+ * Why `value` cannot be sent as a token, or undefined when it can. A token is an id, a code, an
+ * enum value: a value the API compares exactly (a warning identifier, a region key, a source).
+ * The rules apply to the value with surrounding whitespace trimmed, as it is sent
+ * ({@link normalizeToken}): not blank (and not only invisible characters or combining marks), no
+ * lone surrogate, and no control or format character at all (a zero-width space, ZWJ, a soft
+ * hyphen, a bidi control), since an invisible character in an id or a code only ever makes it
+ * match nothing. The reason quotes the value visibly (`quoteValue`).
+ */
+export function tokenProblem(value: string): string | undefined {
+  if (typeof value !== "string") return "Expected a string.";
+  if (isBlank(value)) return "Expected a non-empty value.";
+  const token = value.trim();
+  if (LONE_SURROGATE.test(token)) return `${quoteValue(value)} contains half of a character (a lone surrogate).`;
+  if (TOKEN_INVISIBLE.test(token)) {
+    return `${quoteValue(value)} contains an invisible or control character (${codePointOf(token, TOKEN_INVISIBLE)}).`;
+  }
+  return undefined;
+}
+
+/** A token as it is sent: trimmed and in composed Unicode (NFC). Check it with {@link tokenProblem} first. */
+export function normalizeToken(value: string): string {
+  return value.trim().normalize("NFC");
+}
+
+/**
+ * What a copy-paste leaves around an identifier besides whitespace: quotes (straight, curly,
+ * guillemets). An invisible character around it is refused (`tokenProblem`), not dropped.
+ */
+const IDENTIFIER_EDGE = /^[\s"'\u2018-\u201f\u00ab\u00bb\u2039\u203a]+|[\s"'\u2018-\u201f\u00ab\u00bb\u2039\u203a]+$/gu;
 
 /** The file suffixes the API appends to an identifier in its URLs (`/warnings/<id>.json`). */
 const IDENTIFIER_SUFFIXES = [".json", ".geojson"];
 
 /**
  * A warning or archive identifier as the API knows it, from the way people copy one:
- * Unicode NFC, with the whitespace, invisible characters and quotes around it removed
+ * Unicode NFC, with the whitespace (a BOM included) and quotes around it removed
  * (see `IDENTIFIER_EDGE`), and a `.json` or `.geojson` suffix (any case) dropped, as
  * copied from an API URL such as `…/warnings/<id>.json`. No real identifier has any of
  * these, and the API answers each such variant of a live id with a redirect to its
@@ -64,9 +112,10 @@ export function normalizeIdentifier(value: string): string {
 }
 
 /**
- * A warning or archive identifier (after {@link normalizeIdentifier}) is a single path
- * segment: a non-blank string without a path separator (`/` or `\`), whitespace, control
- * or invisible format characters. A blank one would address a different path
+ * A warning or archive identifier is a token ({@link tokenProblem}: not blank, no control,
+ * format or invisible character, no lone surrogate) and, after {@link normalizeIdentifier}, a
+ * single path segment: a non-blank string without a path separator (`/` or `\`) or inner
+ * whitespace. A blank one would address a different path
  * (`/warnings/.json`, `/archive.mowas/-mapping.json`); one with a separator is
  * percent-encoded and can never match a real id (a `../../etc/passwd` attempt included);
  * and no real id contains whitespace or an invisible character, which the API answers with
@@ -74,19 +123,21 @@ export function normalizeIdentifier(value: string): string {
  * remote 404 or a "not a live warning" that reads like an expired id.
  */
 export const identifierProblem: Problem<unknown> = (value) => {
-  const blank = nonBlankProblem(value);
-  if (blank !== undefined) return blank;
-  const text = value as string;
+  const token = tokenProblem(value as string);
+  if (token !== undefined) return token;
+  const text = normalizeIdentifier(value as string);
+  // Quotes or a suffix alone (`""`, `.json`) leave nothing.
+  if (text === "") return "Expected a non-empty value.";
   if (/[/\\]/.test(text)) {
     return `${quoteValue(text)} must not contain a path separator (/ or \\).`;
   }
   // "." and ".." are no warning ids: kept out of a path segment, as every *-cli does (P24).
   if (text === "." || text === "..") return `${quoteValue(text)} is a dot segment, not a warning identifier.`;
-  const hidden = /[\s\p{Cc}\p{Cf}]/u.exec(text);
+  const hidden = /\s/u.exec(text);
   if (hidden !== null) {
     const code = hidden[0].codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0");
     return (
-      `${quoteValue(text)} contains whitespace or an invisible character ` +
+      `${quoteValue(text)} contains whitespace ` +
       `(U+${code}); a warning identifier has none. Copy it again from map-data or dashboard.`
     );
   }
@@ -150,12 +201,17 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
 };
 
 /**
- * A `mapData` source must be one of `NinaSourceValues` (an array lookup, so an
- * inherited name such as `toString` is no source). The message quotes the value
+ * A `mapData` source must be a token ({@link tokenProblem}) that is, trimmed, one of
+ * `NinaSourceValues` (an array lookup, so an inherited name such as `toString` is no source;
+ * case is not folded). The message quotes the value
  * with `quoteValue`, so a control or invisible character in it is escaped, never printed raw.
  */
 export const sourceProblem: Problem<unknown> = (value) => {
-  if ((NinaSourceValues as readonly unknown[]).includes(value)) return undefined;
+  if (typeof value === "string") {
+    const token = tokenProblem(value);
+    if (token !== undefined) return `Invalid source: ${token}`;
+    if ((NinaSourceValues as readonly string[]).includes(normalizeToken(value))) return undefined;
+  }
   const quoted = typeof value === "string" ? quoteValue(value) : cutForMessage(String(JSON.stringify(value)));
   return `Invalid source ${quoted}. Expected one of: ${NinaSourceValues.join(", ")}.`;
 };

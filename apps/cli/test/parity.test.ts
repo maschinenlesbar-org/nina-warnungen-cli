@@ -196,7 +196,8 @@ test("the NinaClient constructor rejects a bad baseUrl synchronously", () => {
 // ---- Finding 4 (PAT-23): dashboard region keys ------------------------------------
 
 test("parity: dashboard rejects a bad region key with the library's arsProblem message on both sides", async () => {
-  for (const ars of ["", "   ", "a/b", "05515/0000000", " 055150000000", "050000000000", "55150000000"]) {
+  // A key with surrounding whitespace is sent trimmed (D8); one with an invisible character is refused.
+  for (const ars of ["", "   ", "a/b", "05515/0000000", "\u200b055150000000", "050000000000", "55150000000"]) {
     const error = assertBothRejected(
       await parity(["--compact", "dashboard", "--", ars], (transport) => new NinaClient({ transport }).dashboard(ars)),
       JSON.stringify(ars),
@@ -222,7 +223,7 @@ test("parity: dashboard sends the identical request for a district key", async (
 test("parity: map-data rejects an unknown source with the library's message, control characters escaped", async () => {
   const ESC = String.fromCharCode(0x1b);
   const BEL = String.fromCharCode(0x07);
-  for (const source of [`a${ESC}]0;pwned${BEL}b`, 'a"b', "DWD", " dwd", "", "bogus"]) {
+  for (const source of [`a${ESC}]0;pwned${BEL}b`, 'a"b', "DWD", "d\u200bwd", "", "bogus"]) {
     const label = JSON.stringify(source);
     const { cli } = await (async () => {
       const outcome = await parity(["--compact", "map-data", "--", source], (transport) =>

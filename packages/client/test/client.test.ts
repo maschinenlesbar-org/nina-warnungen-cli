@@ -179,10 +179,10 @@ test("a 2xx body without the documented shape is a NinaParseError, never an empt
   }
 });
 
-test("copy-paste artefacts around a warning id are dropped before the request", async () => {
+test("copy-paste artefacts around a warning id are dropped before the request; an invisible character is refused", async () => {
   const id = "mow.DE-NW-KLE-SE058-20261005-58-000";
   const variants = [
-    `${id} `, ` ${id}`, `${id}\r`, `${id}\n`, `${id}\t`, `${id} `, `​${id}`, `${id}﻿`,
+    `${id} `, ` ${id}`, `${id}\r`, `${id}\n`, `${id}\t`, `${id} `, `${id}﻿`,
     `“${id}”`, `"${id}"`, `'${id}'`, `${id}.json`, `${id}.JSON`, `${id}.geojson`, `${id}.json `, `${id.normalize("NFD")}`,
   ];
   const calls: Array<[string, (c: NinaClient, v: string) => Promise<unknown>, string]> = [
@@ -198,8 +198,8 @@ test("copy-paste artefacts around a warning id are dropped before the request", 
       assert.equal(new URL(mt.last().url).pathname, path, `${label} ${JSON.stringify(v)}`);
     }
   }
-  // Whitespace or an invisible character inside an id is refused before any request.
-  for (const v of [`mow.DE NW`, `mow.DE NW`, `mow.DE​NW`, `mow.DE\tNW`]) {
+  // Whitespace inside an id, and an invisible character anywhere (D8), is refused before any request.
+  for (const v of [`mow.DE NW`, `mow.DE NW`, `mow.DE​NW`, `mow.DE\tNW`, `​${id}`, `${id}​`, `‮${id}`]) {
     const mt = constantJson({ identifier: "x" });
     await assert.rejects(clientWith(mt).warnings.get(v), NinaValidationError, JSON.stringify(v));
     assert.equal(mt.calls.length, 0);
@@ -336,6 +336,25 @@ test("a refused region key, id or source shows an invisible character escaped, n
       assert.doesNotMatch(err.message, /[​⁠­]/);
       return true;
     });
+    assert.equal(mt.calls.length, 0);
+  }
+});
+
+test("a region key and a source go out trimmed, as every token does (D8; the ARS 'not trimmed' item of 2026-10-21)", async () => {
+  for (const ars of [" 055150000000", "055150000000\r", "\t055150000000 ", " 055150000000"]) {
+    const mt = constantJson([]);
+    await clientWith(mt).dashboard(ars);
+    assert.equal(mt.last().url, "https://warnung.bund.de/api31/dashboard/055150000000.json", JSON.stringify(ars));
+  }
+  for (const source of [" dwd", "dwd\n"]) {
+    const mt = constantJson([]);
+    await clientWith(mt).mapData(source as NinaSource);
+    assert.equal(mt.last().url, "https://warnung.bund.de/api31/dwd/mapData.json", JSON.stringify(source));
+  }
+  // Case is not folded, quotes are not dropped: a source and a key are exact codes.
+  for (const [call, value] of [[(c: NinaClient) => c.mapData("DWD" as NinaSource), "DWD"], [(c: NinaClient) => c.dashboard('"055150000000"'), "quoted key"]] as const) {
+    const mt = constantJson([]);
+    await assert.rejects(call(clientWith(mt)), NinaValidationError, value);
     assert.equal(mt.calls.length, 0);
   }
 });

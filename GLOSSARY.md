@@ -58,10 +58,12 @@ issued) gets no `404`: the API redirects it to
 an archived copy. The CLI reports that as "not a live warning" (exit `4`), naming the
 archive URL; it cannot tell an ended warning from a mistyped id, so it says neither.
 Identifiers are case-sensitive. What a copy-paste adds around an id — whitespace (a
-trailing space, a CR from a CRLF file, a non-breaking space), invisible characters,
-quotes, a `.json`/`.geojson` suffix from an API URL — is dropped before the request
+trailing space, a CR from a CRLF file, a non-breaking space, a BOM), quotes, a
+`.json`/`.geojson` suffix from an API URL — is dropped before the request
 (`normalizeIdentifier`), for `warning get`/`geojson` and `archive get`/`mapping` alike;
-whitespace or an invisible character *inside* an id is refused (exit `1`, no request).
+whitespace *inside* an id, and an invisible or control character anywhere in it (a
+zero-width space, a soft hyphen, a bidi control), is refused (exit `1`, no request), the
+character shown as an escape (`\u200b`).
 
 **warning geojson (`/warnings/{identifier}.geojson`).** The warning's affected-area
 geometry as GeoJSON (`application/geo+json`), returned as raw bytes. CLI:
@@ -112,7 +114,8 @@ municipality), used to address the `dashboard` endpoint
 shorter (8-digit) municipality key. The `dashboard` endpoint does not accept it
 (HTTP 400), and it takes no municipality-level ARS either (HTTP 404): it wants
 the district-level ARS, i.e. the first five digits followed by `0000000`. The CLI
-checks the key before sending — anything but 12 digits with the last seven `0` is
+sends the key without surrounding whitespace (a CR from a CRLF file included), refuses one
+with an invisible character, and checks it before sending — anything but 12 digits with the last seven `0` is
 refused, naming the district key where it is clear — and it also refuses a
 **state-level** key (digits
 3–5 `000`, e.g. `050000000000`, or `000000000000`) before any request: the API answers

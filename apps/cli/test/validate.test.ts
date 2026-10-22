@@ -73,7 +73,7 @@ test("parity() runs one input through the CLI and the library on one recording t
 test("identifierProblem rejects a blank, non-string or separator-bearing identifier", async () => {
   const { identifierProblem } = await import("@maschinenlesbar.org/nina-warnungen-client/internal/validate");
   assert.equal(identifierProblem("mow.DE-SL-SLS-W038-20260901-000"), undefined);
-  assert.match(identifierProblem("a b")!, /contains whitespace or an invisible character \(U\+0020\)/);
+  assert.match(identifierProblem("a b")!, /contains whitespace \(U\+0020\)/);
   assert.match(identifierProblem("a\u200bb")!, /\(U\+200B\)/);
   assert.equal(identifierProblem(""), "Expected a non-empty value.");
   assert.equal(identifierProblem("  "), "Expected a non-empty value.");
@@ -156,7 +156,8 @@ test("sourceProblem accepts the NINA sources and names the allowed ones otherwis
   for (const ok of lib.NinaSourceValues) assert.equal(sourceProblem(ok), undefined, ok);
   assert.equal(sourceProblem("DWD"), 'Invalid source "DWD". Expected one of: mowas, katwarn, biwapp, dwd, lhp, police.');
   assert.equal(sourceProblem("toString"), 'Invalid source "toString". Expected one of: mowas, katwarn, biwapp, dwd, lhp, police.');
-  assert.equal(sourceProblem(String.fromCharCode(0x1b)), 'Invalid source "\\u001b". Expected one of: mowas, katwarn, biwapp, dwd, lhp, police.');
+  assert.equal(sourceProblem(`d${String.fromCharCode(0x1b)}wd`), 'Invalid source: "d\\u001bwd" contains an invisible or control character (U+001B).');
+  assert.equal(sourceProblem(" dwd "), undefined, "a source is a token: sent trimmed");
   assert.equal(lib.sourceProblem, sourceProblem);
 });
 

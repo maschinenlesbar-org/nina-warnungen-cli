@@ -23,8 +23,10 @@ export {
   headerValueProblem,
   identifierProblem,
   normalizeIdentifier,
+  normalizeToken,
   nonBlankProblem,
   sourceProblem,
+  tokenProblem,
 } from "./validate.js";
 export type { Problem } from "./validate.js";
 export {

@@ -60,11 +60,12 @@ gab, als Archivkopie liegt. Die CLI meldet das als „not a live warning“ (Exi
 und nennt die Archiv-URL; eine beendete Warnung kann sie von einer vertippten Kennung
 nicht unterscheiden und behauptet daher keins von beiden. Kennungen unterscheiden Groß-
 und Kleinschreibung. Was beim Kopieren um eine Kennung herum mitkommt – Leerraum (ein
-Leerzeichen am Ende, ein CR aus einer CRLF-Datei, ein geschütztes Leerzeichen),
-unsichtbare Zeichen, Anführungszeichen, eine Endung `.json`/`.geojson` aus einer API-URL –
-wird vor der Anfrage entfernt (`normalizeIdentifier`), bei `warning get`/`geojson` wie bei
-`archive get`/`mapping`; Leerraum oder ein unsichtbares Zeichen *innerhalb* einer Kennung
-wird abgelehnt (Exit-Code `1`, keine Anfrage).
+Leerzeichen am Ende, ein CR aus einer CRLF-Datei, ein geschütztes Leerzeichen, ein BOM),
+Anführungszeichen, eine Endung `.json`/`.geojson` aus einer API-URL – wird vor der Anfrage
+entfernt (`normalizeIdentifier`), bei `warning get`/`geojson` wie bei `archive get`/`mapping`;
+Leerraum *innerhalb* einer Kennung und ein unsichtbares oder Steuerzeichen irgendwo darin
+(ein Leerzeichen der Breite null, ein bedingter Trennstrich, ein Bidi-Steuerzeichen) wird
+abgelehnt (Exit-Code `1`, keine Anfrage), das Zeichen als Escape gezeigt (`\u200b`).
 
 **warning geojson (`/warnings/{identifier}.geojson`).** Die Geometrie des betroffenen
 Gebiets als GeoJSON (`application/geo+json`), zurückgegeben als rohe Bytes. CLI:
@@ -113,7 +114,9 @@ angesprochen wird (z. B. `055150000000`).
 **AGS – Amtlicher Gemeindeschlüssel.** Der kürzere (8-stellige) Gemeindeschlüssel. Der
 Endpoint `dashboard` akzeptiert ihn nicht (HTTP 400) und auch keinen ARS auf
 Gemeindeebene (HTTP 404): Er erwartet den ARS auf Kreisebene, also die ersten fünf
-Stellen gefolgt von `0000000`. Die CLI prüft den Schlüssel vor dem Senden – alles außer
+Stellen gefolgt von `0000000`. Die CLI sendet den Schlüssel ohne umgebenden Leerraum (auch
+ohne das CR aus einer CRLF-Datei), weist einen mit unsichtbarem Zeichen ab und prüft ihn vor
+dem Senden – alles außer
 12 Ziffern mit sieben Nullen am Ende wird zurückgewiesen, mit dem Kreisschlüssel, wo er
 eindeutig ist – und weist außerdem einen Schlüssel auf **Landesebene** (Stellen 3–5 `000`, z. B. `050000000000`, oder
 `000000000000`) vor jeder Anfrage zurück: Die API beantwortet ihn mit `[]` und HTTP 200,

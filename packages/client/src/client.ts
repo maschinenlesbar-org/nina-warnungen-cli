@@ -10,7 +10,7 @@ import { RequestEngine, isStringTooLong, tooLargeForText, type EngineOptions, ty
 import type { NinaSource } from "./enums.js";
 import { NinaApiError, NinaNotFoundError, NinaParseError, NinaValidationError, cutText, quoteValue } from "./errors.js";
 import { arsProblem } from "./ars.js";
-import { assertValid, identifierProblem, normalizeIdentifier, sourceProblem } from "./validate.js";
+import { assertValid, identifierProblem, normalizeIdentifier, normalizeToken, sourceProblem } from "./validate.js";
 import type {
   MapWarning,
   WarningDetail,
@@ -202,7 +202,7 @@ class WarningsResource {
    * `NinaNotFoundError`.
    */
   async get(identifier: string): Promise<WarningDetail> {
-    const id = assertValid("identifier", normalizeIdentifier(identifier), identifierProblem);
+    const id = normalizeIdentifier(assertValid("identifier", identifier, identifierProblem));
     try {
       const path = `${API}/warnings/${enc(id)}.json`;
       return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), capWarning);
@@ -218,7 +218,7 @@ class WarningsResource {
    * object) rejects with `NinaParseError` rather than being returned as the file.
    */
   async geojson(identifier: string): Promise<RawResponse> {
-    const id = assertValid("identifier", normalizeIdentifier(identifier), identifierProblem);
+    const id = normalizeIdentifier(assertValid("identifier", identifier, identifierProblem));
     try {
       const path = `${API}/warnings/${enc(id)}.geojson`;
       return expectGeoJson(answerOf(this.engine, path), await this.engine.getRaw(path, ACCEPT_GEOJSON));
@@ -237,7 +237,7 @@ class ArchiveResource {
    * `warnings.get`.
    */
   async mapping(identifier: string): Promise<ArchiveMapping> {
-    const id = assertValid("identifier", normalizeIdentifier(identifier), identifierProblem);
+    const id = normalizeIdentifier(assertValid("identifier", identifier, identifierProblem));
     const path = `${API}/archive.mowas/${enc(id)}-mapping.json`;
     return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), archiveMapping);
   }
@@ -249,7 +249,7 @@ class ArchiveResource {
    * as for `warnings.get` (a blank identifier, also once the suffix is dropped, rejects).
    */
   async get(identifier: string): Promise<WarningDetail> {
-    const id = assertValid("identifier", normalizeIdentifier(identifier), identifierProblem);
+    const id = normalizeIdentifier(assertValid("identifier", identifier, identifierProblem));
     const path = `${API}/archive.mowas/${enc(id)}.json`;
     return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), capWarning);
   }
@@ -305,7 +305,7 @@ export class NinaClient {
   async mapData(source: NinaSource): Promise<MapWarning[]> {
     const problem = sourceProblem(source);
     if (problem !== undefined) throw new NinaValidationError(problem);
-    const path = `${API}/${enc(source)}/mapData.json`;
+    const path = `${API}/${enc(normalizeToken(source))}/mapData.json`;
     return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), warningList);
   }
 
@@ -325,11 +325,12 @@ export class NinaClient {
   async dashboard(ars: string): Promise<DashboardEntry[]> {
     const problem = arsProblem(ars);
     if (problem !== undefined) throw new NinaValidationError(problem);
-    const path = `${API}/dashboard/${enc(ars)}.json`;
+    const key = normalizeToken(ars);
+    const path = `${API}/dashboard/${enc(key)}.json`;
     try {
       return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), warningList);
     } catch (err) {
-      throw noSuchDistrict(ars, err);
+      throw noSuchDistrict(key, err);
     }
   }
 }
