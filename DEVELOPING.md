@@ -410,8 +410,10 @@ auth). The library's reasons never repeat the value, and the CLI also redacts on
 output: `run.ts` (`redactionFor` and `withRedactedOutput`) takes the exact userinfo of
 every URL argument (`credentialsIn`, exported) and replaces it with `***` in everything it
 prints — commander's usage errors, which echo a rejected `--base-url` value, and its own
-messages. Only a value that starts with a scheme counts (a bare `a:b@c` is an `-o` file
-name or a User-Agent as often as a credential), except as the `--base-url` value. The log replaces it in each record's *message*, before the record is cut and
+messages. Only a URL with a scheme counts (a bare `a:b@c` is an `-o` file
+name or a User-Agent as often as a credential), except as the `--base-url` value; it is found
+wherever it starts in an argument (`urlsWithin`), so a padded `" https://u:pw@h/x"` id, an `-o`
+path or a User-Agent phrase holding one is redacted in the refusal that quotes it. The log replaces it in each record's *message*, before the record is cut and
 escaped, and writes it to the raw stderr: the frame (time, level, topic) is never
 touched, and a password with DEL, C1 or bidi characters is matched in its raw form. A password with spaces, quotes, `#`, `?` or `/` is caught as well as an
 ordinary one. The forms a server echoes a userinfo back in are replaced too

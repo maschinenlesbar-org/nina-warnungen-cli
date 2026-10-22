@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { run } from "../src/cli/run.js";
 import { NinaClient } from "@maschinenlesbar.org/nina-warnungen-client/internal/client";
-import type { CliDeps } from "../src/cli/io.js";
+import { defaultIO, type CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "@maschinenlesbar.org/nina-warnungen-client/internal/http";
 import { NinaIOError, NinaNetworkError, credentialsIn } from "@maschinenlesbar.org/nina-warnungen-client/internal/errors";
 import { makeMockTransport, jsonResponse, rawResponse, untimed } from "./helpers.js";
@@ -755,4 +755,25 @@ test("-o refuses the next option as its file name: a dash-leading value is a usa
   const ok = makeCli(() => jsonResponse([]));
   assert.equal(await run(["-o", "./-x", "map-data", "dwd"], ok.deps), 0);
   assert.deepEqual([...ok.files.keys()], ["./-x"]);
+});
+
+test("a password in a URL anywhere in an argument is redacted in every message, padded or mid-phrase (T15)", async () => {
+  // A password with a space: no URL pattern can delimit it, only the exact string can.
+  const url = "https://bob:p w#1@h.example";
+  const cases: string[][] = [
+    // a refusal quoting an id (it has a "/"), padded
+    ["warning", "get", "--", ` ${url}/x`],
+    // the -o refusal naming the missing directory, padded
+    ["-o", ` ${url}/x.json`, "map-data", "dwd"],
+    // commander's echo of a refused value, mid-phrase
+    ["--user-agent", `agent ${url}\u0007`, "map-data", "dwd"],
+  ];
+  for (const argv of cases) {
+    const cli = makeCli(() => jsonResponse([]));
+    cli.deps.io.outputParentProblem = defaultIO.outputParentProblem!;
+    assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
+    const err = cli.err.join("\n");
+    assert.ok(err.length > 0, argv.join(" "));
+    assert.doesNotMatch(err, /p w|bob:/, `${argv.join(" ")}: ${err}`);
+  }
 });
