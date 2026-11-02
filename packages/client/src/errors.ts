@@ -13,7 +13,8 @@ export class NinaError extends Error {
  * The API responded with a non-2xx status code. `detail` holds a human-readable
  * message extracted from the response body when one is present. For a 3xx — the
  * client does not follow redirects — `location` holds the redirect target
- * (absolute, sanitised, userinfo redacted) and the message names it.
+ * (absolute, sanitised, userinfo redacted, the base URL's credentials scrubbed from its
+ * path and query) and the message names it.
  */
 export class NinaApiError extends NinaError {
   readonly status: number;

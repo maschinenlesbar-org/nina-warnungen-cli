@@ -395,7 +395,8 @@ export class RequestEngine {
   readonly #credentials: string[];
   /**
    * The forms a server echoes that userinfo back in (the Basic value, the decoded
-   * `user:password`, the password alone; `echoedCredentialForms`), longest first.
+   * `user:password`, the password alone; `echoedCredentialForms`), each also percent-encoded
+   * (`urlSpellings`), longest first.
    */
   readonly #echoed: string[];
   private readonly transport: Transport;
@@ -423,8 +424,10 @@ export class RequestEngine {
         return [raw];
       }
     });
-    // Longest first, so a password never leaves half of the user:password around it.
-    this.#echoed = credentialsIn(this.#baseUrl).flatMap(echoedCredentialForms).sort((a, b) => b.length - a.length);
+    // Longest first, so a password never leaves half of the user:password around it. Each form
+    // also as a URL spells it: a server that puts a credential into a redirect's Location
+    // percent-encodes it.
+    this.#echoed = [...new Set(credentialsIn(this.#baseUrl).flatMap(echoedCredentialForms).flatMap(urlSpellings))].sort((a, b) => b.length - a.length);
     this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Only an omitted userAgent selects the default: a blank one is an error, not
     // a blank header, and a malformed one fails here rather than at request time.
@@ -746,8 +749,21 @@ export class RequestEngine {
     // no longer live to its archive copy).
     const rawLocation = Array.isArray(locationHeader) ? locationHeader[0] : locationHeader;
     const location =
-      status >= 300 && status < 400 && rawLocation ? redirectTarget(url, rawLocation) : undefined;
+      status >= 300 && status < 400 && rawLocation ? redirectTarget(url, rawLocation, (t) => this.scrub(t)) : undefined;
     return new NinaApiError({ status, url, method, body: text, detail, location, retryAfterMs });
+  }
+}
+
+/**
+ * `form` and its spelling in a URL (`encodeURIComponent`): a server that puts a credential into
+ * a URL, a redirect's Location, percent-encodes it. A form that has no such spelling (a lone
+ * surrogate) is kept as it is.
+ */
+function urlSpellings(form: string): string[] {
+  try {
+    return [form, encodeURIComponent(form)];
+  } catch {
+    return [form];
   }
 }
 
@@ -868,16 +884,19 @@ function isLowSurrogate(code: number): boolean {
 }
 
 /**
- * The absolute, printable form of a `Location` header: resolved against the request
- * URL, userinfo redacted, control characters stripped (it is server text bound for
- * stderr). An unparseable value is shown sanitised as it came.
+ * The absolute, printable form of a `Location` header: the base URL's credentials scrubbed
+ * (`scrub`) as sent, before resolving percent-encodes what is left of them in a new spelling
+ * (`'` as `%27` in a query); resolved against the request URL, userinfo redacted, control
+ * characters stripped (it is server text bound for stderr). An unparseable value is shown
+ * sanitised as it came.
  */
-function redirectTarget(requestUrl: string, location: string): string | undefined {
+function redirectTarget(requestUrl: string, location: string, scrub: (text: string) => string): string | undefined {
+  const sent = scrub(location);
   let target: string;
   try {
-    target = redactUrl(new URL(location, requestUrl).href);
+    target = redactUrl(new URL(sent, requestUrl).href);
   } catch {
-    target = location;
+    target = sent;
   }
   const clean = cutForMessage(sanitizeServerText(target).replace(/\s+/g, " ").trim());
   return clean === "" ? undefined : clean;

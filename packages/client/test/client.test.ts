@@ -1,5 +1,5 @@
 import { test } from "node:test";
-import { TextDecoder } from "node:util";
+import { TextDecoder, inspect } from "node:util";
 import assert from "node:assert/strict";
 import { NinaClient } from "../src/client.js";
 import { NinaApiError, NinaError, NinaNotFoundError, NinaParseError, NinaValidationError } from "../src/errors.js";
@@ -356,5 +356,24 @@ test("a region key and a source go out trimmed, as every token does (D8; the ARS
     const mt = constantJson([]);
     await assert.rejects(call(clientWith(mt)), NinaValidationError, value);
     assert.equal(mt.calls.length, 0);
+  }
+});
+
+test("an archive redirect that echoes the base URL's credential stays NinaNotFoundError, scrubbed (security audit 2026-10-27)", async () => {
+  const base = "http://dummyuser:dummypass-0001@127.0.0.1:9";
+  const basic = Buffer.from("dummyuser:dummypass-0001").toString("base64");
+  for (const location of [
+    "/api31/archive/alerts/x?pw=dummypass-0001",
+    `/api31/archive/alerts/x?auth=${basic}`,
+    "/api31/archive/alerts/dummyuser:dummypass-0001@x",
+  ]) {
+    const mt = makeMockTransport(() => ({ status: 302, headers: { location }, body: Buffer.alloc(0) }));
+    const client = new NinaClient({ transport: mt.transport, baseUrl: base, maxRetries: 0 });
+    for (const call of [() => client.warnings.get("x"), () => client.warnings.geojson("x")]) {
+      const err = await call().then(() => assert.fail("should fail"), (caught: unknown) => caught);
+      assert.ok(err instanceof NinaNotFoundError && err.cause instanceof NinaApiError, String(err));
+      const seen = [inspect(err, { depth: 10, showHidden: true }), err.message, err.location, err.cause.message, err.cause.location].join("\n");
+      for (const secret of ["dummypass-0001", basic]) assert.ok(!seen.includes(secret), `${location}: ${seen.slice(0, 2000)}`);
+    }
   }
 });

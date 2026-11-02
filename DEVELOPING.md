@@ -227,7 +227,7 @@ request), all extending `NinaError`, plus `NinaNotFoundError` (a warning id that
 no longer live: NINA answers it with a `302` to `/api31/archive/alerts/<id>`, which
 `warnings.get`/`geojson` turn into this error, carrying `identifier`, `location` and
 the `NinaApiError` as `cause`). For any other `3xx`, `NinaApiError.location` holds the
-redirect target (resolved, userinfo redacted, sanitised). The CLI maps a `404` and a
+redirect target (the base URL's credentials scrubbed, resolved, userinfo redacted, sanitised). The CLI maps a `404` and a
 `NinaNotFoundError` to exit code `4`,
 other errors to `1` — a `NinaValidationError` included, which is the same exit code
 commander gives a usage error.
@@ -424,8 +424,9 @@ that doesn't parse as a URL. The library keeps the base URL in a real `#private`
 so `console.log(client)`, `util.inspect` and `JSON.stringify` never show it;
 `NinaApiError.url` holds the request URL with its userinfo redacted; and the engine scrubs
 the userinfo (raw and percent-decoded) and the forms a server echoes it back in (the
-`Basic` value, the decoded `user:password`, the password alone from 4 characters) from
-error bodies and details, transport error text
+`Basic` value, the decoded `user:password`, the password alone from 4 characters, each also
+percent-encoded as a URL spells it) from error bodies and details, a redirect's `Location`
+(before it is resolved, in its path and query too), transport error text
 and the `cause` chain. Whatever a custom transport throws (a string, fetch's `TypeError`)
 reaches the caller as a `NinaNetworkError`, never raw.
 

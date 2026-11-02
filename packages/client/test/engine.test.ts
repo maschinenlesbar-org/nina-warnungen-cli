@@ -1,5 +1,5 @@
 import { test } from "node:test";
-import { TextDecoder } from "node:util";
+import { TextDecoder, inspect } from "node:util";
 import assert from "node:assert/strict";
 import { RequestEngine, bigIntegerKeysOption, cleartextProblem, firstInexactNumber, parseRetryAfter, scanNumbers } from "../src/engine.js";
 import { NinaApiError, NinaNetworkError, NinaParseError, NinaValidationError, cutForMessage, cutText, toWellFormed } from "../src/errors.js";
@@ -643,4 +643,43 @@ test("a number with a long run of zeros is checked in linear time (security audi
   assert.equal(firstInexactNumber('{"a":12345678901234567890}'), "12345678901234567890");
   assert.equal(firstInexactNumber('{"a":0.0000e-400}'), undefined);
   assert.equal(firstInexactNumber('{"a":1e-400}'), "1e-400");
+});
+
+/** The base URL's credential, in the forms a server echoes it (security audit 2026-10-27, D2). */
+const ECHO_PW = "pä\"s's-W0rd";
+const ECHO_BASE = `https://alice:${encodeURIComponent(ECHO_PW)}@mirror.example`;
+const ECHO_BASIC = Buffer.from(`alice:${ECHO_PW}`, "utf8").toString("base64");
+const ECHO_SECRETS = [ECHO_PW, `alice:${ECHO_PW}`, ECHO_BASIC];
+
+/** Everything a library user may log of an error, percent-decoded where it decodes. */
+function everythingOf(err: unknown): string {
+  const e = err as { message?: unknown; location?: unknown; cause?: unknown };
+  const text = [inspect(err, { depth: 10, showHidden: true }), e.message, e.location].map(String).join("\n");
+  return text.replace(/(?:%[0-9A-Fa-f]{2})+/g, (run) => {
+    try {
+      return decodeURIComponent(run);
+    } catch {
+      return run;
+    }
+  });
+}
+
+test("a credential in a redirect's Location is scrubbed, in its path and its query (security audit 2026-10-27)", async () => {
+  const locations = [
+    `https://elsewhere.example/login?user=alice&pw=${encodeURIComponent(ECHO_PW)}`,
+    `https://elsewhere.example/login?pw=${ECHO_PW}`,
+    `https://elsewhere.example/${encodeURIComponent(`alice:${ECHO_PW}`)}/x`,
+    `https://elsewhere.example/auth?basic=${ECHO_BASIC}`,
+    `/relative/${ECHO_PW}`,
+    `/api31/archive/alerts/alice:${encodeURIComponent(ECHO_PW)}@x`,
+  ];
+  for (const location of locations) {
+    const mt = makeMockTransport(() => ({ status: 302, headers: { location }, body: Buffer.alloc(0) }));
+    const e = new RequestEngine({ transport: mt.transport, baseUrl: ECHO_BASE, maxRetries: 0 });
+    const err = await e.getJson("/x").then(() => assert.fail("should fail"), (caught: unknown) => caught);
+    assert.ok(err instanceof NinaApiError && /^HTTP 302 /.test(err.message), String(err));
+    assert.ok(err.location !== undefined && /\*\*\*/.test(err.location), `${location}: ${err.location}`);
+    const seen = everythingOf(err);
+    for (const secret of ECHO_SECRETS) assert.ok(!seen.includes(secret), `${location}: ${seen.slice(0, 2000)}`);
+  }
 });
