@@ -627,3 +627,20 @@ test("an answer longer than V8's longest string is a NinaParseError naming the r
   const failing = new RequestEngine({ maxResponseBytes: 0, transport: makeMockTransport(() => rawResponse(huge, "text/plain", 500)).transport });
   await assert.rejects(failing.getJson("/x"), (err: unknown) => err instanceof NinaApiError && err.status === 500 && err.body === "");
 });
+
+test("a number with a long run of zeros is checked in linear time (security audit 2026-10-27)", () => {
+  // `/0+$/` tried a match at every zero of a run that doesn't end the literal: quadratic.
+  // 1.<100 000 zeros>1e300 took about 15 s with the regex; the index loops take milliseconds.
+  for (const literal of [`1.${"0".repeat(100_000)}1e300`, `1${"0".repeat(300)}.${"0".repeat(100_000)}1`, `0.${"0".repeat(400)}1${"0".repeat(100_000)}1`]) {
+    const start = performance.now();
+    const scan = scanNumbers(`{"a":${literal}}`);
+    const ms = performance.now() - start;
+    assert.ok(ms < 1000, `${Math.round(ms)} ms`);
+    assert.equal(scan.inexact, literal);
+  }
+  // The same result as before: trailing and leading zeros don't make a literal inexact.
+  assert.equal(firstInexactNumber(`{"a":1${"0".repeat(30)}.000,"b":0.000e5,"c":-1.7976931348623157E308,"d":5e-324}`), undefined);
+  assert.equal(firstInexactNumber('{"a":12345678901234567890}'), "12345678901234567890");
+  assert.equal(firstInexactNumber('{"a":0.0000e-400}'), undefined);
+  assert.equal(firstInexactNumber('{"a":1e-400}'), "1e-400");
+});
