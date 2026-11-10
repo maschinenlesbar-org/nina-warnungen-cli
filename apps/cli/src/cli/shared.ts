@@ -4,7 +4,7 @@
 import { constants } from "node:buffer";
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
-import { isDirectoryMessage, logOf, refuseOverwrite, type CliDeps } from "./io.js";
+import { isDirectoryMessage, logOf, refuseOverwrite, type CliDeps, type OutputState } from "./io.js";
 import { NinaError, NinaIOError, NinaValidationError, TextBuilder, cutForMessage, quoteValue } from "@maschinenlesbar.org/nina-warnungen-client/internal/errors";
 import { baseUrlProblem, headerValueProblem } from "@maschinenlesbar.org/nina-warnungen-client/internal/validate";
 import { DEFAULT_BASE_URL, cleartextProblem, isBidiControl, type EngineOptions, type RawResponse } from "@maschinenlesbar.org/nina-warnungen-client/internal/engine";
@@ -133,7 +133,13 @@ export function checkOutputTarget(deps: CliDeps, global: GlobalOptions): void {
   }
   const path = resolveOutput(global.output);
   if (path === undefined) return;
-  const state = deps.io.outputState?.(path);
+  let state: OutputState | undefined;
+  try {
+    state = deps.io.outputState?.(path);
+  } catch (err) {
+    // A path that can't be told (EACCES on the way) is refused as that, before any request.
+    throw new NinaValidationError(err instanceof Error ? err.message : String(err));
+  }
   if (state === "directory") throw new NinaValidationError(isDirectoryMessage(path));
   if (state === "stream") return;
   if (state === "exists" && global.force !== true) throw new NinaValidationError(refuseOverwrite(path));

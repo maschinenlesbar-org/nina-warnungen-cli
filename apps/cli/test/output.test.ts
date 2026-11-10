@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { renderJson } from "../src/cli/shared.js";
 import { run } from "../src/cli/run.js";
-import { defaultIO, stdoutWriter, type CliDeps } from "../src/cli/io.js";
+import { defaultIO, nodeFilesFor, stdoutWriter, type CliDeps, type LinkOwners } from "../src/cli/io.js";
 import { NinaClient } from "@maschinenlesbar.org/nina-warnungen-client/internal/client";
 import { NinaIOError } from "@maschinenlesbar.org/nina-warnungen-client/internal/errors";
 import type { HttpRequest, HttpResponse } from "@maschinenlesbar.org/nina-warnungen-client/internal/http";
@@ -332,4 +332,121 @@ test("stdout to a regular file gets every byte or an error: a short write is nev
     stdoutWriter({ write: (data: string | Buffer) => piped.push(data), emit: () => assert.fail("no error") })("data");
     assert.deepEqual(piped, ["data"]);
   });
+});
+
+// Security audit 2026-10-27, class G: --force followed a link another user planted in /tmp.
+
+/** The caller, another user, and /tmp (owned by root, sticky and world-writable). */
+const ME = 1000;
+const OTHER = 1001;
+const SHARED = { uid: 0, mode: 0o41777 };
+
+/** Owners as a test says: links' owners by path (the caller otherwise), directories' owner and mode. */
+function owners(links: Record<string, number>, dirs: Record<string, { uid: number; mode: number }>): LinkOwners {
+  return {
+    uid: ME,
+    ownerOf: (path, follow) => (follow ? (dirs[path] ?? { uid: ME, mode: 0o40755 }) : { uid: links[path] ?? ME, mode: 0o120777 }),
+  };
+}
+
+/** A temporary directory with a victim file and a link `out.json` to it. */
+function planted(): { dir: string; victim: string; link: string; done: () => void } {
+  const dir = mkdtempSync(join(tmpdir(), "nina-io-"));
+  const victim = join(dir, "victim.txt");
+  writeFileSync(victim, "keep me\n");
+  const link = join(dir, "out.json");
+  symlinkSync(victim, link);
+  return { dir, victim, link, done: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
+test("--force does not follow a link another user made in a directory others can write to, at any hop (G)", () => {
+  const t = planted();
+  try {
+    for (const mode of [SHARED, { uid: ME, mode: 0o40777 }]) {
+      const files = nodeFilesFor(owners({ [t.link]: OTHER }, { [t.dir]: mode }));
+      assert.match(files.parentProblem(t.link, true) ?? "", /another user/);
+      assert.ok((files.parentProblem(t.link, true) ?? "").includes(t.link));
+      assert.throws(() => files.write(t.link, Buffer.from("x"), true), /another user/);
+      assert.equal(readFileSync(t.victim, "utf8"), "keep me\n");
+      assert.ok(lstatSync(t.link).isSymbolicLink());
+    }
+    // own link -> a foreign link in the shared directory -> the victim
+    const inner = join(t.dir, "inner");
+    symlinkSync(t.victim, inner);
+    const outer = join(t.dir, "outer.json");
+    symlinkSync(inner, outer);
+    const chain = nodeFilesFor(owners({ [inner]: OTHER }, { [t.dir]: SHARED }));
+    assert.match(chain.parentProblem(outer, true) ?? "", /another user/);
+    assert.throws(() => chain.write(outer, Buffer.from("x"), true), /another user/);
+    assert.equal(readFileSync(t.victim, "utf8"), "keep me\n");
+    // A foreign dangling link: the file it names is not created.
+    const dangling = join(t.dir, "dangling.json");
+    const target = join(t.dir, "created-elsewhere.json");
+    symlinkSync(target, dangling);
+    const d = nodeFilesFor(owners({ [dangling]: OTHER }, { [t.dir]: SHARED }));
+    assert.match(d.parentProblem(dangling, true) ?? "", /another user/);
+    assert.throws(() => d.write(dangling, Buffer.from("x"), true), /another user/);
+    assert.throws(() => statSync(target));
+  } finally {
+    t.done();
+  }
+});
+
+test("--force still follows the caller's own links, the directory owner's, and any link in a directory only its owner writes (G)", () => {
+  const cases: Array<[string, (t: ReturnType<typeof planted>) => LinkOwners]> = [
+    ["the caller's own link in a shared directory", (t) => owners({}, { [t.dir]: SHARED })],
+    ["a link of the shared directory's owner", (t) => owners({ [t.link]: 0 }, { [t.dir]: SHARED })],
+    ["another user's link in a directory only its owner writes", (t) => owners({ [t.link]: OTHER }, { [t.dir]: { uid: OTHER, mode: 0o40755 } })],
+    ["another user's link where no caller id exists", (t) => ({ ...owners({ [t.link]: OTHER }, { [t.dir]: SHARED }), uid: undefined })],
+  ];
+  for (const [label, who] of cases) {
+    const t = planted();
+    try {
+      const files = nodeFilesFor(who(t));
+      assert.equal(files.parentProblem(t.link, true), undefined, label);
+      files.write(t.link, Buffer.from("new\n"), true);
+      assert.equal(readFileSync(t.victim, "utf8"), "new\n", label);
+      assert.ok(lstatSync(t.link).isSymbolicLink(), label);
+    } finally {
+      t.done();
+    }
+  }
+});
+
+test("a path that can't be inspected is reported as such, not as an existing file (G)", { skip: process.getuid?.() === 0 }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), "nina-io-"));
+  const closed = join(dir, "closed");
+  try {
+    mkdirSync(closed);
+    const link = join(dir, "out.json");
+    symlinkSync(join(closed, "x.json"), link);
+    chmodSync(closed, 0o000);
+    assert.throws(() => defaultIO.outputState?.(link), (err: unknown) => {
+      assert.ok(err instanceof NinaIOError);
+      assert.match(err.message, /^Cannot write to ".*out\.json": EACCES/);
+      return true;
+    });
+    // Through the CLI: a usage error before any request, never "Refusing to overwrite".
+    let requests = 0;
+    const err: string[] = [];
+    const deps: CliDeps = {
+      io: { ...defaultIO, out: () => {}, err: (s) => err.push(s), outBinary: () => {} },
+      createClient: (options) =>
+        new NinaClient({
+          ...options,
+          transport: async () => {
+            requests++;
+            return { status: 200, headers: { "content-type": "application/json" }, body: Buffer.from("[]") };
+          },
+        }),
+    };
+    const code = await run(["-o", link, "--force", "map-data", "dwd"], deps);
+    assert.equal(code, 1);
+    assert.equal(requests, 0);
+    assert.match(err.join("\n"), /\[nina\.cli\] Cannot write to ".*out\.json": EACCES/);
+    assert.doesNotMatch(err.join("\n"), /Refusing to overwrite/);
+  } finally {
+    chmodSync(closed, 0o700);
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

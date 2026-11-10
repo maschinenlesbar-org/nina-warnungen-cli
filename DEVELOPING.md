@@ -567,14 +567,22 @@ whose links loop (`CliIO.outputParentProblem`) are usage errors (`NinaValidation
 `nina.cli`); `-o -` is stdout. A stream — a character device (`/dev/null`), a FIFO, a socket,
 or a descriptor path (`/dev/stdout`, `/dev/fd/N`, `>(…)`) — needs no `--force` and is written
 in place, every byte, with no claim and no temporary file. A file (`CliIO.writeFile(path, data,
-overwrite)`; the real one is `nodeWriteFile` in `io.ts`) is written atomically: without
+overwrite)`; the real one is `nodeFiles.write` in `io.ts`) is written atomically: without
 `--force` it claims the name with an exclusive create (so a file that appeared during the
 request is refused too, `nina.output`), writes a temporary file beside the target (its name cut
 to stay within 255 bytes, the random part kept) and renames it over it; on failure neither the
 temporary file nor the claimed name is left, and SIGINT, SIGTERM and SIGHUP during the write
 remove both, then exit 130, 143 or 129. `--force` keeps the old file's mode and writes through a
 symlink, also a dangling one or a chain of them: the file the link names is created, the link
-stays. Messages: `Refusing to overwrite existing file "<p>"; pass --force to overwrite.`,
+stays — unless, at any hop, the link's owner is neither the caller nor its directory's owner and
+that directory is sticky or writable by others (`SHARED_DIRECTORY`, the rule of Linux's
+fs.protected_symlinks, which never sees these links as the CLI resolves them itself): that is
+EACCES, naming the link, refused before the request (`outputParentProblem`) or at the write. The
+owners come through `LinkOwners` (`nodeFilesFor(owners)`; the real file system for the process's
+user is `nodeFiles`, behind `defaultIO`), so a test can be another user without root.
+`outputState` calls a path it can't inspect (EACCES on the way) neither existing nor missing: it
+throws `Cannot write to "<p>": EACCES …`, a usage error before the request — it used to be
+"exists", which `--force` let through. Messages: `Refusing to overwrite existing file "<p>"; pass --force to overwrite.`,
 `"<p>" is a directory; give a file path to --output.`, `Cannot write to "<p>": the directory
 "<d>" does not exist.` (or `… is not a directory.`, `… no permission to create files in "<d>".`),
 `Could not write to "<p>": <reason>` (Node's reason without the path of the temporary file).
