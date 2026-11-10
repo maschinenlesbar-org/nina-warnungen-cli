@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { TextDecoder, inspect } from "node:util";
 import assert from "node:assert/strict";
 import { RequestEngine, bigIntegerKeysOption, cleartextProblem, firstInexactNumber, parseRetryAfter, sanitizeServerText, scanNumbers } from "../src/engine.js";
-import { NinaApiError, NinaNetworkError, NinaParseError, NinaValidationError, cutForMessage, cutText, redactUrlUserinfo, TextBuilder, toWellFormed } from "../src/errors.js";
+import { NinaApiError, NinaNetworkError, NinaParseError, NinaValidationError, cutForMessage, cutText, echoedCredentialForms, redactUrlUserinfo, TextBuilder, toWellFormed } from "../src/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 import type { HttpResponse } from "../src/http.js";
 
@@ -947,5 +947,31 @@ test("an echo of the request URL as sent is scrubbed, a short password too", asy
   assert.ok(err instanceof NinaApiError, String(err));
   for (const text of [err.message, err.detail ?? "", err.body]) {
     assert.ok(!text.includes("p%22%C3%A4@") && !text.includes('p"ä@'), text);
+  }
+});
+
+test("echoedCredentialForms treats a userinfo without a password as a token (Basic `TOKEN:`)", () => {
+  const basic = (pair: string): string => Buffer.from(pair, "utf8").toString("base64");
+  assert.deepEqual(echoedCredentialForms("alice:s3cret"), [basic("alice:s3cret"), "alice:s3cret", "s3cret"]);
+  assert.deepEqual(echoedCredentialForms("T0ken"), [basic("T0ken:"), "T0ken:", "T0ken"]);
+  assert.deepEqual(echoedCredentialForms("T0ken:"), [basic("T0ken:"), "T0ken:", "T0ken"]);
+  assert.deepEqual(echoedCredentialForms("T%C3%B6k"), [basic("Tök:"), "Tök:"]); // short: not alone
+  assert.deepEqual(echoedCredentialForms(":pw12"), [basic(":pw12"), ":pw12", "pw12"]);
+  assert.deepEqual(echoedCredentialForms(""), []);
+  assert.deepEqual(echoedCredentialForms(":"), []);
+});
+
+test("a token in the base URL's userinfo is scrubbed from library errors in every echoed form", async () => {
+  // Node sends `https://T0kenS3cret@host` as Basic `T0kenS3cret:`; neither that nor the token was
+  // scrubbed, since only a userinfo with a password counted.
+  const token = "T0kenS3cret";
+  const basic = Buffer.from(`${token}:`).toString("base64");
+  for (const base of [`https://${token}@mirror.example`, `https://${token}:@mirror.example`]) {
+    for (const echo of [token, `${token}:`, basic]) {
+      const e = new RequestEngine({ baseUrl: base, maxRetries: 0, transport: async () => jsonResponse({ message: `denied ${echo}` }, 401) });
+      const err = await e.getJson("/x").catch((caught: unknown) => caught);
+      assert.ok(err instanceof NinaApiError, String(err));
+      for (const text of [err.message, err.detail ?? "", err.body]) assert.ok(!text.includes(token) && !text.includes(basic), `${base} ${echo}: ${text}`);
+    }
   }
 });

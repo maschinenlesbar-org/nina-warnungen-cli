@@ -434,7 +434,9 @@ touched, and a password with DEL, C1 or bidi characters is matched in its raw fo
 ordinary one. The forms a server echoes a userinfo back in are replaced too
 (`echoedCredentialForms`): the `Basic` value (UTF-8, as Node sends it) and the decoded
 `user:password` on stdout and stderr, the password alone (4 characters or more) on stderr
-only, since it may well occur in the data. `redactUrl` (exported) falls back to the same text-based cut for a value
+only, since it may well occur in the data. A userinfo without a password (`https://TOKEN@host`,
+`TOKEN:@host`) is a token: Node sends it as Basic `TOKEN:`, and the token takes the password's
+place in every form (the Basic value, `TOKEN:`, the token alone). `redactUrl` (exported) falls back to the same text-based cut for a value
 that doesn't parse as a URL. The library keeps the base URL in a real `#private` field,
 so `console.log(client)`, `util.inspect` and `JSON.stringify` never show it;
 `NinaApiError.url` holds the request URL with its userinfo redacted; and the engine scrubs
