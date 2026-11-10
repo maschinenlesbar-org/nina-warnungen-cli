@@ -400,3 +400,25 @@ test("a message or error a 2xx answer carries is quoted with the base URL's cred
     }
   }
 });
+
+test("a 2xx answer's Content-Type and charset are quoted with the base URL's credential scrubbed", async () => {
+  // The not-JSON hint, the GeoJSON refusal and the unknown-charset error quoted the label only
+  // cleaned of control characters: a server echoing the password into its Content-Type put it
+  // into the library error.
+  const pw = "s3cret-Pw";
+  const base = `https://alice:${pw}@mirror.example`;
+  const basic = Buffer.from(`alice:${pw}`).toString("base64");
+  const cases: [string, string, (c: NinaClient) => Promise<unknown>][] = [
+    [`text/${pw}`, "<html></html>", (c) => c.mapData("dwd")],
+    [`text/x-${basic}`, "<html></html>", (c) => c.mapData("dwd")],
+    [`application/json; charset=${pw}`, "[]", (c) => c.mapData("dwd")],
+    [`text/${pw}`, "<html></html>", (c) => c.warnings.geojson("mow.DE-X")],
+  ];
+  for (const [type, body, call] of cases) {
+    const client = new NinaClient({ baseUrl: base, transport: async () => rawResponse(body, type) });
+    const err = await call(client).catch((caught: unknown) => caught);
+    assert.ok(err instanceof NinaParseError, String(err));
+    assert.match(err.message, /\*\*\*/, err.message);
+    assert.ok(!err.message.includes(pw) && !err.message.includes(basic), `${type}: ${err.message}`);
+  }
+});

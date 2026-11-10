@@ -721,9 +721,11 @@ export class RequestEngine {
         }
       }
 
-      // The Content-Type is echoed to stderr (raw-download type-mismatch warning),
-      // so strip control characters at the source before it leaves the engine.
-      const contentType = sanitizeServerText(String(responseHeaders["content-type"] ?? ""));
+      // The Content-Type is echoed to stderr (raw-download type-mismatch warning) and quoted in
+      // errors (the not-JSON hint, an unknown charset, a refused GeoJSON body), so the base URL's
+      // credentials are scrubbed and control characters stripped at the source, before it
+      // leaves the engine.
+      const contentType = sanitizeServerText(this.scrub(String(responseHeaders["content-type"] ?? "")));
       if (status < 200 || status >= 300) {
         const tooLong = retryable && retryAfter !== undefined && retryAfter > MAX_RETRY_AFTER_MS;
         throw this.toApiError(method, url, status, body, responseHeaders["location"], tooLong ? retryAfter : undefined);

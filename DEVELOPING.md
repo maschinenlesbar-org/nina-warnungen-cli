@@ -445,7 +445,9 @@ an inner space is replaced whole) from error bodies and details — the detail a
 `JSON.parse` has decoded it, since a JSON escape (`\u002d`, `\"`) hides a credential from the
 scrub of the text as sent; `NinaApiError.body` stays as sent unless such an escape hid one, and is
 then the decoded JSON written again with it scrubbed (`scrubBody`) —, from every value a 2xx
-answer has quoted into an error (`RequestEngine.quoteServerValue`), a redirect's `Location`
+answer has quoted into an error (`RequestEngine.quoteServerValue`), from a 2xx answer's
+Content-Type and charset (scrubbed where the engine reads the header, so `RawResponse.contentType`
+and every message quoting it carry `***`), a redirect's `Location`
 (before it is resolved, in its path and query too), transport error text
 and the `cause` chain. Whatever a custom transport throws (a string, fetch's `TypeError`)
 reaches the caller as a `NinaNetworkError`, never raw.
