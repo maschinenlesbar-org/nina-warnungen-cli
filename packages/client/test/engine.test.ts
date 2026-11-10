@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { TextDecoder, inspect } from "node:util";
 import assert from "node:assert/strict";
 import { RequestEngine, bigIntegerKeysOption, cleartextProblem, firstInexactNumber, parseRetryAfter, sanitizeServerText, scanNumbers } from "../src/engine.js";
-import { NinaApiError, NinaNetworkError, NinaParseError, NinaValidationError, cutForMessage, cutText, echoedCredentialForms, redactUrlUserinfo, TextBuilder, toWellFormed } from "../src/errors.js";
+import { NinaApiError, NinaNetworkError, NinaParseError, NinaValidationError, credentialsIn, cutForMessage, cutText, echoedCredentialForms, redactUrlUserinfo, TextBuilder, toWellFormed } from "../src/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 import type { HttpResponse } from "../src/http.js";
 
@@ -974,4 +974,67 @@ test("a token in the base URL's userinfo is scrubbed from library errors in ever
       for (const text of [err.message, err.detail ?? "", err.body]) assert.ok(!text.includes(token) && !text.includes(basic), `${base} ${echo}: ${text}`);
     }
   }
+});
+
+test("credentialsIn ends the authority of a special scheme at a backslash, as WHATWG does", () => {
+  for (const scheme of ["http", "https", "HTTPS", "ws", "wss", "ftp"]) {
+    assert.deepEqual(credentialsIn(`${scheme}://u:p@a.example\\@b.example/x`), ["u:p"], scheme);
+    assert.equal(new URL(`${scheme}://u:p@a.example\\@b.example/x`).password, "p", scheme);
+  }
+  // Another scheme's authority runs on to "/", "?" or "#".
+  assert.deepEqual(credentialsIn("foo://u:p@a.example\\@b.example/x"), ["u:p@a.example\\"]);
+  assert.deepEqual(credentialsIn("https://u:p@a.example/x\\@y"), ["u:p"]);
+});
+
+test("credentialsIn skips the slashes and backslashes WHATWG skips after a special scheme (F3)", () => {
+  // `http:///u:pw@h`, `https:\\u:pw@h` and `http:u:pw@h` all carry `u:pw` for WHATWG; read
+  // after "://", the userinfo was missed, so a refused --base-url echoed the password in clear.
+  for (const value of [
+    "http:alice:pw@h.example",
+    "http:/alice:pw@h.example",
+    "http:///alice:pw@h.example/x",
+    "https:////alice:pw@h.example",
+    "HTTPS:\\\\alice:pw@h.example",
+    "wss:\\/alice:pw@h.example",
+    "ftp:alice:pw@h.example",
+  ]) {
+    assert.deepEqual(credentialsIn(value), ["alice:pw"], value);
+    assert.equal(new URL(value).password, "pw", value);
+  }
+  // Another scheme needs "//" before an authority: `foo:u:p@h` and `foo:///u:p@h` carry none.
+  assert.deepEqual(credentialsIn("foo:u:p@h.example"), []);
+  assert.deepEqual(credentialsIn("foo:///u:p@h.example"), []);
+  assert.equal(new URL("foo:///u:p@h.example").password, "");
+});
+
+test("a base URL with a backslash or a repaired scheme is rejected at construction, never echoing the password (F, F4)", () => {
+  const pw = "s3cret-Pw";
+  for (const base of [
+    `https://alice:${pw}@api.example\\@evil.example`,
+    `http:alice:${pw}@127.0.0.1:9`,
+    `http:/alice:${pw}@127.0.0.1:9`,
+    `http:///alice:${pw}@127.0.0.1:9`,
+    `HTTPS:alice:${pw}@mirror.example`,
+    `https:\\\\alice:${pw}@mirror.example`,
+  ]) {
+    assert.throws(
+      () => new RequestEngine({ baseUrl: base }),
+      (err: unknown) => err instanceof NinaValidationError && !err.message.includes(pw) && !inspect(err).includes(pw),
+      base,
+    );
+  }
+});
+
+test("requests go to the base URL as WHATWG parses it, spelled as it parses", async () => {
+  const urls: string[] = [];
+  const e = new RequestEngine({
+    baseUrl: "https://API.Example:443/v1/",
+    transport: async (req) => {
+      urls.push(req.url);
+      return jsonResponse([]);
+    },
+  });
+  await e.getJson("/x");
+  assert.deepEqual(urls, ["https://api.example/v1/x"]);
+  assert.equal(e.buildUrl("/y"), "https://api.example/v1/y");
 });

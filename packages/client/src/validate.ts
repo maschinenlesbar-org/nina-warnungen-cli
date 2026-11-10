@@ -172,6 +172,11 @@ export const headerValueProblem: Problem<unknown> = (value) => {
  * a `?` or `#` would swallow them and every call would fetch the base URL itself.
  * Userinfo (`user:pw@`) is allowed, and redacted in messages; a `%` in it must start a
  * valid escape (`%25` for a literal one), as Node decodes it for the Authorization header.
+ * A backslash is refused (WHATWG reads it as "/" in an http(s) URL, so it ends the host, where
+ * a reader of the text would not), and so is a scheme not followed by exactly `//` and the host
+ * (`http:host`, `http:/host`, `http:///host`), which WHATWG repairs silently into another host
+ * than the one typed. The engine requests the base URL as WHATWG parses it. The reasons never
+ * repeat the value.
  */
 export const baseUrlProblem: Problem<unknown> = (value) => {
   if (typeof value !== "string") return "Expected a string.";
@@ -188,6 +193,9 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
     return `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`;
   }
   if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
+  // WHATWG reads a "\" in an http(s) URL as "/", so it ends the host: in
+  // `https://u:pw@a.example\@b.example` every reader of the base URL has to agree where.
+  if (value.includes("\\")) return 'A base URL cannot contain a backslash (\\); write "/" instead.';
   // Node decodes the userinfo into the Authorization header and throws "URI malformed" for a
   // "%" that isn't an escape — at request time, as a network error. Reject it here.
   for (const part of [url.username, url.password]) {
@@ -197,6 +205,9 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
       return 'The user name or password has a "%" that is not followed by two hex digits; write a literal "%" as %25.';
     }
   }
+  // WHATWG skips any slashes after "http:" and repairs `http:host`, `http:/host` and
+  // `http:///host` into `http://host` silently: the host requested would not be the one typed.
+  if (!/^https?:\/\/[^/]/i.test(value)) return 'Expected an absolute http(s) URL ("https://" and the host).';
   return undefined;
 };
 

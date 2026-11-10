@@ -408,9 +408,15 @@ the exported `validateBaseUrl` / `baseUrlProblem` and throws a `NinaValidationEr
 (`Invalid baseUrl: …`) — a configuration error, not a `NinaNetworkError` — before
 any request: a blank value, surrounding or inner whitespace and control characters,
 an unparseable value, a scheme other than `http:`/`https:`, a query (`?`) or
-fragment (`#`), which would swallow the appended request path, and a `%` in the user
+fragment (`#`), which would swallow the appended request path, a backslash (WHATWG reads it
+as `/` in an http(s) URL, so it ends the host where a text reading would not), a scheme not
+followed by exactly `//` and the host (`http:host`, `http:/host`, `http:///host`, which WHATWG
+repairs silently into `http://host`), and a `%` in the user
 name or password that doesn't start an escape (write a literal `%` as `%25`; Node would
-fail to decode it for the Authorization header at request time). The CLI's
+fail to decode it for the Authorization header at request time). The engine requests the base
+URL as WHATWG parses it (`https://API.Example:443/v1` is sent as `https://api.example/v1/…`), the
+reading every check makes; `credentialsIn` reads a userinfo where WHATWG does (after any slashes
+and backslashes a special scheme skips, up to a backslash too). The CLI's
 `--base-url` parser (`parseBaseUrl`) calls the same rule, so a bad value is a usage
 error there. The `http:`/`https:` scheme is enforced again, per request, by the
 default transport (as a `NinaNetworkError`); the constructor check alone already

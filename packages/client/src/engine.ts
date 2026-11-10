@@ -446,10 +446,14 @@ export class RequestEngine {
     options = options ?? {};
     // Only an omitted baseUrl selects the default; any given value must pass the
     // library's base-URL rules here, before any request.
-    this.#baseUrl = validateBaseUrl(options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl);
+    const typed = validateBaseUrl(options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl);
+    // Requests go to the base URL as WHATWG parses it, the reading every check of it makes (the
+    // host, the cleartext warning, the Authorization header Node derives), not to a text-based
+    // reading of the string: a transport that reads the URL as text reaches the same host.
+    this.#baseUrl = new URL(typed).href.replace(/\/+$/, "");
     // The userinfo as typed and as sent (WHATWG percent-encodes some of its characters: `p"ä`
     // goes out as `p%22%C3%A4`, which a server echoing the request URL repeats).
-    const userinfos = [...new Set([...credentialsIn(this.#baseUrl), ...credentialsIn(new URL(this.#baseUrl).href)])];
+    const userinfos = [...new Set([...credentialsIn(typed), ...credentialsIn(this.#baseUrl)])];
     this.#credentials = userinfos.flatMap((raw) => {
       try {
         return [raw, decodeURIComponent(raw)];
@@ -629,7 +633,8 @@ export class RequestEngine {
   /**
    * Build a fully-qualified URL from a path and optional query parameters. The base
    * URL was checked by the constructor (validateBaseUrl): an http(s) URL without a
-   * query or fragment, so the path is appended as text. Its scheme is enforced
+   * query, fragment or backslash, kept as WHATWG parses it (host lower-cased, a default port
+   * dropped), so the path is appended as text. Its scheme is enforced
    * there, transport-independently, so a library user who injects a custom
    * Transport still cannot reach a file:/ftp: driver.
    */

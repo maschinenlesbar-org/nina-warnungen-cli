@@ -138,6 +138,15 @@ test("baseUrlProblem accepts an http(s) URL and rejects every other shape", asyn
   assert.equal(baseUrlProblem("https://h/a b"), "A base URL cannot contain whitespace or control characters.");
   assert.equal(baseUrlProblem("ftp://h"), 'Unsupported scheme "ftp:". Expected an http(s) URL.');
   assert.equal(baseUrlProblem("https://h/?"), "A base URL cannot have a query (?) or fragment (#).");
+  // A backslash ends an http(s) authority for WHATWG: every reader has to agree where.
+  for (const bad of ["https://u:pw@a.example\\@b.example", "https://h.example/a\\b", "https:\\\\h.example"]) {
+    assert.equal(baseUrlProblem(bad), 'A base URL cannot contain a backslash (\\); write "/" instead.', bad);
+  }
+  // WHATWG repairs a scheme not followed by exactly "//" and the host: refused, not repaired.
+  for (const bad of ["http:h.example", "http:/h.example", "http:///h.example", "HTTPS:h.example"]) {
+    assert.equal(baseUrlProblem(bad), 'Expected an absolute http(s) URL ("https://" and the host).', bad);
+  }
+  assert.equal(baseUrlProblem("HTTPS://H.example"), undefined);
   assert.equal(lib.baseUrlProblem, baseUrlProblem);
 });
 
