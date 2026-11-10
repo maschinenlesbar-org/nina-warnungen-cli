@@ -5,7 +5,7 @@ import { constants } from "node:buffer";
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import { isDirectoryMessage, logOf, refuseOverwrite, type CliDeps } from "./io.js";
-import { NinaError, NinaIOError, NinaValidationError, cutForMessage, quoteValue } from "@maschinenlesbar.org/nina-warnungen-client/internal/errors";
+import { NinaError, NinaIOError, NinaValidationError, TextBuilder, cutForMessage, quoteValue } from "@maschinenlesbar.org/nina-warnungen-client/internal/errors";
 import { baseUrlProblem, headerValueProblem } from "@maschinenlesbar.org/nina-warnungen-client/internal/validate";
 import { DEFAULT_BASE_URL, cleartextProblem, isBidiControl, type EngineOptions, type RawResponse } from "@maschinenlesbar.org/nina-warnungen-client/internal/engine";
 import type { RetryEvent } from "@maschinenlesbar.org/nina-warnungen-client/internal/engine";
@@ -208,17 +208,21 @@ export function escapeControlChars(json: string): string {
  * strings, or are the same character escaped).
  */
 export function escapeTerminalControls(text: string): string {
-  let result = "";
+  // The pieces go into a TextBuilder (joined in batches): one `+=` per escaped character made a
+  // rope node each, and 16 million DEL in a raw answer aborted a 256 MB heap.
+  const result = new TextBuilder();
   let from = 0;
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i);
     const control = (c < 0x20 && c !== 0x09 && c !== 0x0a && c !== 0x0d) || (c >= 0x7f && c <= 0x9f) || isBidiControl(c);
     if (control) {
-      result += text.slice(from, i) + "\\u" + c.toString(16).padStart(4, "0");
+      result.push(text.slice(from, i), "\\u" + c.toString(16).padStart(4, "0"));
       from = i + 1;
     }
   }
-  return from === 0 ? text : result + text.slice(from);
+  if (from === 0) return text;
+  result.push(text.slice(from));
+  return result.toString();
 }
 
 /** The longest string V8 makes (2^29 - 24 characters on 64-bit): a longer JSON text can't be printed at once. */

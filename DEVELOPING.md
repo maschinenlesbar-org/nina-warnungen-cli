@@ -298,7 +298,8 @@ introducers is still linear), then the remaining C0/C1 controls, DEL and every U
 character, and folds each run of whitespace into one space, each step one regex replace: a 16 MB
 error detail is cleaned within a small heap. The engine builds the answers it rewrites (the
 lone-surrogate repair, `scanNumbers`' quoted big integers) in a `TextBuilder` (`errors.ts`,
-pieces joined in batches), not one `+=` per piece.
+pieces joined in batches), not one `+=` per piece; so does the CLI's `escapeTerminalControls`
+(`shared.ts`) for a raw download printed to a terminal.
 
 **Response shapes.** Every client method checks the 2xx body against the shape its
 endpoint documents before returning it: `mapData` and `dashboard` an array of objects
