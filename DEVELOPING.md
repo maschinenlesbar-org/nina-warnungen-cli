@@ -309,7 +309,9 @@ files a JSON object or array, and `warnings.geojson` GeoJSON (UTF-8 JSON for an 
 with a GeoJSON `type`; the bytes are still returned unchanged). Anything else — `null`, `{}`, a scalar, an error object a
 gateway answers with HTTP 200 — is a `NinaParseError` (`GET <url>: unexpected response shape:
 expected …, got …`, exit 1), never data: `jq 'length'` would read `null` and `{}` as 0, a
-false all-clear.
+false all-clear. The `got …` of an error object quotes its `message` (or `error`) with
+`RequestEngine.quoteServerValue`: the base URL's credentials scrubbed first, then cut at 500
+characters, with the separators and every format character escaped.
 
 **Numbers.** `JSON.parse` changes some numbers silently: one out of a double's range (`1e400`
 becomes `Infinity`, printed as `null`), one past 2^53 that it rounds (`12345678901234567890`

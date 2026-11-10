@@ -377,3 +377,26 @@ test("an archive redirect that echoes the base URL's credential stays NinaNotFou
     }
   }
 });
+
+test("a message or error a 2xx answer carries is quoted with the base URL's credential scrubbed, before the cut", async () => {
+  // describeValue quoted a wrong-shape answer's `message`/`error` unscrubbed: a server echoing the
+  // Basic credentials into a 200 error object put the password into NinaParseError.message, and
+  // the 200-character cut could keep a prefix of it.
+  const pw = "s3cret-Pw-long";
+  const base = `https://alice:${pw}@mirror.example`;
+  const basic = Buffer.from(`alice:${pw}`).toString("base64");
+  for (const body of [
+    JSON.stringify({ message: `denied for alice:${pw}` }),
+    JSON.stringify({ error: `bad Basic ${basic}` }),
+    JSON.stringify({ message: `${"x".repeat(190)}${pw}` }),
+    `{"message":"denied s3cret\\u002dPw-long"}`,
+  ]) {
+    for (const call of [(c: NinaClient) => c.mapData("dwd"), (c: NinaClient) => c.warnings.get("mow.DE-X"), (c: NinaClient) => c.warnings.geojson("mow.DE-X")]) {
+      const client = new NinaClient({ baseUrl: base, transport: async () => rawResponse(body, "application/json") });
+      const err = await call(client).catch((caught: unknown) => caught);
+      assert.ok(err instanceof NinaParseError, String(err));
+      assert.match(err.message, /got an object with the message "/);
+      for (const part of ["s3cret", basic, pw.slice(0, 8)]) assert.ok(!err.message.includes(part), `${body}: ${err.message}`);
+    }
+  }
+});

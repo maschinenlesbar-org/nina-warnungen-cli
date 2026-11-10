@@ -30,33 +30,15 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** True for a character a quoted server text never carries raw: the line and paragraph separators, the bidi controls. */
-function invisibleInQuote(c: number): boolean {
-  return c === 0x2028 || c === 0x2029 || c === 0x061c || c === 0x200e || c === 0x200f || (c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069);
-}
-
-/**
- * `text` quoted as `JSON.stringify` does, with the line and paragraph separators and the
- * bidi controls also written as `\uXXXX` escapes (still a valid JSON string): JSON leaves
- * them raw, and an override such as U+202E would show the rest of the line reversed
- * ("Trojan Source"), a separator break it in some viewers. The message then shows what
- * the server sent. Checked by char code, so the source stays free of those characters.
- */
-function quoteServerText(text: string): string {
-  let out = "";
-  for (const ch of JSON.stringify(text)) {
-    const c = ch.charCodeAt(0);
-    out += invisibleInQuote(c) ? "\\u" + c.toString(16).padStart(4, "0") : ch;
-  }
-  return out;
-}
-
 /**
  * What a value is, for a shape error: its JSON type (for an array, the first item that is not
- * an object, by position), and the `message` an error object carries (control characters dropped, cut at 200 characters, never inside a surrogate
- * pair, quoted with the separators and bidi controls escaped).
+ * an object, by position), and the `message` (or `error`) an error object carries: control
+ * characters dropped, then quoted with `engine.quoteServerValue`, which scrubs the base URL's
+ * credentials before it cuts at 500 characters (a 200 error object can echo them as well as an
+ * error body; cut first, a prefix of the password stayed) and escapes the line and paragraph
+ * separators and every format character (bidi controls, "Trojan Source").
  */
-function describeValue(value: unknown): string {
+function describeValue(engine: RequestEngine, value: unknown): string {
   if (value === null) return "null";
   if (Array.isArray(value)) {
     // A list whose items are not warnings: say which item is what, not "got an array".
@@ -67,8 +49,7 @@ function describeValue(value: unknown): string {
     if (Object.keys(value).length === 0) return "an empty object";
     const message = typeof value["message"] === "string" ? value["message"] : typeof value["error"] === "string" ? value["error"] : undefined;
     if (message === undefined) return "an object";
-    const clean = cutText(message.replace(/[\u0000-\u001f\u007f-\u009f]/g, ""), 200);
-    return `an object with the message ${quoteServerText(clean)}`;
+    return `an object with the message ${engine.quoteServerValue(message.replace(/[\u0000-\u001f\u007f-\u009f]/g, ""))}`;
   }
   return `a ${typeof value}`;
 }
@@ -90,10 +71,10 @@ function describeItem(item: unknown): string {
  * HTTP 200 with `null`, `{}` or an error object would otherwise pass as success: for a
  * list, `jq 'length'` reads `null` and `{}` as 0 — a false all-clear.
  */
-function expectShape<T>(request: string, value: unknown, problem: (value: unknown) => string | undefined): T {
+function expectShape<T>(engine: RequestEngine, path: string, value: unknown, problem: (value: unknown) => string | undefined): T {
   const reason = problem(value);
   if (reason !== undefined) {
-    throw new NinaParseError(`${request}: unexpected response shape: expected ${reason}, got ${describeValue(value)}.`);
+    throw new NinaParseError(`${answerOf(engine, path)}: unexpected response shape: expected ${reason}, got ${describeValue(engine, value)}.`);
   }
   return value as T;
 }
@@ -133,7 +114,8 @@ const GEOJSON_TYPES = [
  * to be saved as the `.geojson` file with exit 0. The bytes themselves are returned
  * unchanged.
  */
-function expectGeoJson(request: string, response: RawResponse): RawResponse {
+function expectGeoJson(engine: RequestEngine, path: string, response: RawResponse): RawResponse {
+  const request = answerOf(engine, path);
   let value: unknown;
   try {
     value = JSON.parse(new TextDecoder().decode(response.data));
@@ -143,7 +125,7 @@ function expectGeoJson(request: string, response: RawResponse): RawResponse {
     const type = response.contentType.split(";")[0]?.trim() || "no Content-Type";
     throw new NinaParseError(`${request}: unexpected response shape: expected GeoJSON, got a body that is not JSON (${cutText(type, 100)}).`);
   }
-  expectShape(request, value, (v) =>
+  expectShape(engine, path, value, (v) =>
     isObject(v) && typeof v["type"] === "string" && GEOJSON_TYPES.includes(v["type"]) ? undefined : "a GeoJSON object",
   );
   return response;
@@ -205,7 +187,7 @@ class WarningsResource {
     const id = normalizeIdentifier(assertValid("identifier", identifier, identifierProblem));
     try {
       const path = `${API}/warnings/${enc(id)}.json`;
-      return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), capWarning);
+      return expectShape(this.engine, path, await this.engine.getJson(path), capWarning);
     } catch (err) {
       throw notLive(id, err);
     }
@@ -221,7 +203,7 @@ class WarningsResource {
     const id = normalizeIdentifier(assertValid("identifier", identifier, identifierProblem));
     try {
       const path = `${API}/warnings/${enc(id)}.geojson`;
-      return expectGeoJson(answerOf(this.engine, path), await this.engine.getRaw(path, ACCEPT_GEOJSON));
+      return expectGeoJson(this.engine, path, await this.engine.getRaw(path, ACCEPT_GEOJSON));
     } catch (err) {
       throw notLive(id, err);
     }
@@ -239,7 +221,7 @@ class ArchiveResource {
   async mapping(identifier: string): Promise<ArchiveMapping> {
     const id = normalizeIdentifier(assertValid("identifier", identifier, identifierProblem));
     const path = `${API}/archive.mowas/${enc(id)}-mapping.json`;
-    return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), archiveMapping);
+    return expectShape(this.engine, path, await this.engine.getJson(path), archiveMapping);
   }
 
   /**
@@ -251,7 +233,7 @@ class ArchiveResource {
   async get(identifier: string): Promise<WarningDetail> {
     const id = normalizeIdentifier(assertValid("identifier", identifier, identifierProblem));
     const path = `${API}/archive.mowas/${enc(id)}.json`;
-    return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), capWarning);
+    return expectShape(this.engine, path, await this.engine.getJson(path), capWarning);
   }
 }
 
@@ -262,13 +244,13 @@ class ReferenceResource {
   /** Emergency-preparedness tips (Notfalltipps), German. */
   async notfalltipps(): Promise<Notfalltipps> {
     const path = `${API}/appdata/gsb/notfalltipps/DE/notfalltipps.json`;
-    return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), referenceData);
+    return expectShape(this.engine, path, await this.engine.getJson(path), referenceData);
   }
 
   /** The CAP event-code catalogue (maps event keys to icons/labels). */
   async eventCodes(): Promise<EventCodes> {
     const path = `${API}/appdata/gsb/eventCodes/eventCodes.json`;
-    return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), referenceData);
+    return expectShape(this.engine, path, await this.engine.getJson(path), referenceData);
   }
 
   /**
@@ -277,7 +259,7 @@ class ReferenceResource {
    */
   async dataVersion(): Promise<DataVersion> {
     const path = `${API}/dynamic/version/dataVersion.json`;
-    return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), referenceData);
+    return expectShape(this.engine, path, await this.engine.getJson(path), referenceData);
   }
 }
 
@@ -306,7 +288,7 @@ export class NinaClient {
     const problem = sourceProblem(source);
     if (problem !== undefined) throw new NinaValidationError(problem);
     const path = `${API}/${enc(normalizeToken(source))}/mapData.json`;
-    return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), warningList);
+    return expectShape(this.engine, path, await this.engine.getJson(path), warningList);
   }
 
   /**
@@ -328,7 +310,7 @@ export class NinaClient {
     const key = normalizeToken(ars);
     const path = `${API}/dashboard/${enc(key)}.json`;
     try {
-      return expectShape(answerOf(this.engine, path), await this.engine.getJson(path), warningList);
+      return expectShape(this.engine, path, await this.engine.getJson(path), warningList);
     } catch (err) {
       throw noSuchDistrict(key, err);
     }
