@@ -19,6 +19,7 @@ import {
   redactCredentials,
   redactSecrets,
   redactUrlUserinfo,
+  typedUrlCredentials,
 } from "@maschinenlesbar.org/nina-warnungen-client/internal/errors";
 import { escapeTerminalControls } from "./shared.js";
 
@@ -196,9 +197,11 @@ export function redactionFor(argv: readonly string[]): Redaction {
   const echoed = new Set<string>();
   const passwords = new Set<string>();
   // A base URL typed without its scheme is read as if it had one.
-  const baseUrls = flagValues(argv, BASE_URL_FLAGS).map((value) => (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) ? value : `http://${value}`));
-  for (const source of [...values.flatMap(urlsWithin), ...baseUrls]) {
-    for (const secret of credentialsIn(source)) {
+  // Read as a URL however its scheme is typed: missing, special without "//", or mistyped
+  // (`http//u:pw@h`, the colon left out): typedUrlCredentials.
+  const baseUrls = flagValues(argv, BASE_URL_FLAGS);
+  for (const found of [...values.flatMap(urlsWithin).map(credentialsIn), ...baseUrls.map(typedUrlCredentials)]) {
+    for (const secret of found) {
       secrets.add(secret);
       secrets.add(escapeTerminalControls(secret));
       secrets.add(JSON.stringify(secret).slice(1, -1));

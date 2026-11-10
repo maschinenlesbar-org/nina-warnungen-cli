@@ -429,7 +429,9 @@ still cannot reach a `file:`/`ftp:` driver via the base URL.
 auth). The library's reasons never repeat the value, nor a part of it (a scheme is named only
 when the value spells `<scheme>://`: `T0kenS3cret:@host` parses with the token as its scheme), and the CLI also redacts on
 output: `run.ts` (`redactionFor` and `withRedactedOutput`) takes the exact userinfo of
-every URL argument (`credentialsIn`, exported) and replaces it with `***` in everything it
+every URL argument (`credentialsIn`, exported; a base URL is read as a URL however its scheme is typed,
+`typedUrlCredentials`: missing, `alice:pw@host`, or mistyped, `http//alice:pw@host` with the
+colon left out, whose userinfo is everything between the first slashes and the last `@`) and replaces it with `***` in everything it
 prints — commander's usage errors, which echo a rejected `--base-url` value, and its own
 messages. Behind the exact strings, the userinfo of every URL in what it prints is replaced by
 `***` too (`redactUrlUserinfo`, client, `errors.ts`), in one linear pass: a URL glued onto the
