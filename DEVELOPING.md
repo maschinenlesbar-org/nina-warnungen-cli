@@ -566,7 +566,10 @@ without `--force`, and a file whose directory is missing, not a directory or not
 whose links loop (`CliIO.outputParentProblem`) are usage errors (`NinaValidationError`, exit 1,
 `nina.cli`); `-o -` is stdout. A stream — a character device (`/dev/null`), a FIFO, a socket,
 or a descriptor path (`/dev/stdout`, `/dev/fd/N`, `>(…)`) — needs no `--force` and is written
-in place, every byte, with no claim and no temporary file. A file (`CliIO.writeFile(path, data,
+in place, every byte, with no claim and no temporary file; only when the descriptor opened is
+one (opened without O_CREAT and checked with `fstat`; a descriptor path keeps what the shell
+opened): a path switched to a regular file after it was classified takes the way of a file,
+refused without `--force`. A file (`CliIO.writeFile(path, data,
 overwrite)`; the real one is `nodeFiles.write` in `io.ts`) is written atomically: without
 `--force` it claims the name with an exclusive create (so a file that appeared during the
 request is refused too, `nina.output`), writes a temporary file beside the target (its name cut
