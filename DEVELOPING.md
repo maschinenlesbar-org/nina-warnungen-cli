@@ -290,6 +290,15 @@ and every Unicode format character (a zero-width space, a soft hyphen, a BOM, a 
 written as `\uXXXX`, so a key copied with a zero-width space never reads as the valid key being
 refused. commander's own echo of a refused option value gets the same escapes in its record
 (`escapeFormatChars` in `run.ts`).
+Server text a message quotes (an error `detail`, a Content-Type, a charset, a redirect target, a
+transport's text) goes through `sanitizeServerText` (`engine.ts`, exported) first: it reads at
+most the first 16 384 characters, drops whole terminal escape sequences (a CSI, a terminated
+control string, which ends at ESC or at another introducer, so an unterminated run of
+introducers is still linear), then the remaining C0/C1 controls, DEL and every Unicode format
+character, and folds each run of whitespace into one space, each step one regex replace: a 16 MB
+error detail is cleaned within a small heap. The engine builds the answers it rewrites (the
+lone-surrogate repair, `scanNumbers`' quoted big integers) in a `TextBuilder` (`errors.ts`,
+pieces joined in batches), not one `+=` per piece.
 
 **Response shapes.** Every client method checks the 2xx body against the shape its
 endpoint documents before returning it: `mapData` and `dashboard` an array of objects
