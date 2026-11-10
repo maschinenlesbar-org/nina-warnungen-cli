@@ -369,6 +369,29 @@ test("--base-url rejects a non-http(s) or malformed URL as a usage error", async
   }
 });
 
+test("--base-url typed without its scheme never names its user name, token or password (F5)", async () => {
+  // `T0kenS3cret:@h` parses as a URL whose scheme is the token, which the refusal named
+  // lower-cased (`Unsupported scheme "t0kens3cret:"`), past the exact-string redaction.
+  for (const [bad, secrets] of [
+    ["my_user:pw12@h.example", ["my_user", "pw12"]],
+    ["T0kenS3cret:@h.example", ["t0kens3cret"]],
+    ["T0kenS3cret@h.example", ["t0kens3cret"]],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse([]));
+    const code = await run(["--base-url", bad, "map-data", "dwd"], cli.deps);
+    assert.equal(code, 1, bad);
+    assert.equal(cli.mt.calls.length, 0, bad);
+    const text = [...cli.out, ...cli.err].join("\n").toLowerCase();
+    assert.match(text, /expected an absolute http\(s\) url\./, bad);
+    for (const secret of secrets) assert.ok(!text.includes(secret), `${bad}: ${text.slice(0, 300)}`);
+    assert.throws(
+      () => new NinaClient({ baseUrl: bad }),
+      (err: unknown) => err instanceof Error && secrets.every((secret) => !err.message.toLowerCase().includes(secret)),
+      bad,
+    );
+  }
+});
+
 function redirectResponse(status: number, location?: string): HttpResponse {
   return {
     status,

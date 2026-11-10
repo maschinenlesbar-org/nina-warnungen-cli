@@ -147,6 +147,11 @@ test("baseUrlProblem accepts an http(s) URL and rejects every other shape", asyn
     assert.equal(baseUrlProblem(bad), 'Expected an absolute http(s) URL ("https://" and the host).', bad);
   }
   assert.equal(baseUrlProblem("HTTPS://H.example"), undefined);
+  // A scheme is named only when the value spells `<scheme>://`: `user:pw@h` parses with the user
+  // name as its scheme (F5).
+  for (const bad of ["T0kenS3cret:@h.example", "my_user:pw12@h.example", "mailto:x@h.example"]) {
+    assert.equal(baseUrlProblem(bad), "Expected an absolute http(s) URL.", bad);
+  }
   assert.equal(lib.baseUrlProblem, baseUrlProblem);
 });
 

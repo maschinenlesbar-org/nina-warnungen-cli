@@ -424,7 +424,8 @@ holds transport-independently, so a library user who injects a custom `Transport
 still cannot reach a `file:`/`ftp:` driver via the base URL.
 
 **Credentials in the base URL.** A base URL may carry `user:password@` (sent as Basic
-auth). The library's reasons never repeat the value, and the CLI also redacts on
+auth). The library's reasons never repeat the value, nor a part of it (a scheme is named only
+when the value spells `<scheme>://`: `T0kenS3cret:@host` parses with the token as its scheme), and the CLI also redacts on
 output: `run.ts` (`redactionFor` and `withRedactedOutput`) takes the exact userinfo of
 every URL argument (`credentialsIn`, exported) and replaces it with `***` in everything it
 prints — commander's usage errors, which echo a rejected `--base-url` value, and its own

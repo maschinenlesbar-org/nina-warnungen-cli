@@ -176,7 +176,9 @@ export const headerValueProblem: Problem<unknown> = (value) => {
  * a reader of the text would not), and so is a scheme not followed by exactly `//` and the host
  * (`http:host`, `http:/host`, `http:///host`), which WHATWG repairs silently into another host
  * than the one typed. The engine requests the base URL as WHATWG parses it. The reasons never
- * repeat the value.
+ * repeat the value, nor a part of it: a scheme is named (`Unsupported scheme "ftp:"`) only when
+ * the value spells one (`<scheme>://`), since a scheme-less `user:password@host` parses with the
+ * user name as its scheme.
  */
 export const baseUrlProblem: Problem<unknown> = (value) => {
   if (typeof value !== "string") return "Expected a string.";
@@ -190,6 +192,10 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
     return "Expected an absolute http(s) URL.";
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
+    // `user:password@host` without a scheme parses as a URL whose scheme is the user name
+    // ("t0kens3cret:"), lower-cased, which no exact-string redaction can match: name a scheme
+    // only when the value spells one, `<scheme>://`.
+    if (!/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value)) return "Expected an absolute http(s) URL.";
     return `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`;
   }
   if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
