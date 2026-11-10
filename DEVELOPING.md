@@ -377,7 +377,9 @@ value is rejected (`NinaValidationError`, `Invalid option maxResponseBytes: …`
 rather than switching the cap off. Setting
 `--max-response-bytes 0` disables the guard entirely — including for
 `warning geojson` downloads. The default transport aborts as soon as the cap is
-passed; the engine also checks the body any transport returns, so the cap holds for
+passed, and joins small chunks as they arrive (at 1024 chunks or 64 KiB), so the memory an
+answer holds follows its bytes, not the number of chunks a server sends: two million one-byte
+chunks held about 210 bytes of heap each; the engine also checks the body any transport returns, so the cap holds for
 custom transports too.
 
 **timeoutMs.** Bounds a request (default 30 s; `0` disables) with a socket-inactivity
