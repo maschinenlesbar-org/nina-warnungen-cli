@@ -22,6 +22,11 @@ export class NinaApiError extends NinaError {
   /** The request URL, absolute, with any userinfo redacted (`https://***@host/…`). */
   readonly url: string;
   readonly method: string;
+  /**
+   * The body as the server sent it, the base URL's credentials scrubbed. A JSON body that spells
+   * one with escapes (`\"`, `\u00e4`) is kept as its decoded JSON written again, scrubbed;
+   * a body too large to be a string, or too deeply nested to write again, is left out ("").
+   */
   readonly body: string;
   readonly location: string | undefined;
   /**

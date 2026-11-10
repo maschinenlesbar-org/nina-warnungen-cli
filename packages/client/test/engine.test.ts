@@ -844,3 +844,108 @@ test("millions of lone surrogate escapes are repaired within a small heap", STAR
   const out = execFileSync(process.execPath, ["--max-old-space-size=128", "--input-type=module", "-e", script], { encoding: "utf8" });
   assert.equal(out, "6000000");
 });
+
+test("a credential a server echoes with JSON escapes is scrubbed from the message, the detail and the body", async () => {
+  const pw = "s3cret-Pw";
+  const base = `https://alice:${pw}@mirror.example`;
+  const basic = Buffer.from(`alice:${pw}`).toString("base64");
+  const ascii = (text: string): string => JSON.stringify(text).replace(/[\u0080-\uffff]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+  const everyChar = (text: string): string => `"${[...text].map((c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`).join("")}"`;
+  for (const status of [401, 500]) {
+    for (const echo of [pw, `alice:${pw}`, basic]) {
+      for (const body of [
+        `{"message":${ascii(`denied: ${echo}`)}}`,
+        `{"detail":${everyChar(echo)}}`,
+        `{"message":"denied \\"${echo.slice(0, 3)}\\u${echo.charCodeAt(3).toString(16).padStart(4, "0")}${echo.slice(4)}\\""}`,
+      ]) {
+        const e = new RequestEngine({ baseUrl: base, maxRetries: 0, transport: async () => rawResponse(body, "application/json", status) });
+        const err = await e.getJson("/x").catch((caught: unknown) => caught);
+        assert.ok(err instanceof NinaApiError, String(err));
+        const decodedBody = JSON.stringify(JSON.parse(err.body === "" ? "null" : err.body));
+        for (const text of [err.message, err.detail ?? "", decodedBody]) {
+          assert.ok(!text.includes(pw) && !text.includes(basic), `${status} ${body}: ${text}`);
+        }
+      }
+    }
+  }
+});
+
+test("a credential with an inner space is scrubbed whole, never word by word", async () => {
+  // A password typed percent-encoded (`pa%20ss%20word`) is sent decoded as `pa ss word`; the
+  // scrub replaces it as one string, so no word of it stays behind.
+  const base = "https://alice:pa%20ss%20word@mirror.example";
+  for (const body of [
+    JSON.stringify({ message: "wrong password pa ss word for alice" }),
+    '{"message":"wrong password pa\\u0020ss word for alice"}',
+    JSON.stringify({ message: `bad Basic ${Buffer.from("alice:pa ss word").toString("base64")}` }),
+  ]) {
+    const e = new RequestEngine({ baseUrl: base, maxRetries: 0, transport: async () => rawResponse(body, "application/json", 401) });
+    const err = await e.getJson("/x").catch((caught: unknown) => caught);
+    assert.ok(err instanceof NinaApiError, String(err));
+    for (const text of [err.message, err.detail ?? "", JSON.stringify(JSON.parse(err.body))]) {
+      assert.ok(!/pa ss|ss word|pa\\u0020ss/.test(text), `${body}: ${text}`);
+    }
+  }
+});
+
+test("an error body keeps its spelling unless a credential hides behind an escape", async () => {
+  const base = "https://alice:s3cret-pw@mirror.example";
+  const bodyOf = async (body: string): Promise<string> => {
+    const e = new RequestEngine({ baseUrl: base, maxRetries: 0, transport: async () => rawResponse(body, "application/json", 500) });
+    const err = await e.getJson("/x").catch((caught: unknown) => caught);
+    assert.ok(err instanceof NinaApiError, String(err));
+    return err.body;
+  };
+  // No credential, or one spelled as sent: the body as sent (scrubbed), escapes kept.
+  assert.equal(await bodyOf('{"m":"caf\\u00e9 \\"x\\""}'), '{"m":"caf\\u00e9 \\"x\\""}');
+  assert.equal(await bodyOf('{"m":"pw s3cret-pw \\u00e9"}'), '{"m":"pw *** \\u00e9"}');
+  // Escaped: written again decoded, scrubbed in that spelling.
+  assert.equal(await bodyOf('{"m":"pw s3cret\\u002dpw \\u00e9"}'), '{"m":"pw *** é"}');
+  // Not JSON: nobody decodes it, it stays as sent.
+  assert.equal(await bodyOf("pw s3cret\\u002dpw"), "pw s3cret\\u002dpw");
+  // Deeply nested: written again where this runtime can, else left out (probed, not assumed:
+  // whether JSON.stringify recurses depends on the Node version).
+  const deep = `${"[".repeat(200_000)}"s3cret\\u002dpw"${"]".repeat(200_000)}`;
+  let parses = true;
+  let writes = true;
+  try {
+    const value: unknown = JSON.parse(deep);
+    try {
+      JSON.stringify(value);
+    } catch {
+      writes = false;
+    }
+  } catch {
+    parses = false;
+  }
+  if (parses) {
+    const body = await bodyOf(deep);
+    assert.ok(!body.includes("s3cret"), body.slice(199_990, 200_030));
+    assert.equal(body === "", !writes);
+  }
+});
+
+test("a value quoted from an answer is scrubbed before it is cut, so no part of a credential stays", async () => {
+  const pw = "s3cret-Pw-long";
+  const e = new RequestEngine({ baseUrl: `https://alice:${pw}@mirror.example` });
+  for (const at of [0, 490, 495, 499]) {
+    const quoted = e.quoteServerValue(`${"x".repeat(at)}${pw}${"y".repeat(600)}`);
+    assert.ok(!quoted.includes("s3cret"), `${at}: ${quoted}`);
+  }
+  assert.equal(new RequestEngine().quoteServerValue('a"b'), '"a\\"b"');
+});
+
+test("an echo of the request URL as sent is scrubbed, a short password too", async () => {
+  // Typed raw; WHATWG sends `p%22%C3%A4` in the URL (as the default transport parses it), which
+  // a server echoes.
+  const e = new RequestEngine({
+    baseUrl: 'https://alice:p"ä@mirror.example',
+    maxRetries: 0,
+    transport: async (req) => rawResponse(JSON.stringify({ message: `no access: ${new URL(req.url).href}` }), "application/json", 403),
+  });
+  const err = await e.getJson("/x").catch((caught: unknown) => caught);
+  assert.ok(err instanceof NinaApiError, String(err));
+  for (const text of [err.message, err.detail ?? "", err.body]) {
+    assert.ok(!text.includes("p%22%C3%A4@") && !text.includes('p"ä@'), text);
+  }
+});

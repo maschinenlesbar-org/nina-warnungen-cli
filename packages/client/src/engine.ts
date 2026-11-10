@@ -24,6 +24,7 @@ import {
   cutForMessage,
   cutText,
   echoedCredentialForms,
+  quoteValue,
   redactCredentials,
   redactSecrets,
   redactUrl,
@@ -446,7 +447,10 @@ export class RequestEngine {
     // Only an omitted baseUrl selects the default; any given value must pass the
     // library's base-URL rules here, before any request.
     this.#baseUrl = validateBaseUrl(options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl);
-    this.#credentials = credentialsIn(this.#baseUrl).flatMap((raw) => {
+    // The userinfo as typed and as sent (WHATWG percent-encodes some of its characters: `p"ä`
+    // goes out as `p%22%C3%A4`, which a server echoing the request URL repeats).
+    const userinfos = [...new Set([...credentialsIn(this.#baseUrl), ...credentialsIn(new URL(this.#baseUrl).href)])];
+    this.#credentials = userinfos.flatMap((raw) => {
       try {
         return [raw, decodeURIComponent(raw)];
       } catch {
@@ -456,7 +460,7 @@ export class RequestEngine {
     // Longest first, so a password never leaves half of the user:password around it. Each form
     // also as a URL spells it: a server that puts a credential into a redirect's Location
     // percent-encodes it.
-    this.#echoed = [...new Set(credentialsIn(this.#baseUrl).flatMap(echoedCredentialForms).flatMap(urlSpellings))].sort((a, b) => b.length - a.length);
+    this.#echoed = [...new Set(userinfos.flatMap(echoedCredentialForms).flatMap(urlSpellings))].sort((a, b) => b.length - a.length);
     this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Only an omitted userAgent selects the default: a blank one is an error, not
     // a blank header, and a malformed one fails here rather than at request time.
@@ -513,6 +517,41 @@ export class RequestEngine {
    */
   private scrub(text: string): string {
     return this.#credentials.length === 0 ? text : redactSecrets(redactCredentials(text, this.#credentials), this.#echoed);
+  }
+
+  /**
+   * An error body, already scrubbed as sent, as `NinaApiError.body` keeps it: when it is JSON
+   * with an escape in it, checked decoded too. An escape (`\"`, `\u00e4`) hides an echoed
+   * credential from the scrub of the text as sent, while a caller who parses the body sees it.
+   * Such a body is kept as the decoded JSON written again (`JSON.stringify`, one spelling per
+   * character) with the credential scrubbed in that spelling. A body that doesn't parse is text
+   * nobody decodes, and stays as sent; one too deeply nested to write again is left out.
+   */
+  private scrubBody(scrubbed: string): string {
+    if (this.#echoed.length === 0 || !scrubbed.includes("\\")) return scrubbed;
+    let decoded: unknown;
+    try {
+      decoded = JSON.parse(scrubbed);
+    } catch {
+      return scrubbed;
+    }
+    let rewritten: string;
+    try {
+      rewritten = JSON.stringify(decoded);
+    } catch {
+      return "";
+    }
+    const spelled = this.#echoed.map((form) => JSON.stringify(form).slice(1, -1));
+    return spelled.some((form) => rewritten.includes(form)) ? redactSecrets(rewritten, spelled) : scrubbed;
+  }
+
+  /**
+   * A value from an answer quoted for an error message (`quoteValue`), the base URL's credentials
+   * scrubbed first, before the cut: a 2xx answer (a shape the client refuses, an error envelope)
+   * can echo them as well as an error body. API code quotes server values with this.
+   */
+  quoteServerValue(value: string): string {
+    return quoteValue(this.scrub(value));
   }
 
   /**
@@ -771,15 +810,16 @@ export class RequestEngine {
     } catch {
       // Non-JSON error body; leave detail undefined.
     }
-    // `detail` came from the response body; strip control characters so a hostile
-    // endpoint cannot inject terminal escape sequences via the stderr error message.
-    if (detail !== undefined) detail = cutForMessage(sanitizeServerText(detail));
+    // `detail` came from the response body, decoded: scrubbed again (a JSON escape hid the
+    // credential from the scrub above), then stripped of control characters so a hostile
+    // endpoint cannot inject terminal escape sequences via the stderr error message, and cut.
+    if (detail !== undefined) detail = cutForMessage(sanitizeServerText(this.scrub(detail)));
     // Redirects are not followed; name the target (NINA redirects a warning that is
     // no longer live to its archive copy).
     const rawLocation = Array.isArray(locationHeader) ? locationHeader[0] : locationHeader;
     const location =
       status >= 300 && status < 400 && rawLocation ? redirectTarget(url, rawLocation, (t) => this.scrub(t)) : undefined;
-    return new NinaApiError({ status, url, method, body: text, detail, location, retryAfterMs });
+    return new NinaApiError({ status, url, method, body: this.scrubBody(text), detail, location, retryAfterMs });
   }
 }
 

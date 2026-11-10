@@ -436,9 +436,14 @@ only, since it may well occur in the data. `redactUrl` (exported) falls back to 
 that doesn't parse as a URL. The library keeps the base URL in a real `#private` field,
 so `console.log(client)`, `util.inspect` and `JSON.stringify` never show it;
 `NinaApiError.url` holds the request URL with its userinfo redacted; and the engine scrubs
-the userinfo (raw and percent-decoded) and the forms a server echoes it back in (the
-`Basic` value, the decoded `user:password`, the password alone from 4 characters, each also
-percent-encoded as a URL spells it) from error bodies and details, a redirect's `Location`
+the userinfo (raw, percent-decoded and as WHATWG sends it, `p"ä` as `p%22%C3%A4`) and the forms a
+server echoes it back in (the `Basic` value, the decoded `user:password`, the password alone from 4
+characters, each also percent-encoded as a URL spells it; each as one string, so a password with
+an inner space is replaced whole) from error bodies and details — the detail again once
+`JSON.parse` has decoded it, since a JSON escape (`\u002d`, `\"`) hides a credential from the
+scrub of the text as sent; `NinaApiError.body` stays as sent unless such an escape hid one, and is
+then the decoded JSON written again with it scrubbed (`scrubBody`) —, from every value a 2xx
+answer has quoted into an error (`RequestEngine.quoteServerValue`), a redirect's `Location`
 (before it is resolved, in its path and query too), transport error text
 and the `cause` chain. Whatever a custom transport throws (a string, fetch's `TypeError`)
 reaches the caller as a `NinaNetworkError`, never raw.
