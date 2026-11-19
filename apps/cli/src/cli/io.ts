@@ -22,6 +22,7 @@ import type { NinaClient } from "@maschinenlesbar.org/nina-warnungen-client/inte
 import type { EngineOptions } from "@maschinenlesbar.org/nina-warnungen-client/internal/engine";
 import { NinaIOError, cutForMessage } from "@maschinenlesbar.org/nina-warnungen-client/internal/errors";
 import { createLogger, type Logger } from "./log.js";
+import type { ContainerLimits } from "./limits.js";
 
 export interface CliIO {
   out(text: string): void;
@@ -68,6 +69,8 @@ export interface CliDeps {
   log?: Logger;
   /** The clock the log's timestamps come from. Unset, the real one. */
   now?: () => Date;
+  /** The container's limits (limits.ts); only the bin's defaultDeps reads them, never a test. */
+  limits?: () => ContainerLimits;
 }
 
 /**
@@ -562,3 +565,24 @@ export const defaultIO: CliIO = {
   outBinary: (data) => stdoutData(data),
   isTerminal: () => process.stdout.isTTY === true,
 };
+
+/** What `exitOnSignalsAsPid1` needs of the process. */
+export interface SignalProcess {
+  readonly pid: number;
+  once(event: string, listener: () => void): unknown;
+  exit(code: number): void;
+}
+
+/**
+ * As PID 1 (the first process of a container), a signal without a listener is ignored: Node's
+ * default action re-raises it, and the kernel drops a default-action signal sent to PID 1, so
+ * `docker stop` waited 10 s and then killed the run. There, and only there, the bin shim listens
+ * for SIGINT, SIGTERM and SIGHUP from the start and exits with 130, 143 or 129. Anywhere else
+ * Node's default action stays.
+ */
+export function exitOnSignalsAsPid1(proc: SignalProcess = process): void {
+  if (proc.pid !== 1) return;
+  for (const [signal, code] of [["SIGINT", 130], ["SIGTERM", 143], ["SIGHUP", 129]] as const) {
+    proc.once(signal, () => proc.exit(code));
+  }
+}

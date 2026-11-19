@@ -20,6 +20,7 @@ import {
 } from "./shared.js";
 import { registerWarningCommands } from "./commands/warnings.js";
 import { registerMiscCommands } from "./commands/misc.js";
+import { readContainerLimits } from "./limits.js";
 import { DEFAULT_LOG_FORMAT, logFormatProblem } from "./log.js";
 
 /**
@@ -44,6 +45,8 @@ export const VERSION = readVersion();
 export const defaultDeps: CliDeps = {
   io: defaultIO,
   createClient: (options) => new NinaClient(options),
+  // In a container: the memory and pids limits (cgroup), for action()'s checks.
+  limits: () => readContainerLimits(),
 };
 
 /** commander value-parser for `--log-format`. */
