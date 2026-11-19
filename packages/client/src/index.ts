@@ -45,3 +45,29 @@ export {
 
 export * from "./enums.js";
 export * from "./types.js";
+export {
+  MAX_REGION_DETAILS,
+  districtKey,
+  getRegionWarnings,
+  getWarningArea,
+  getWarningBriefing,
+  getWarningDetail,
+  getWarningHistory,
+  lineBreaks,
+  shapeWarning,
+} from "./operations.js";
+export type {
+  BriefingItem,
+  RegionChanges,
+  RegionWarning,
+  RegionWarnings,
+  RegionWarningsInput,
+  ShapedWarning,
+  SourceSummary,
+  WarningArea,
+  WarningAreaInput,
+  WarningBriefing,
+  WarningBriefingInput,
+  WarningDetailAnswer,
+  WarningHistory,
+} from "./operations.js";
