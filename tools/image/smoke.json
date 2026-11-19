@@ -1,0 +1,29 @@
+{
+  "comment": "What tools/image/smoke.mjs needs that is particular to this repo: the bin (its log topic), a command that makes one request, the exit code of a network error, the mock's answer to that request (by path, under --base-url http://mock:8080; the MoWaS feed recorded on 2026-11-19, cut down), and a string the printed answer contains.",
+  "bin": "nina",
+  "command": [
+    "map-data",
+    "mowas"
+  ],
+  "networkErrorExit": 1,
+  "answers": {
+    "/api31/mowas/mapData.json": [
+      {
+        "id": "mow.DE-HH-HH-SE033-20261119-33-000",
+        "version": 19,
+        "startDate": "2026-11-19T17:18:52+01:00",
+        "severity": "Minor",
+        "urgency": "Immediate",
+        "type": "Alert",
+        "i18nTitle": {
+          "de": "Weltkriegsbombe gefunden - Hamburg-Heimfeld",
+          "en": "Second World War bomb"
+        },
+        "transKeys": {
+          "event": "BBK-EVC-079"
+        }
+      }
+    ]
+  },
+  "expectStdout": "Weltkriegsbombe gefunden"
+}
