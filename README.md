@@ -36,6 +36,51 @@ Check it works:
 nina --help
 ```
 
+### Docker
+
+From 0.10.0 every release is also a container image for linux/amd64 and linux/arm64 on the
+GitHub Container Registry, made from the same tarball as the npm package. It needs no Node.js and no
+install:
+
+```bash
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  ghcr.io/maschinenlesbar-org/nina-warnungen-cli:latest map-data mowas
+```
+
+The image's entrypoint is the program, so the command follows the image name directly;
+`… nina-warnungen-cli:latest nina map-data mowas` works too.
+
+In a container with a memory limit (`--memory`) the default `--max-response-bytes` is an eighth
+of that limit (at most the usual 100 MiB), so an oversized answer is refused with a clear
+error instead of the container being killed for memory.
+The CLI needs at least 12 processes and threads (`--pids-limit 12`): below that it refuses with
+an error, and with 4 or fewer Node.js itself hangs before the CLI can check.
+
+`latest` is the newest release. For scripts, name a release and pin its digest, which the
+[release notes](https://github.com/maschinenlesbar-org/nina-warnungen-cli/releases) give:
+`…/nina-warnungen-cli:0.10.0@sha256:<digest>`. Each image carries signed build provenance; check it
+with
+
+```bash
+gh attestation verify oci://ghcr.io/maschinenlesbar-org/nina-warnungen-cli:latest \
+  --repo maschinenlesbar-org/nina-warnungen-cli
+```
+
+### MCP server
+
+From 0.10.0 the same warnings are also an [MCP](https://modelcontextprotocol.io/) server for AI
+agents, `@maschinenlesbar.org/nina-warnungen-mcp` (command `nina-mcp`, image
+`ghcr.io/maschinenlesbar-org/nina-warnungen-mcp`): six read-only tools, among them a ranked
+briefing across all six sources, the warnings of a district (with what changed since the last
+check) and a warning's area as GeoJSON, on stdio or Streamable HTTP. Setup for Claude Code,
+Claude Desktop and VS Code:
+[MCP.md](https://github.com/maschinenlesbar-org/nina-warnungen-cli/blob/main/MCP.md).
+
+```bash
+npm i -g @maschinenlesbar.org/nina-warnungen-mcp
+claude mcp add nina -- nina-mcp
+```
+
 ## Quickstart
 
 No setup needed — the API is open and read-only. Your first query:
