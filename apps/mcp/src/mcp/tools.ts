@@ -126,6 +126,11 @@ function feedEntry(entry: MapWarning, language: string): JsonObject {
   return { ...(entry as unknown as JsonObject), i18nTitle: titles };
 }
 
+/** The reason for an empty page: the offset is past the end (no all-clear). */
+function pastTheEnd(offset: number, what: string): string {
+  return `offset ${offset} is past the end: ${what}. Ask again with offset 0, or a smaller one; this is no all-clear.`;
+}
+
 /**
  * The briefing's sources as an object by name, and a failed source's error as a note: the size cap
  * shortens lists and cuts texts but keeps objects' keys and the notes, so every source's counts
@@ -199,7 +204,7 @@ const DEFINITIONS: readonly ToolDefinition[] = [
     title: "NINA warning areas as GeoJSON",
     description: [
       'The affected area of one to five warnings as one GeoJSON FeatureCollection, for a map (geojson.io, Leaflet, QGIS). Use it for "zeig das Warngebiet auf einer Karte", "Warnung als GeoJSON", "map this warning", "show the affected area on a map", "what area does this alert cover?", "export the warning area as GeoJSON".',
-      "Give warning ids from getWarningBriefing, getRegionWarnings or listSourceWarnings. The geometry is as NINA delivers it: Polygons in [lon, lat], no fix-up needed. Feature properties are NINA's rendering hints (warnId, fillColor, strokeColor, zIndex), not labels: labels true adds headline, severity, event and areaDesc from the warning (one request more per id). An id that is no longer live (ids churn as warnings are updated and cancelled) is listed in notLive: take a fresh one rather than retrying. Positions that are not numbers in range are named in problems. Polygons are large: a page of features at a time (offset, limit; nextOffset says where the next starts). Write the features to a file rather than showing them inline; say how many features and polygons there are.",
+      "Give warning ids from getWarningBriefing, getRegionWarnings or listSourceWarnings. The geometry is as NINA delivers it: Polygons in [lon, lat], no fix-up needed. Feature properties are NINA's rendering hints (warnId, fillColor, strokeColor, zIndex), not labels: labels true adds headline, severity, event and areaDesc from the warning (one request more per id). An id that is no longer live (ids churn as warnings are updated and cancelled) is listed in notLive: take a fresh one rather than retrying. Positions that are not numbers in range are named in problems. Polygons are large: a page of features at a time (offset, limit; nextOffset says where the next starts; an offset past the end is status empty). Write the features to a file rather than showing them inline; say how many features and polygons there are.",
       RULES,
     ].join("\n\n"),
     inputSchema: input(
@@ -221,6 +226,7 @@ const DEFINITIONS: readonly ToolDefinition[] = [
       const from = num(args, "offset") ?? 0;
       const page = answer.features.slice(from, from + (num(args, "limit") ?? 20));
       const next = from + page.length;
+      if (page.length === 0) return { ...answer, status: "empty", features: [], reason: pastTheEnd(from, `there ${answer.features.length === 1 ? "is 1 feature" : `are ${answer.features.length} features`}`) };
       return { ...answer, features: page, ...(next < answer.features.length ? { nextOffset: next } : {}) };
     },
   },
@@ -245,7 +251,7 @@ const DEFINITIONS: readonly ToolDefinition[] = [
     title: "One NINA source's warnings as sent",
     description: [
       'The warning feed of one NINA source as it sends it, a page at a time: every entry with id, version, startDate, expiresDate, severity, urgency, type (Alert, Update, Cancel) and the title, cancellations and expired ones included. Use it for "alle MoWaS-Meldungen", "die Polizeimeldungen in NINA", "list every DWD entry", "raw KATWARN feed", or to find a warning\'s id by its title.',
-      "Nothing is dropped or merged here (getWarningBriefing does that): type Cancel is an all-clear (Entwarnung), an expiresDate in the past is over, a missing one is no expiry given. Titles are given in German and the asked language only. An empty feed is a real all-clear for that source. Page with offset and limit; nextOffset says where the next page starts.",
+      "Nothing is dropped or merged here (getWarningBriefing does that): type Cancel is an all-clear (Entwarnung), an expiresDate in the past is over, a missing one is no expiry given. Titles are given in German and the asked language only. An empty feed is a real all-clear for that source. Page with offset and limit; nextOffset says where the next page starts (an offset past the end is status empty, no all-clear).",
       RULES,
     ].join("\n\n"),
     inputSchema: input(
@@ -267,9 +273,15 @@ const DEFINITIONS: readonly ToolDefinition[] = [
       const from = num(args, "offset") ?? 0;
       const page = all.slice(from, from + (num(args, "limit") ?? 25)).map((entry) => feedEntry(entry, language));
       const next = from + page.length;
+      const reason =
+        all.length === 0
+          ? `The ${feed} feed has no entries: no warnings from this source right now (a real all-clear).`
+          : page.length === 0
+            ? pastTheEnd(from, `the ${feed} feed has ${all.length} entr${all.length === 1 ? "y" : "ies"}`)
+            : undefined;
       return {
-        status: all.length === 0 ? "empty" : "ok",
-        ...(all.length === 0 ? { reason: `The ${feed} feed has no entries: no warnings from this source right now (a real all-clear).` } : {}),
+        status: reason === undefined ? "ok" : "empty",
+        ...(reason === undefined ? {} : { reason }),
         feed,
         total: all.length,
         warnings: page,

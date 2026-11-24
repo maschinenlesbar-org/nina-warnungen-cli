@@ -204,3 +204,14 @@ test("getWarningBriefing under the size cap keeps every source: its counts, and 
     assert.ok((answer["notes"] as string[]).includes(`${name} could not be read: HTTP 500 for GET /api31/${name}/mapData.json`), `${name}: ${JSON.stringify(answer["notes"])}`);
   }
 });
+
+test("an offset past the end is empty with the reason, never an ok empty list that reads as an all-clear", async () => {
+  const feed = await call("listSourceWarnings", { source: "mowas", offset: 3 });
+  assert.equal(feed.answer["status"], "empty");
+  assert.equal(feed.answer["total"], 3);
+  assert.match(String(feed.answer["reason"]), /offset 3 is past the end: the mowas feed has 3 entries.*offset 0/);
+  const area = await call("getWarningArea", { ids: [HH_BOMB], offset: 5 });
+  assert.equal(area.answer["status"], "empty");
+  assert.equal(area.answer["featureCount"], 1);
+  assert.match(String(area.answer["reason"]), /offset 5 is past the end: there is 1 feature.*offset 0/);
+});
