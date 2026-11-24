@@ -153,8 +153,9 @@ function assertHintFits(text: string, options: readonly string[]): void {
 const OPTIONS = ["limit", "offset", "sources", "details", "ids", "labels", "lang"];
 
 test("the deadline's advice fits every tool: each option it names is named with the tools that take it", async () => {
-  const hanging = { transport: (): Promise<never> => new Promise<never>(() => {}) };
-  const connection = await connect({ transport: hanging, config: { callTimeoutMs: 30 } });
+  // An upstream that never answers; the request deadline is short, so its timer doesn't keep this file alive for 30 s.
+  const hanging = makeMockTransport(() => new Promise<never>(() => {}));
+  const connection = await connect({ transport: hanging, config: { callTimeoutMs: 30, timeoutMs: 100 } });
   const result = await connection.call("getWarningDetail", { id: HH_BOMB });
   await connection.close();
   const text = result.content[0]?.text ?? "";
