@@ -477,7 +477,8 @@ export async function getRegionWarnings(client: NinaClient, input: RegionWarning
     entries = await client.dashboard(region.ars);
   } catch (err) {
     if (err instanceof NinaApiError && err.status === 404) {
-      return { status: "empty", region, searched: { ars: region.ars }, reason: `${err.detail ?? "NINA has no dashboard for this key."} Check the district's key.` };
+      const detail = (err.detail ?? "NINA has no dashboard for this key.").trim();
+      return { status: "empty", region, searched: { ars: region.ars }, reason: `${/[.!?]$/.test(detail) ? detail : `${detail}.`} Check the district's key.` };
     }
     throw err;
   }

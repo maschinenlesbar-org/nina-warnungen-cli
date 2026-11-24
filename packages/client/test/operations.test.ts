@@ -212,6 +212,7 @@ test("region: no warning is ok with a plain all-clear verdict that names the key
   const unknown = await getRegionWarnings(c, { ars: "051000000000", now: NOW });
   assert.equal(unknown.status, "empty");
   assert.match(unknown.status === "empty" ? unknown.reason : "", /no such district key "051000000000"/);
+  assert.match(unknown.status === "empty" ? unknown.reason : "", /is not one\. Check the district's key\.$/, "one sentence ends before the next begins");
 });
 
 test("region: a warning that ended between dashboard and detail is said, not an error", async () => {
