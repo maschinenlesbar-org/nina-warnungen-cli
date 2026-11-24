@@ -222,3 +222,13 @@ test("listSourceWarnings in a language no entry on the page has: said in a note"
   const en = await call("listSourceWarnings", { source: "mowas", lang: "en" });
   assert.equal(en.answer["notes"], undefined);
 });
+
+test("getRegionWarnings: a short place name gets the tool's recipe, not a schema error about its length", async () => {
+  for (const ars of ["Köln", "Ulm", "Hof"]) {
+    const transport = upstream();
+    const { result, text } = await call("getRegionWarnings", { ars }, transport);
+    assert.equal(result.isError, true);
+    assert.match(text, /is not a region key.*Map the place to its Kreis or kreisfreie Stadt first/, text);
+    assert.equal(transport.calls.length, 0);
+  }
+});

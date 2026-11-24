@@ -178,7 +178,9 @@ const DEFINITIONS: readonly ToolDefinition[] = [
     ].join("\n\n"),
     inputSchema: input(
       {
-        ars: { type: "string", minLength: 5, maxLength: 20, description: "The district's 12-digit key, e.g. 082210000000 (Heidelberg); an 8-digit AGS is taken to its district." },
+        // No minLength beyond 1: a short place name ("Köln", "Ulm") gets the tool's own recipe (map it to its
+        // Kreis), which the schema's length error would hide.
+        ars: { type: "string", minLength: 1, maxLength: 20, description: "The district's 12-digit key, e.g. 082210000000 (Heidelberg); an 8-digit AGS is taken to its district." },
         lang,
         previous: { type: "array", items: { type: "string", minLength: 1, maxLength: 300 }, maxItems: 100, description: "The watch tokens of an earlier answer, to learn what changed since." },
         details: { type: "boolean", description: "Read area and advice of the top five warnings (default true; one request each)." },
