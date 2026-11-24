@@ -8,6 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
+import { TOOLS } from "../src/mcp/tools.js";
 import { connect } from "./harness.js";
 import { CANCELLED, DWD_RAIN, HH_BOMB, RODING_WATER, STALE, makeMockTransport, ninaApiNow, rodingDetail } from "./helpers.js";
 
@@ -132,4 +133,56 @@ test("a warning's description is passed whole, not cut at the server's 2000 char
   assert.equal(region.answer["truncated"], undefined);
   const archived = await call("getWarningHistory", { revision }, transport());
   assert.equal((archived.answer["warning"] as { description: string }).description, description);
+});
+
+/** Each option a hint names comes with the tools that take it (`limit (a, b)`), checked against their input schemas. */
+function assertHintFits(text: string, options: readonly string[]): void {
+  const schemas = new Map(TOOLS.map((tool) => [tool.name, Object.keys((tool.inputSchema as { properties: Record<string, unknown> }).properties)]));
+  const pairs = [...text.matchAll(/(\w+(?: or \w+)*) \((\w+(?:, \w+)*)\)/g)];
+  assert.ok(pairs.length >= 2, text);
+  for (const [, named, tools] of pairs) {
+    for (const tool of (tools as string).split(", ")) {
+      assert.ok(schemas.has(tool), `no tool ${tool}: ${text}`);
+      for (const option of (named as string).split(" or ")) assert.ok(schemas.get(tool)?.includes(option), `${tool} takes no ${option}: ${text}`);
+    }
+  }
+  const said = new Set(pairs.flatMap(([, named]) => (named as string).split(" or ")));
+  for (const option of options) assert.ok(!new RegExp(`\\b${option}\\b`).test(text) || said.has(option), `${option} named without its tools: ${text}`);
+}
+
+const OPTIONS = ["limit", "offset", "sources", "details", "ids", "labels", "lang"];
+
+test("the deadline's advice fits every tool: each option it names is named with the tools that take it", async () => {
+  const hanging = { transport: (): Promise<never> => new Promise<never>(() => {}) };
+  const connection = await connect({ transport: hanging, config: { callTimeoutMs: 30 } });
+  const result = await connection.call("getWarningDetail", { id: HH_BOMB });
+  await connection.close();
+  const text = result.content[0]?.text ?? "";
+  assert.equal(result.isError, true);
+  assert.match(text, /took longer than .* and was stopped/);
+  assert.match(text, /try again/);
+  assertHintFits(text, OPTIONS);
+});
+
+test("an answer over the size cap says what this tool can ask for less: the region's details, not a limit it doesn't have", async () => {
+  const connection = await connect({ transport: upstream(), config: { maxResultChars: 400 } });
+  const result = await connection.call("getRegionWarnings", { ars: "093720000000" });
+  await connection.close();
+  const text = result.content[0]?.text ?? "";
+  assert.equal(result.isError, true, text);
+  assert.match(text, /larger than this server's size cap/);
+  assert.match(text, /details \(getRegionWarnings\)/);
+  assertHintFits(text, OPTIONS);
+});
+
+test("a feed over the server's download size is not met with advice to lower a limit, which reads the same feed", async () => {
+  const big = makeMockTransport(() => ({ status: 200, headers: { "content-type": "application/json" }, body: Buffer.alloc(17 * 1024 * 1024, 0x20) }));
+  const connection = await connect({ transport: big });
+  const result = await connection.call("listSourceWarnings", { source: "mowas", limit: 1 });
+  await connection.close();
+  const text = result.content[0]?.text ?? "";
+  assert.equal(result.isError, true, text);
+  assert.match(text, /larger than this server accepts/);
+  assert.match(text, /read whole whatever the limit/);
+  assertHintFits(text, OPTIONS);
 });
