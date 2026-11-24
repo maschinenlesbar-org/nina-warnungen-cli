@@ -9,6 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
 import { TOOLS } from "../src/mcp/tools.js";
+import { limitTransport } from "../src/mcp/limiter.js";
 import { connect } from "./harness.js";
 import { CANCELLED, DWD_RAIN, HH_BOMB, RODING_WATER, STALE, makeMockTransport, ninaApiNow, rodingDetail } from "./helpers.js";
 
@@ -269,4 +270,20 @@ test("getRegionWarnings: a warning with hundreds of areas keeps its place: its a
   assert.equal(warnings[0]?.areaCount, 700);
   assert.equal(warnings[1]?.areaCount, undefined);
   assert.ok((answer["notes"] as string[]).some((n) => n.includes("areaCount") && n.includes("getWarningDetail")), JSON.stringify(answer["notes"]));
+});
+
+test("getRegionWarnings at the call deadline answers with the dashboard it has read, the unread details marked", async () => {
+  // Through the limiter, as the server runs: it gives each request the call's signal, which aborts at the deadline.
+  const api = ninaApiNow();
+  const upstreamHanging = makeMockTransport((request) =>
+    request.url.includes("/warnings/") ? new Promise<never>((_, reject) => request.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true })) : api(request),
+  );
+  const connection = await connect({ transport: { transport: limitTransport(upstreamHanging.transport) }, config: { callTimeoutMs: 200 } });
+  const result = await connection.call("getRegionWarnings", { ars: "093720000000" });
+  await connection.close();
+  const answer = (result.structuredContent ?? {}) as Record<string, unknown>;
+  assert.equal(result.isError, undefined, result.content[0]?.text);
+  const warnings = answer["warnings"] as { id: string; detail?: string }[];
+  assert.deepEqual(warnings.map((w) => w.id), [RODING_WATER, DWD_RAIN]);
+  assert.ok(warnings.every((w) => /^Could not be read/.test(w.detail ?? "")), JSON.stringify(warnings));
 });
