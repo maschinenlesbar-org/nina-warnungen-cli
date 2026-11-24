@@ -577,7 +577,9 @@ async function detailsOf(client: NinaClient, warning: RegionWarning, lang: strin
     detail = await client.warnings.get(warning.id);
   } catch (err) {
     if (err instanceof NinaNotFoundError) return { detail: "No longer live: it ended or was replaced since the dashboard was published." };
-    if (err instanceof NinaError && !(err instanceof NinaValidationError)) return { detail: `Could not be read: ${cutText(err.message, 200)}` };
+    // The id came from NINA's dashboard, not the caller: one the client refuses marks this warning only.
+    if (err instanceof NinaValidationError) return { detail: `Could not be read: NINA sent an id its warning paths don't take (${cutText(err.message, 200)})` };
+    if (err instanceof NinaError) return { detail: `Could not be read: ${cutText(err.message, 200)}` };
     throw err;
   }
   const info = pickInfo(detail, lang).info;

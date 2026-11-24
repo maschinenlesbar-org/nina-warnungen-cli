@@ -221,6 +221,17 @@ test("region: a warning that ended between dashboard and detail is said, not an 
   assert.match(r.status === "ok" ? (r.warnings[0]?.detail ?? "") : "", /No longer live/);
 });
 
+test("region: a dashboard entry whose id no warning path takes is marked, the district's other warnings still answer", async () => {
+  const odd = { ...dashboardCham[0], id: "pol.with space", payload: { ...dashboardCham[0]?.payload, data: { ...dashboardCham[0]?.payload.data, severity: "Minor" } } };
+  const { client: c } = client({ "/dashboard/093720000000.json": [odd, dashboardCham[1]] });
+  const r = await getRegionWarnings(c, { ars: "093720000000", now: NOW });
+  assert.ok(r.status === "ok");
+  if (r.status !== "ok") return;
+  assert.deepEqual(r.warnings.map((w) => w.id), [RODING_WATER, "pol.with space"]);
+  assert.match(r.warnings[0]?.description ?? "", /Kochen Sie/);
+  assert.match(r.warnings[1]?.detail ?? "", /^Could not be read: NINA sent an id its warning paths don't take/);
+});
+
 test("region watch: previous tokens give new, changed and cleared", async () => {
   const { client: c } = client();
   const first = await getRegionWarnings(c, { ars: "093720000000", details: false, now: NOW });
