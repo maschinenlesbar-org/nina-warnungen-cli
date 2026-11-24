@@ -215,3 +215,10 @@ test("an offset past the end is empty with the reason, never an ok empty list th
   assert.equal(area.answer["featureCount"], 1);
   assert.match(String(area.answer["reason"]), /offset 5 is past the end: there is 1 feature.*offset 0/);
 });
+
+test("listSourceWarnings in a language no entry on the page has: said in a note", async () => {
+  const { answer } = await call("listSourceWarnings", { source: "lhp", lang: "xx" });
+  assert.deepEqual(answer["notes"], ["No entry on this page has a title in xx: only the German one is given."]);
+  const en = await call("listSourceWarnings", { source: "mowas", lang: "en" });
+  assert.equal(en.answer["notes"], undefined);
+});

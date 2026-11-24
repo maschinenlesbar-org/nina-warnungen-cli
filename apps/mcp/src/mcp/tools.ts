@@ -286,6 +286,9 @@ const DEFINITIONS: readonly ToolDefinition[] = [
         total: all.length,
         warnings: page,
         ...(next < all.length ? { nextOffset: next } : {}),
+        ...(language !== "de" && !language.startsWith("de-") && page.length > 0 && page.every((entry) => Object.keys(entry["i18nTitle"] as JsonObject).every((key) => key === "de"))
+          ? { notes: [`No entry on this page has a title in ${language}: only the German one is given.`] }
+          : {}),
       };
     },
   },

@@ -208,6 +208,8 @@ export async function getWarningBriefing(client: NinaClient, input: WarningBrief
   const groups = new Map<string, BriefingItem & { time?: string; expiresAll: boolean }>();
   let below = 0;
   let clearedTotal = 0;
+  // Whether any active entry has a title in the asked language (else the note says there is none).
+  let inLang = false;
   settled.forEach((result, index) => {
     const source = sources[index] as NinaSource;
     if (result.status === "rejected") {
@@ -229,6 +231,7 @@ export async function getWarningBriefing(client: NinaClient, input: WarningBrief
         continue;
       }
       summary.active += 1;
+      inLang ||= titleIn(entry.i18nTitle, lang) !== undefined;
       const severity = severityName(entry.severity);
       if (min !== undefined && rank(severity) > rank(min)) {
         below += 1;
@@ -276,7 +279,7 @@ export async function getWarningBriefing(client: NinaClient, input: WarningBrief
   const bySeverity: Record<string, number> = {};
   for (const item of ranked) bySeverity[item.severity] = (bySeverity[item.severity] ?? 0) + item.count;
   const notes: string[] = [];
-  if (lang !== "de" && !lang.startsWith("de-")) notes.push(TRANSLATION_NOTE);
+  if (lang !== "de" && !lang.startsWith("de-")) notes.push(inLang || active === 0 ? TRANSLATION_NOTE : `No entry has a title in ${lang}: the headlines are the German ones as published.`);
   if (ranked.some((item) => item.expiresDate === null)) notes.push("expiresDate null: the source gives no expiry; the warning is treated as active (none is guessed). getWarningDetail may have one.");
   if (ranked.some((item) => item.count > 1)) notes.push("count > 1: the same headline and severity for several areas or sources (DWD issues one entry per area); ids lists the first ten.");
   return {
@@ -505,12 +508,19 @@ export async function getRegionWarnings(client: NinaClient, input: RegionWarning
   active.sort(compareWarnings);
   const warnings: RegionWarning[] = active.map(({ time: _time, ...warning }) => warning);
 
+  // The warnings read in another language than the one asked, by the language given.
+  const otherLanguages = new Map<string, string[]>();
   if (input.details !== false) {
-    for (const warning of warnings.slice(0, MAX_REGION_DETAILS)) Object.assign(warning, await detailsOf(client, warning, lang));
+    for (const warning of warnings.slice(0, MAX_REGION_DETAILS)) {
+      const { given, ...fields } = await detailsOf(client, warning, lang);
+      Object.assign(warning, fields);
+      if (given !== undefined) otherLanguages.set(given, [...(otherLanguages.get(given) ?? []), warning.id]);
+    }
   }
 
   const notes: string[] = [];
   if (lang !== "de" && !lang.startsWith("de-")) notes.push(TRANSLATION_NOTE);
+  for (const [given, ids] of otherLanguages) notes.push(`No ${lang} version, given in ${given}: ${ids.join(", ")}.`);
   if (warnings.length > MAX_REGION_DETAILS && input.details !== false) notes.push(`Areas and advice are read for the first ${MAX_REGION_DETAILS} warnings; getWarningDetail has the others.`);
   if (warnings.some((w) => w.expires === null)) notes.push("expires null: no expiry is given (MoWaS); the warning is treated as active, none is guessed.");
   const verdict =
@@ -560,8 +570,8 @@ function changesSince(previous: Map<string, string | undefined>, warnings: Regio
   return changes;
 }
 
-/** The readable area and the advice of a warning, or why they are missing. */
-async function detailsOf(client: NinaClient, warning: RegionWarning, lang: string): Promise<Partial<RegionWarning>> {
+/** The readable area and the advice of a warning, or why they are missing; `given`, the language read when the warning has none of the asked one. */
+async function detailsOf(client: NinaClient, warning: RegionWarning, lang: string): Promise<Partial<RegionWarning> & { given?: string }> {
   let detail: WarningDetail;
   try {
     detail = await client.warnings.get(warning.id);
@@ -572,7 +582,9 @@ async function detailsOf(client: NinaClient, warning: RegionWarning, lang: strin
   }
   const info = pickInfo(detail, lang).info;
   if (info === undefined) return { detail: "The warning has no info block." };
-  const out: Partial<RegionWarning> = {};
+  const out: Partial<RegionWarning> & { given?: string } = {};
+  const language = typeof info["language"] === "string" ? info["language"] : undefined;
+  if (language !== undefined && otherLanguage(lang, language)) out.given = language;
   const areas = areaDescs(info);
   if (areas.length > 0) out.areas = areas;
   for (const key of ["description", "instruction"] as const) {
@@ -630,6 +642,13 @@ export type WarningDetailAnswer =
   | ({ status: "ok" } & ShapedWarning)
   | { status: "empty"; searched: { id: string }; reason: string; archive?: string };
 
+/** True when the info block's language `got` is not the asked one (another base language, or plain German for de-LS). */
+function otherLanguage(lang: string, got: string): boolean {
+  const asked = lang.toLowerCase();
+  const given = got.toLowerCase();
+  return given.slice(0, 2) !== asked.slice(0, 2) || (asked.endsWith("-ls") && !given.endsWith("-ls"));
+}
+
 /** A CAP warning reduced to one language: the envelope, that info block (its area as areaDesc only). */
 export function shapeWarning(detail: WarningDetail, lang: string): ShapedWarning {
   const { info: _all, ...envelope } = detail;
@@ -642,9 +661,7 @@ export function shapeWarning(detail: WarningDetail, lang: string): ShapedWarning
     areas = areaDescs(info);
   }
   const language = typeof info?.["language"] === "string" ? info["language"] : undefined;
-  const asked = lang.toLowerCase();
-  const got = (language ?? "").toLowerCase();
-  const other = language !== undefined && (got.slice(0, 2) !== asked.slice(0, 2) || (asked.endsWith("-ls") && !got.endsWith("-ls")));
+  const other = language !== undefined && otherLanguage(lang, language);
   return {
     identifier: typeof detail["identifier"] === "string" ? detail["identifier"] : "",
     ...(language === undefined ? {} : { language }),

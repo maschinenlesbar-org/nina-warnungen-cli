@@ -144,6 +144,25 @@ test("region: a msgType CANCEL is a cancellation and a severity in lower case ra
   assert.deepEqual(r.warnings.map((w) => [w.id, w.severity]), [[DWD_RAIN, "Severe"]]);
 });
 
+test("briefing in a language no entry has: said in a note, not the translation note that reads as if there were some", async () => {
+  const { client: c } = client();
+  const b = await getWarningBriefing(c, { lang: "xx", now: NOW });
+  assert.ok(b.warnings.every((w) => w.translated === undefined));
+  assert.ok(!b.notes.some((n) => n.includes("names only the kind of event")), JSON.stringify(b.notes));
+  assert.ok(b.notes.some((n) => n === "No entry has a title in xx: the headlines are the German ones as published."), JSON.stringify(b.notes));
+});
+
+test("region in another language: the warnings without a version in it are named, as getWarningDetail says for one", async () => {
+  const { client: c } = client();
+  const r = await getRegionWarnings(c, { ars: "093720000000", lang: "en", now: NOW });
+  assert.ok(r.status === "ok");
+  if (r.status !== "ok") return;
+  assert.ok(r.notes.includes(`No en version, given in de: ${RODING_WATER}.`), JSON.stringify(r.notes));
+  const fr = await getRegionWarnings(c, { ars: "093720000000", lang: "fr", now: NOW });
+  assert.ok(fr.status === "ok" && fr.notes.includes(`No fr version, given in de: ${RODING_WATER}.`), JSON.stringify(fr.status === "ok" ? fr.notes : []));
+  assert.ok(fr.status === "ok" && fr.notes.includes(`No fr version, given in de-DE: ${DWD_RAIN}.`));
+});
+
 // ---- a district
 
 test("district key: 12-digit district as is; AGS, 5-digit code and municipality key taken to the district", () => {
