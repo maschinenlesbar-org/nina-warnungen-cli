@@ -485,8 +485,11 @@ export async function getRegionWarnings(client: NinaClient, input: RegionWarning
   const cleared: { id: string; headline: string }[] = [];
   let expired = 0;
   const active: (RegionWarning & { time?: string })[] = [];
+  // Entries whose payload.data (severity, msgType) is missing: said, never a silent Unknown.
+  const unread: string[] = [];
   for (const entry of entries) {
     const data = dataOf(entry);
+    if (Object.keys(data).length === 0) unread.push(entry.id);
     const titles = headlines(entry.i18nTitle, lang, textOf(data["headline"]));
     if (isCancel(data["msgType"])) {
       cleared.push({ id: entry.id, headline: titles.headline });
@@ -531,6 +534,9 @@ export async function getRegionWarnings(client: NinaClient, input: RegionWarning
   for (const [given, ids] of otherLanguages) notes.push(`No ${lang} version, given in ${given}: ${ids.join(", ")}.`);
   if (warnings.length > MAX_REGION_DETAILS && input.details !== false) notes.push(`Areas and advice are read for the first ${MAX_REGION_DETAILS} warnings; getWarningDetail has the others.`);
   if (warnings.some((w) => w.expires === null)) notes.push("expires null: no expiry is given (MoWaS); the warning is treated as active, none is guessed.");
+  if (unread.length > 0) {
+    notes.push(`NINA sent no payload.data for ${unread.join(", ")}: ${unread.length === 1 ? "its" : "their"} severity and message type could not be read (Unknown here, and a cancellation would not show); getWarningDetail has them.`);
+  }
   if (previous !== undefined && previous.foreign.length > 0) {
     const districts = [...new Set(previous.foreign)].join(", ");
     notes.push(`${previous.foreign.length} watch token${previous.foreign.length === 1 ? " is" : "s are"} of another district (${districts}) and ${previous.foreign.length === 1 ? "was" : "were"} left out: pass the tokens of this district's last answer.`);

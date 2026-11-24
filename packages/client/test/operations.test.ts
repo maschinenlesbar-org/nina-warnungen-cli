@@ -232,6 +232,15 @@ test("region: a dashboard entry whose id no warning path takes is marked, the di
   assert.match(r.warnings[1]?.detail ?? "", /^Could not be read: NINA sent an id its warning paths don't take/);
 });
 
+test("region: an entry without payload.data is named: its severity and type could not be read, not a silent Unknown", async () => {
+  const bare = { ...dashboardCham[1], payload: { version: 21, type: "ALERT", id: RODING_WATER, hash: "e57084d8" } };
+  const { client: c } = client({ "/dashboard/093720000000.json": [dashboardCham[0], bare] });
+  const r = await getRegionWarnings(c, { ars: "093720000000", details: false, now: NOW });
+  assert.ok(r.status === "ok");
+  if (r.status !== "ok") return;
+  assert.ok(r.notes.includes(`NINA sent no payload.data for ${RODING_WATER}: its severity and message type could not be read (Unknown here, and a cancellation would not show); getWarningDetail has them.`), JSON.stringify(r.notes));
+});
+
 test("region watch: previous tokens give new, changed and cleared", async () => {
   const { client: c } = client();
   const first = await getRegionWarnings(c, { ars: "093720000000", details: false, now: NOW });
