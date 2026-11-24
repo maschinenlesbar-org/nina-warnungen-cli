@@ -300,7 +300,7 @@ const DEFINITIONS: readonly ToolDefinition[] = [
     title: "NINA MoWaS archive",
     description: [
       'The MoWaS archive: the revisions of a MoWaS warning (alert, updates, cancellation) with their revision ids, or one archived revision in full. Use it for "was stand in der Warnung von gestern?", "Verlauf dieser MoWaS-Meldung", "what did the cancelled warning say?", "history of this warning", "the warning is gone, what was it?".',
-      "Give id (a MoWaS warning id, mow.…) for its history; then revision (an identifier from that history, .json suffix optional) for that version in one language, shaped as getWarningDetail. Only MoWaS warnings are archived: another source's id is status empty with the reason, as is an id the archive doesn't have. History msgType is upper case (ALERT, UPDATE, CANCEL).",
+      "Give id (a MoWaS warning id, mow.…) for its history; then revision (an identifier from that history, .json suffix optional) for that version in one language, shaped as getWarningDetail; with both, the revision must be one of that id. Only MoWaS warnings are archived: another source's id is status empty with the reason, as is an id the archive doesn't have. History msgType is upper case (ALERT, UPDATE, CANCEL).",
       RULES,
     ].join("\n\n"),
     inputSchema: input({

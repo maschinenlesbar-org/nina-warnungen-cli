@@ -310,6 +310,21 @@ test("history: a MoWaS id's revisions, a revision's warning; other sources and u
 
 // ---- the map
 
+test("history: an id copied with quotes or a suffix is the MoWaS id it is; a blank revision and a revision of another id are refused", async () => {
+  const { client: c } = client();
+  for (const id of [`"${HH_BOMB}"`, `${HH_BOMB}.json`, `«${HH_BOMB}»`]) {
+    const h = await getWarningHistory(c, { id });
+    assert.equal(h.status, "ok", id);
+    assert.equal(h.status === "ok" && "id" in h ? h.id : "", HH_BOMB);
+  }
+  const quoted = await getWarningHistory(c, { revision: `"${HH_BOMB}_20261119171852.json"` });
+  assert.equal(quoted.status, "ok");
+  await assert.rejects(getWarningHistory(c, { revision: " " }), (err: Error) => err instanceof NinaValidationError && /revision/.test(err.message));
+  await assert.rejects(getWarningHistory(c, { id: "mow.NOPE", revision: `${HH_BOMB}_20261119171852.json` }), (err: Error) => err instanceof NinaValidationError && /is not a revision of "mow\.NOPE"/.test(err.message));
+  const both = await getWarningHistory(c, { id: HH_BOMB, revision: `${HH_BOMB}_20261119171852` });
+  assert.equal(both.status, "ok", "a revision of the id given: answered");
+});
+
 test("map: one FeatureCollection of several warnings, counted; NINA's properties kept; [lon, lat] as delivered", async () => {
   const { client: c } = client();
   const a = await getWarningArea(c, { ids: [HH_BOMB, DWD_RAIN] });

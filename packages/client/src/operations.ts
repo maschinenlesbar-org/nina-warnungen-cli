@@ -736,13 +736,18 @@ export async function getWarningHistory(client: NinaClient, input: { id?: string
   const lang = langOf(input.lang);
   const notMowas = (value: string) =>
     `The archive holds MoWaS warnings only (ids starting mow.); ${quoteValue(value)} is not one. For a live warning of another source use getWarningDetail.`;
+  // Cleaned as the client cleans an id (quotes, a .json suffix), so a copied id is checked as the one it reads.
+  const revision = input.revision === undefined ? undefined : normalizeIdentifier(assertValid("revision", input.revision, identifierProblem));
+  const given = input.id === undefined || (revision !== undefined && input.id.trim() === "") ? undefined : normalizeIdentifier(assertValid("identifier", input.id, identifierProblem));
   try {
-    if (input.revision !== undefined) {
-      const revision = input.revision.trim();
+    if (revision !== undefined) {
+      if (given !== undefined && !revision.startsWith(`${given}_`)) {
+        throw new NinaValidationError(`${quoteValue(revision)} is not a revision of ${quoteValue(given)}: give id for its history, or a revision from that history.`);
+      }
       if (!revision.startsWith("mow.")) return { status: "empty", searched: { revision }, reason: notMowas(revision) };
       return { status: "ok", revision, ...shapeWarning(await client.archive.get(revision), lang) };
     }
-    const id = (input.id ?? "").trim();
+    const id = given ?? "";
     if (id === "") throw new NinaValidationError("Give id (a MoWaS warning id) or revision (a revision id from its history).");
     if (!id.startsWith("mow.")) return { status: "empty", searched: { id }, reason: notMowas(id) };
     const mapping = await client.archive.mapping(id);
@@ -751,7 +756,7 @@ export async function getWarningHistory(client: NinaClient, input: { id?: string
     return { status: "ok", id, history };
   } catch (err) {
     if (err instanceof NinaApiError && err.status === 404) {
-      const searched = input.revision !== undefined ? { revision: input.revision.trim() } : { id: (input.id ?? "").trim() };
+      const searched = revision !== undefined ? { revision } : { id: given ?? "" };
       return { status: "empty", searched, reason: "The MoWaS archive has no such id (HTTP 404). Ids are case-sensitive; take one from a briefing or region answer, and a revision id from the id's history." };
     }
     throw err;
