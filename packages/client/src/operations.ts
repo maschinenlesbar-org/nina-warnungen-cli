@@ -16,7 +16,7 @@
 // so); only `<br/>` markup is turned into line breaks. Times are as the API sends them.
 
 import type { NinaClient } from "./client.js";
-import { NinaApiError, NinaError, NinaNotFoundError, NinaValidationError, cutText, quoteValue } from "./errors.js";
+import { NinaApiError, NinaError, NinaNetworkError, NinaNotFoundError, NinaValidationError, cutText, quoteValue } from "./errors.js";
 import { arsProblem } from "./ars.js";
 import { NinaSourceValues, SeverityValues, type NinaSource } from "./enums.js";
 import type { DashboardEntry, I18nText, JsonObject, JsonValue, MapWarning, WarningDetail } from "./types.js";
@@ -190,7 +190,7 @@ export interface WarningBriefing {
  * over: counted, dropped; an entry without one stays active (no expiry is guessed). Entries with the
  * same German headline and severity are one item with a count (DWD issues one entry per area;
  * MoWaS mirrors). A source that cannot be read is named in `sources[].error` and the verdict; when
- * none can be read, the first error is thrown.
+ * none can be read, the error says so and names each source's failure (one source asked: its own).
  */
 export async function getWarningBriefing(client: NinaClient, input: WarningBriefingInput = {}): Promise<WarningBriefing> {
   const sources = sourcesOf(input.sources);
@@ -201,7 +201,7 @@ export async function getWarningBriefing(client: NinaClient, input: WarningBrief
   const now = input.now ?? new Date();
 
   const settled = await Promise.allSettled(sources.map((source) => client.mapData(source)));
-  if (settled.every((result) => result.status === "rejected")) throw (settled[0] as PromiseRejectedResult).reason;
+  if (settled.every((result) => result.status === "rejected")) throw noneRead(sources, settled as PromiseRejectedResult[]);
 
   const summaries: SourceSummary[] = [];
   const cleared: WarningBriefing["cleared"] = [];
@@ -291,6 +291,20 @@ export async function getWarningBriefing(client: NinaClient, input: WarningBrief
     ...(min === undefined ? {} : { belowMinSeverity: below }),
     notes,
   };
+}
+
+/**
+ * The error when no source could be read: with one source asked, its own; with several, one that
+ * says none could be read and names each source's failure, so a caller sees the service is down
+ * rather than retrying source by source. Network failures stay a `NinaNetworkError`; anything
+ * that is not a NinaError (a bug) is thrown as it is.
+ */
+function noneRead(sources: readonly NinaSource[], rejected: readonly PromiseRejectedResult[]): unknown {
+  const first = rejected[0]?.reason;
+  if (rejected.length === 1 || !rejected.every((r) => r.reason instanceof NinaError)) return first;
+  const each = rejected.map((r, i) => `${sources[i]}: ${cutText((r.reason as Error).message, 200)}`).join("; ");
+  const message = `None of the ${sources.length} sources could be read (NINA may be down: try again later rather than source by source): ${each}`;
+  return rejected.every((r) => r.reason instanceof NinaNetworkError) ? new NinaNetworkError(message, { cause: first }) : new NinaError(message, { cause: first });
 }
 
 function briefingVerdict(summaries: SourceSummary[], bySeverity: Record<string, number>, active: number, cancelled: number, below: number, min: string | undefined): string {

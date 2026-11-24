@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NinaClient } from "../src/client.js";
-import { NinaValidationError } from "../src/errors.js";
+import { NinaError, NinaValidationError } from "../src/errors.js";
 import { districtKey, getRegionWarnings, getWarningArea, getWarningBriefing, getWarningDetail, getWarningHistory, lineBreaks } from "../src/operations.js";
 import { makeMockTransport } from "./helpers.js";
 import { CANCELLED, DWD_RAIN, HH_BOMB, NOW, RODING_WATER, STALE, dashboardCham, ninaApi } from "./fixtures.js";
@@ -82,6 +82,20 @@ test("briefing: a source that fails is named, the others still answer; when all 
   assert.match(b.verdict, /katwarn could not be read: warnings from it may be missing\./);
   const { client: down } = client({ "/dwd/mapData.json": () => ({ status: 500, headers: {}, body: Buffer.alloc(0) }) });
   await assert.rejects(getWarningBriefing(down, { sources: ["dwd"], now: NOW }), /500/);
+});
+
+test("briefing: when every source fails, the error says none could be read and names each source's failure", async () => {
+  const down = () => ({ status: 503, headers: {}, body: Buffer.alloc(0) });
+  const all = Object.fromEntries(["mowas", "katwarn", "biwapp", "dwd", "lhp", "police"].map((s) => [`/${s}/mapData.json`, down]));
+  const { client: c } = client(all);
+  await assert.rejects(getWarningBriefing(c, { now: NOW }), (err: Error) => {
+    assert.ok(err instanceof NinaError);
+    assert.match(err.message, /^None of the 6 sources could be read \(NINA may be down: try again later rather than source by source\): mowas: HTTP 503/);
+    for (const s of ["katwarn", "biwapp", "dwd", "lhp", "police"]) assert.match(err.message, new RegExp(`${s}: HTTP 503 for GET /api31/${s}/mapData\\.json`));
+    return true;
+  });
+  const { client: two } = client(all);
+  await assert.rejects(getWarningBriefing(two, { sources: ["dwd", "lhp"], now: NOW }), /^NinaError|None of the 2 sources could be read/);
 });
 
 test("briefing: sources narrow the reads; minSeverity counts the rest; limit leaves more", async () => {
