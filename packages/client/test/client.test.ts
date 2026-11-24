@@ -17,6 +17,17 @@ test("mapData builds the per-source path", async () => {
   assert.equal(new URL(mt.last().url).pathname, "/api31/dwd/mapData.json");
 });
 
+test("a base URL given with the API's path (…/api31) is taken without it: requests are not sent to /api31/api31", async () => {
+  for (const baseUrl of ["https://warnung.bund.de/api31", "https://warnung.bund.de/api31/", "http://127.0.0.1:8080/mirror/api31"]) {
+    const mt = constantJson([]);
+    await new NinaClient({ transport: mt.transport, baseUrl }).mapData("dwd");
+    assert.equal(mt.last().url, `${baseUrl.replace(/\/api31\/?$/, "")}/api31/dwd/mapData.json`, baseUrl);
+  }
+  const mirror = constantJson([]);
+  await new NinaClient({ transport: mirror.transport, baseUrl: "https://mirror.example/api3" }).mapData("dwd");
+  assert.equal(mirror.last().url, "https://mirror.example/api3/api31/dwd/mapData.json", "another path prefix is kept");
+});
+
 test("warnings.get builds the warnings path with .json", async () => {
   const mt = constantJson({ identifier: "abc" });
   await clientWith(mt).warnings.get("abc.123");

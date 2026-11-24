@@ -1,6 +1,6 @@
 // Public entry point for the API client library.
 
-export { NinaClient } from "./client.js";
+export { NinaClient, withoutApiPath } from "./client.js";
 export {
   RequestEngine,
   DEFAULT_BASE_URL,

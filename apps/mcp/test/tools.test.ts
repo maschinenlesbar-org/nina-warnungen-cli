@@ -247,3 +247,13 @@ test("ids are cleaned as the client cleans them: source is the file read, and on
   const history = await call("getWarningHistory", { id: `${HH_BOMB}.json` });
   assert.equal(history.answer["source"], `${BASE}/archive.mowas/${HH_BOMB}-mapping.json`);
 });
+
+test("a --base-url with the API's path cites and reads one /api31, not /api31/api31", async () => {
+  const transport = upstream();
+  const connection = await connect({ transport, config: { baseUrl: "https://warnung.bund.de/api31" } });
+  const answer = ((await connection.call("getRegionWarnings", { ars: "020000000000", details: false })).structuredContent ?? {}) as Record<string, unknown>;
+  await connection.close();
+  assert.equal(answer["status"], "ok");
+  assert.equal(answer["source"], `${BASE}/dashboard/020000000000.json`);
+  assert.equal(transport.last().url, `${BASE}/dashboard/020000000000.json`);
+});

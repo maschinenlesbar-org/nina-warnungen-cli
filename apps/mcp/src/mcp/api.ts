@@ -3,7 +3,7 @@
 // client only through this file, under the names below; the names on the right are this
 // client's. Per repository, like tools.ts: a client whose names or functions differ adapts here.
 
-import { DEFAULT_BASE_URL } from "@maschinenlesbar.org/nina-warnungen-client";
+import { DEFAULT_BASE_URL, withoutApiPath } from "@maschinenlesbar.org/nina-warnungen-client";
 
 export {
   NinaClient as Client,
@@ -22,8 +22,9 @@ export { cutText, toWellFormed } from "@maschinenlesbar.org/nina-warnungen-clien
 
 /**
  * The API's base as a result's `source` starts with it: the host (`--base-url`, else the default)
- * and the API's path prefix /api31, which every request of the client goes under.
+ * and the API's path prefix /api31, which every request of the client goes under (a base URL given
+ * with it is taken without it, as the client takes it).
  */
 export function apiBase(baseUrl: string | undefined): string {
-  return `${(baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "")}/api31`;
+  return `${withoutApiPath(baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "")}/api31`;
 }

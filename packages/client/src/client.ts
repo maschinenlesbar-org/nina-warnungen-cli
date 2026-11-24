@@ -263,6 +263,17 @@ class ReferenceResource {
   }
 }
 
+/**
+ * `baseUrl` without a trailing `/api31` (and slashes after it): the API's address is written with
+ * that path (`warnung.bund.de/api31`), but the client adds it to every request, so a base URL
+ * given with it sent every request to `/api31/api31/…`, which NINA answers 404 (read as "no such
+ * district" or "no such id"). Any other path (a mirror's prefix) is kept. A non-string is
+ * returned as it is, for the base URL's check to refuse.
+ */
+export function withoutApiPath(baseUrl: string): string {
+  return typeof baseUrl === "string" ? baseUrl.replace(/\/api31\/*$/, "") : baseUrl;
+}
+
 export class NinaClient {
   private readonly engine: RequestEngine;
 
@@ -271,7 +282,7 @@ export class NinaClient {
   readonly reference: ReferenceResource;
 
   constructor(options: EngineOptions = {}) {
-    this.engine = new RequestEngine(options);
+    this.engine = new RequestEngine(options.baseUrl === undefined ? options : { ...options, baseUrl: withoutApiPath(options.baseUrl) });
     this.warnings = new WarningsResource(this.engine);
     this.archive = new ArchiveResource(this.engine);
     this.reference = new ReferenceResource(this.engine);
