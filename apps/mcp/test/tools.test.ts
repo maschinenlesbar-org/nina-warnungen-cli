@@ -257,3 +257,16 @@ test("a --base-url with the API's path cites and reads one /api31, not /api31/ap
   assert.equal(answer["source"], `${BASE}/dashboard/020000000000.json`);
   assert.equal(transport.last().url, `${BASE}/dashboard/020000000000.json`);
 });
+
+test("getRegionWarnings: a warning with hundreds of areas keeps its place: its areas are listed in part, counted, the rest in getWarningDetail", async () => {
+  const areas = Array.from({ length: 700 }, (_, i) => ({ areaDesc: `Gemeinde Musterort-Ortsteil ${String(i).padStart(4, "0")}` }));
+  const detail = { ...rodingDetail, info: [{ ...rodingDetail.info[0], area: areas }] };
+  const { result, answer } = await call("getRegionWarnings", { ars: "093720000000" }, makeMockTransport(ninaApiNow(Date.now(), { [`/warnings/${RODING_WATER}.json`]: detail })));
+  assert.equal(result.isError, undefined, result.content[0]?.text);
+  const warnings = answer["warnings"] as { id: string; areas?: string[]; areaCount?: number }[];
+  assert.deepEqual(warnings.map((w) => w.id), [RODING_WATER, DWD_RAIN]);
+  assert.equal(warnings[0]?.areas?.length, 50);
+  assert.equal(warnings[0]?.areaCount, 700);
+  assert.equal(warnings[1]?.areaCount, undefined);
+  assert.ok((answer["notes"] as string[]).some((n) => n.includes("areaCount") && n.includes("getWarningDetail")), JSON.stringify(answer["notes"]));
+});

@@ -23,6 +23,7 @@ import {
   type JsonObject,
   type MapWarning,
   type NinaSource,
+  type RegionWarning,
   type SourceSummary,
 } from "@maschinenlesbar.org/nina-warnungen-client";
 import type { JsonSchema, ToolDefinition } from "./server.js";
@@ -127,6 +128,25 @@ function feedEntry(entry: MapWarning, language: string): JsonObject {
   return { ...(entry as unknown as JsonObject), i18nTitle: titles };
 }
 
+/** The most areas a region answer lists per warning (areaCount gives the number when there are more). */
+export const MAX_REGION_AREAS = 50;
+
+/**
+ * A region answer whose warnings list at most MAX_REGION_AREAS areas each: one warning with hundreds
+ * of areas used to put the answer over the size cap, which can't shorten a list inside an entry, so
+ * every warning was lost (the tool has no paging). The rest are in getWarningDetail.
+ */
+function areasInPart<T extends { warnings: RegionWarning[]; notes: string[] }>(answer: T): T {
+  let cut = false;
+  const warnings = answer.warnings.map((warning) => {
+    if (warning.areas === undefined || warning.areas.length <= MAX_REGION_AREAS) return warning;
+    cut = true;
+    return { ...warning, areas: warning.areas.slice(0, MAX_REGION_AREAS), areaCount: warning.areas.length };
+  });
+  if (!cut) return answer;
+  return { ...answer, warnings, notes: [...answer.notes, `areas lists the first ${MAX_REGION_AREAS} areas of a warning; areaCount says how many it has, getWarningDetail has them all.`] };
+}
+
 /** The reason for an empty page: the offset is past the end (no all-clear). */
 function pastTheEnd(offset: number, what: string): string {
   return `offset ${offset} is past the end: ${what}. Ask again with offset 0, or a smaller one; this is no all-clear.`;
@@ -174,7 +194,7 @@ const DEFINITIONS: readonly ToolDefinition[] = [
     title: "NINA warnings for a district",
     description: [
       'The warnings in force for one Kreis or kreisfreie Stadt (NINA\'s dashboard), ranked, with the readable area and the advice, and on request what changed since an earlier check. Use it for "gibt es Warnungen in Heidelberg?", "Warnungen für den Landkreis Rosenheim", "ist es im Ahrtal sicher?", "are there warnings in Heidelberg?", "any alerts for my area / Landkreis?", "keep watching Cologne for warnings".',
-      `ars is the district's 12-digit Amtlicher Regionalschlüssel (first five digits, then 0000000), not a place name: map the place to its Kreis first. ${DISTRICTS} An 8-digit AGS, a 5-digit district code or a municipality's key is taken to its district (region.from says so). A state key (digits 3-5 000) is refused: the API answers it with [] even while districts have warnings. A wrong but existing district answers with its own warnings, so name the district and key you used. Cancellations are dropped (cleared), expired ones too; expires null is no expiry given (MoWaS), filled from the warning when known. For the top five, areas (areaDesc), description and instruction (advice can be in either) come from the warning; details false skips those requests. Empty warnings is a real all-clear for that key. To watch, pass the watch tokens of the last answer for that district as previous (another district's are left out, with a note): changes lists new, changed and cleared ids; re-check every few minutes, not in a tight loop.`,
+      `ars is the district's 12-digit Amtlicher Regionalschlüssel (first five digits, then 0000000), not a place name: map the place to its Kreis first. ${DISTRICTS} An 8-digit AGS, a 5-digit district code or a municipality's key is taken to its district (region.from says so). A state key (digits 3-5 000) is refused: the API answers it with [] even while districts have warnings. A wrong but existing district answers with its own warnings, so name the district and key you used. Cancellations are dropped (cleared), expired ones too; expires null is no expiry given (MoWaS), filled from the warning when known. For the top five, areas (areaDesc, at most 50: areaCount when more), description and instruction (advice can be in either) come from the warning; details false skips those requests. Empty warnings is a real all-clear for that key. To watch, pass the watch tokens of the last answer for that district as previous (another district's are left out, with a note): changes lists new, changed and cleared ids; re-check every few minutes, not in a tight loop.`,
       RULES,
     ].join("\n\n"),
     inputSchema: input(
@@ -199,7 +219,8 @@ const DEFINITIONS: readonly ToolDefinition[] = [
     },
     async run(args, context) {
       const previous = list(args, "previous");
-      return { ...(await getRegionWarnings(context.client, { ars: str(args, "ars") ?? "", lang: str(args, "lang"), previous, details: args["details"] !== false })) };
+      const answer = await getRegionWarnings(context.client, { ars: str(args, "ars") ?? "", lang: str(args, "lang"), previous, details: args["details"] !== false });
+      return { ...(answer.status === "ok" ? areasInPart(answer) : answer) };
     },
   },
   {
