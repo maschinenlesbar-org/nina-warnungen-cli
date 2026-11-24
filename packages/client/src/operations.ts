@@ -796,7 +796,8 @@ export type WarningArea =
  * The affected areas of one to five warnings as one FeatureCollection, as NINA delivers them
  * ([lon, lat], no fix-up needed). The features' properties are NINA's rendering hints (warnId,
  * colours, zIndex); with `labels`, headline, severity, event and areaDesc from the warning are
- * added. A stale id (redirected to the archive) is listed in `notLive`; when every id is, the
+ * added (a warning that can't be read for them is named in `problems`, its geometry drawn). A
+ * stale id (redirected to the archive) is listed in `notLive`; when every id is, the
  * answer is `empty` with what to do. Positions that are not numbers in range are named in
  * `problems`, never silently passed.
  */
@@ -837,8 +838,10 @@ export async function getWarningArea(client: NinaClient, input: WarningAreaInput
           ...(shaped.areas.length === 0 ? {} : { areaDesc: shaped.areas.join("; ") }),
         };
       } catch (err) {
-        if (!(err instanceof NinaNotFoundError)) throw err;
-        problems.push(`${id}: no labels, the warning ended between the two requests.`);
+        if (err instanceof NinaNotFoundError) problems.push(`${id}: no labels, the warning ended between the two requests.`);
+        // The geometry is read: a label that can't be is said, the map not lost for it.
+        else if (err instanceof NinaError && !(err instanceof NinaValidationError)) problems.push(`${id}: no labels, the warning could not be read: ${cutText(err.message, 200)}`);
+        else throw err;
       }
     }
     for (const feature of own) {

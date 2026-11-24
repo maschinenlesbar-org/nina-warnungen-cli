@@ -372,6 +372,17 @@ test("map: one warning in two spellings (a copied .geojson suffix, quotes) is re
   assert.equal(mock.calls.length, 1);
 });
 
+test("map: labels whose warning can't be read leave the geometry drawn and say so in problems", async () => {
+  const { client: c } = client({ [`/warnings/${HH_BOMB}.json`]: () => ({ status: 500, headers: {}, body: Buffer.from("detail down") }) });
+  const area = await getWarningArea(c, { ids: [HH_BOMB, DWD_RAIN], labels: true });
+  assert.ok(area.status === "ok");
+  if (area.status !== "ok") return;
+  assert.deepEqual(area.found, [HH_BOMB, DWD_RAIN]);
+  assert.equal(area.featureCount, 2);
+  assert.ok(area.problems.some((p) => p.startsWith(`${HH_BOMB}: no labels, the warning could not be read: HTTP 500`)), JSON.stringify(area.problems));
+  assert.equal((area.features[1]?.["properties"] as Record<string, unknown>)["headline"], "Amtliche WARNUNG vor DAUERREGEN");
+});
+
 test("lineBreaks turns only <br/> spellings into line breaks", () => {
   assert.equal(lineBreaks("a<br/>b<BR>c<br />d <b>e</b>"), "a\nb\nc\nd <b>e</b>");
 });
