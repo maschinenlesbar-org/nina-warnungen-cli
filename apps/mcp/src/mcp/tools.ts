@@ -19,6 +19,7 @@ import {
   NinaApiError,
   NinaError,
   NinaSourceValues,
+  normalizeIdentifier,
   type JsonObject,
   type MapWarning,
   type NinaSource,
@@ -113,9 +114,9 @@ function feedsSource(sources: readonly string[] | undefined): string {
   return names.length === 1 ? `${names[0]}/mapData.json` : `{${names.join(",")}}/mapData.json`;
 }
 
-/** The warning files of `ids` with `suffix`, under the API base. */
+/** The warning files of `ids` with `suffix`, under the API base: the ids cleaned as the client cleans them (the files it reads). */
 function warningsSource(ids: readonly string[], suffix: string): string {
-  const names = [...new Set(ids.map((i) => encodeURIComponent(String(i).trim())))];
+  const names = [...new Set(ids.map((i) => encodeURIComponent(normalizeIdentifier(String(i)))))];
   return names.length === 1 ? `warnings/${names[0]}${suffix}` : `warnings/{${names.join(",")}}${suffix}`;
 }
 
@@ -311,8 +312,8 @@ const DEFINITIONS: readonly ToolDefinition[] = [
     maxFieldLength: WARNING_TEXT_LENGTH,
     source: (args) => {
       const revision = str(args, "revision");
-      if (revision !== undefined) return `archive.mowas/${encodeURIComponent(revision.trim().replace(/\.json$/, ""))}.json`;
-      return `archive.mowas/${encodeURIComponent((str(args, "id") ?? "").trim())}-mapping.json`;
+      if (revision !== undefined) return `archive.mowas/${encodeURIComponent(normalizeIdentifier(revision))}.json`;
+      return `archive.mowas/${encodeURIComponent(normalizeIdentifier(str(args, "id") ?? ""))}-mapping.json`;
     },
     async run(args, context) {
       return { ...(await getWarningHistory(context.client, { id: str(args, "id"), revision: str(args, "revision"), lang: str(args, "lang") })) };

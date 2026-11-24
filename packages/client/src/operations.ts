@@ -19,6 +19,7 @@ import type { NinaClient } from "./client.js";
 import { NinaApiError, NinaError, NinaNetworkError, NinaNotFoundError, NinaValidationError, cutText, quoteValue } from "./errors.js";
 import { arsProblem } from "./ars.js";
 import { NinaSourceValues, SeverityValues, type NinaSource } from "./enums.js";
+import { assertValid, identifierProblem, normalizeIdentifier } from "./validate.js";
 import type { DashboardEntry, I18nText, JsonObject, JsonValue, MapWarning, WarningDetail } from "./types.js";
 
 /** The language a caller asks for: `de` (default), `en`, `fr`, …, or a regional form (`de-LS`). */
@@ -795,8 +796,11 @@ export type WarningArea =
  * `problems`, never silently passed.
  */
 export async function getWarningArea(client: NinaClient, input: WarningAreaInput): Promise<WarningArea> {
-  const ids = [...new Set((input.ids ?? []).map((id) => (typeof id === "string" ? id.trim() : "")))];
-  if (ids.length < 1 || ids.length > 5 || ids.includes("")) throw new NinaValidationError("Invalid ids: give one to five warning ids.");
+  const given = (input.ids ?? []).map((id) => (typeof id === "string" ? id.trim() : ""));
+  if (given.length < 1 || given.length > 5 || given.includes("")) throw new NinaValidationError("Invalid ids: give one to five warning ids.");
+  // Cleaned as the client cleans an id (quotes, a .json or .geojson suffix), so one warning given
+  // in two spellings is read and drawn once.
+  const ids = [...new Set(given.map((id) => normalizeIdentifier(assertValid("identifier", id, identifierProblem))))];
   const lang = langOf(input.lang);
   const features: JsonObject[] = [];
   const found: string[] = [];

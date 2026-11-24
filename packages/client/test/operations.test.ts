@@ -349,6 +349,14 @@ test("map: stale ids are listed in notLive; all stale is empty with what to do; 
   await assert.rejects(getWarningArea(c, { ids: ["a", "b", "c", "d", "e", "f"] }), NinaValidationError);
 });
 
+test("map: one warning in two spellings (a copied .geojson suffix, quotes) is read and drawn once", async () => {
+  const { client: c, mock } = client();
+  const area = await getWarningArea(c, { ids: [HH_BOMB, `${HH_BOMB}.geojson`, `"${HH_BOMB}"`] });
+  assert.ok(area.status === "ok" && area.featureCount === 1);
+  assert.deepEqual(area.status === "ok" ? area.found : [], [HH_BOMB]);
+  assert.equal(mock.calls.length, 1);
+});
+
 test("lineBreaks turns only <br/> spellings into line breaks", () => {
   assert.equal(lineBreaks("a<br/>b<BR>c<br />d <b>e</b>"), "a\nb\nc\nd <b>e</b>");
 });

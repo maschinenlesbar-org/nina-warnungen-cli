@@ -232,3 +232,17 @@ test("getRegionWarnings: a short place name gets the tool's recipe, not a schema
     assert.equal(transport.calls.length, 0);
   }
 });
+
+test("ids are cleaned as the client cleans them: source is the file read, and one warning given twice is drawn once", async () => {
+  for (const id of [`${HH_BOMB}.json`, `"${HH_BOMB}"`, ` ${HH_BOMB}.JSON `]) {
+    const { answer } = await call("getWarningDetail", { id });
+    assert.equal(answer["status"], "ok");
+    assert.equal(answer["source"], `${BASE}/warnings/${HH_BOMB}.json`, id);
+  }
+  const { answer } = await call("getWarningArea", { ids: [HH_BOMB, `${HH_BOMB}.geojson`] });
+  assert.equal(answer["featureCount"], 1);
+  assert.deepEqual(answer["found"], [HH_BOMB]);
+  assert.equal(answer["source"], `${BASE}/warnings/${HH_BOMB}.geojson`);
+  const history = await call("getWarningHistory", { id: `${HH_BOMB}.json` });
+  assert.equal(history.answer["source"], `${BASE}/archive.mowas/${HH_BOMB}-mapping.json`);
+});
