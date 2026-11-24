@@ -22,6 +22,7 @@ import {
   type JsonObject,
   type MapWarning,
   type NinaSource,
+  type SourceSummary,
 } from "@maschinenlesbar.org/nina-warnungen-client";
 import type { JsonSchema, ToolDefinition } from "./server.js";
 
@@ -125,13 +126,28 @@ function feedEntry(entry: MapWarning, language: string): JsonObject {
   return { ...(entry as unknown as JsonObject), i18nTitle: titles };
 }
 
+/**
+ * The briefing's sources as an object by name, and a failed source's error as a note: the size cap
+ * shortens lists and cuts texts but keeps objects' keys and the notes, so every source's counts
+ * and the reason one could not be read stay in the answer (a list of six went first).
+ */
+function perSource(summaries: readonly SourceSummary[], notes: readonly string[]): { sources: JsonObject; notes: string[] } {
+  const sources: JsonObject = {};
+  const failed: string[] = [];
+  for (const { source, error, ...counts } of summaries) {
+    sources[source] = error === undefined ? { ...counts } : { read: false };
+    if (error !== undefined) failed.push(`${source} could not be read: ${error}`);
+  }
+  return { sources, notes: [...failed, ...notes] };
+}
+
 const DEFINITIONS: readonly ToolDefinition[] = [
   {
     name: "getWarningBriefing",
     title: "NINA warnings in Germany, ranked",
     description: [
       'The civil-protection warnings in force in Germany now, merged from NINA\'s six sources and ranked by severity. Use it for "gibt es aktuell Warnungen?", "Warnlage in Deutschland", "gibt es eine Hochwasser- oder Unwetterwarnung?", "any warnings right now?", "what\'s the NINA / BBK warning situation?", "is there a flood or storm warning?", "any disasters or alerts in Germany?".',
-      "Sources: mowas (federal/state civil protection), katwarn, biwapp (municipal), dwd (weather), lhp (floods), police; default all six, or narrow (weather -> dwd, flood -> lhp). Cancellations (Entwarnung) are dropped and listed in cleared, never as active; an entry whose expiry passed is dropped; no expiry (null) stays active, none is guessed. Ranked Extreme, Severe, Moderate, Minor, Unknown (LHP advance warnings), then Immediate first, then newest. Entries with the same headline and severity are one item with count and ids (DWD issues one entry per area; MoWaS mirrors others). The feed has no places beyond the headline: getRegionWarnings or getWarningDetail for the area. Lead with the verdict (counts per source); list Severe and Extreme in full, summarise the rest unless asked. A source that could not be read is named: say warnings from it may be missing. Empty everywhere is a real all-clear: say so plainly.",
+      "Sources: mowas (federal/state civil protection), katwarn, biwapp (municipal), dwd (weather), lhp (floods), police; default all six, or narrow (weather -> dwd, flood -> lhp). Cancellations (Entwarnung) are dropped and listed in cleared, never as active; an entry whose expiry passed is dropped; no expiry (null) stays active, none is guessed. Ranked Extreme, Severe, Moderate, Minor, Unknown (LHP advance warnings), then Immediate first, then newest. Entries with the same headline and severity are one item with count and ids (DWD issues one entry per area; MoWaS mirrors others). The feed has no places beyond the headline: getRegionWarnings or getWarningDetail for the area. Lead with the verdict (counts per source); list Severe and Extreme in full, summarise the rest unless asked. sources has each source's counts; one that could not be read is read false, with its error in notes: say warnings from it may be missing. Empty everywhere is a real all-clear: say so plainly.",
       RULES,
     ].join("\n\n"),
     inputSchema: input({
@@ -140,10 +156,11 @@ const DEFINITIONS: readonly ToolDefinition[] = [
       minSeverity: { type: "string", enum: ["Extreme", "Severe", "Moderate", "Minor", "Unknown"], description: "Only warnings at least this severe (the rest are counted)." },
       limit: { type: "integer", minimum: 1, maximum: 100, description: "The most items listed, most serious first (default 25); the rest are counted in more." },
     }),
-    outputSchema: output({ verdict: str_, active: int, bySeverity: obj, sources: arr, warnings: arr, more: int, cleared: arr, belowMinSeverity: int }),
+    outputSchema: output({ verdict: str_, active: int, bySeverity: obj, sources: obj, warnings: arr, more: int, cleared: arr, belowMinSeverity: int }),
     source: (args) => feedsSource(list(args, "sources")),
     async run(args, context) {
-      return { ...(await getWarningBriefing(context.client, { sources: list(args, "sources") as NinaSource[] | undefined, lang: str(args, "lang"), minSeverity: str(args, "minSeverity"), limit: num(args, "limit") })) };
+      const briefing = await getWarningBriefing(context.client, { sources: list(args, "sources") as NinaSource[] | undefined, lang: str(args, "lang"), minSeverity: str(args, "minSeverity"), limit: num(args, "limit") });
+      return { ...briefing, ...perSource(briefing.sources, briefing.notes) };
     },
   },
   {

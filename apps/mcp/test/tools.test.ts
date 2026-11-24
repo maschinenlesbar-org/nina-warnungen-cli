@@ -186,3 +186,21 @@ test("a feed over the server's download size is not met with advice to lower a l
   assert.match(text, /read whole whatever the limit/);
   assertHintFits(text, OPTIONS);
 });
+
+test("getWarningBriefing under the size cap keeps every source: its counts, and a failed one's error whole", async () => {
+  const down = (name: string) => () => ({ status: 500, headers: { "content-type": "text/plain" }, body: Buffer.from(`${name} upstream fault: ${"x".repeat(60)} end`) });
+  const transport = makeMockTransport(ninaApiNow(Date.now(), { "/katwarn/mapData.json": down("katwarn"), "/biwapp/mapData.json": down("biwapp"), "/police/mapData.json": down("police") }));
+  const connection = await connect({ transport, config: { maxResultChars: 2700 } });
+  const result = await connection.call("getWarningBriefing", { limit: 3 });
+  await connection.close();
+  const answer = (result.structuredContent ?? {}) as Record<string, unknown>;
+  assert.equal(result.isError, undefined, result.content[0]?.text);
+  assert.equal(answer["truncated"], true, "the cap did cut");
+  const sources = answer["sources"] as Record<string, { active?: number; read?: boolean }>;
+  assert.deepEqual(Object.keys(sources), ["mowas", "katwarn", "biwapp", "dwd", "lhp", "police"]);
+  assert.equal(sources["dwd"]?.active, 3);
+  assert.equal(sources["katwarn"]?.read, false);
+  for (const name of ["katwarn", "biwapp", "police"]) {
+    assert.ok((answer["notes"] as string[]).includes(`${name} could not be read: HTTP 500 for GET /api31/${name}/mapData.json`), `${name}: ${JSON.stringify(answer["notes"])}`);
+  }
+});
