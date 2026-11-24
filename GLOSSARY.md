@@ -141,7 +141,7 @@ carry it) when it expires.
 
 **type (msgType).** The CAP message type of an entry — `Alert` (new), `Update`
 (supersedes a prior message) or `Cancel` (withdraws it). The archive mapping spells
-it in upper case (`ALERT`, `UPDATE`).
+it in upper case (`ALERT`, `UPDATE`, `CANCEL`), so compare it without case.
 
 **Severity.** The CAP severity level of a warning. The value set surfaced by the
 client is `Minor`, `Moderate`, `Severe`, `Extreme`, `Unknown` (in increasing

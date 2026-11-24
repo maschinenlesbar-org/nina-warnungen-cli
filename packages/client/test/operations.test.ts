@@ -107,6 +107,29 @@ test("briefing in English: headline stays the German title (it names the place),
   assert.equal(flood?.translated, undefined, "no translation given: none made up");
 });
 
+test("briefing: the message type and the severity are read in any case: a CANCEL is a cancellation, a severe ranks as Severe", async () => {
+  const feed = [
+    { id: "mow.cancel-upper", startDate: "2026-11-19T18:00:00+01:00", severity: "Minor", type: "CANCEL", i18nTitle: { de: "Entwarnung: Gasaustritt - Musterstadt" } },
+    { id: "mow.severe-lower", startDate: "2026-11-19T18:00:00+01:00", severity: "severe", type: "alert", i18nTitle: { de: "Gasaustritt - Beispieldorf" } },
+  ];
+  const { client: c } = client({ "/mowas/mapData.json": feed });
+  const b = await getWarningBriefing(c, { sources: ["mowas"], minSeverity: "Severe", now: NOW });
+  assert.deepEqual(b.cleared.map((x) => x.id), ["mow.cancel-upper"]);
+  assert.deepEqual(b.warnings.map((w) => [w.ids[0], w.severity]), [["mow.severe-lower", "Severe"]]);
+  assert.deepEqual(b.bySeverity, { Severe: 1 });
+  assert.equal(b.belowMinSeverity, 0);
+});
+
+test("region: a msgType CANCEL is a cancellation and a severity in lower case ranks as its CAP value", async () => {
+  const upper = dashboardCham.map((e) => (e.id === RODING_WATER ? { ...e, payload: { ...e.payload, data: { ...e.payload.data, msgType: "CANCEL" } } } : e.id === DWD_RAIN ? { ...e, payload: { ...e.payload, data: { ...e.payload.data, severity: "SEVERE" } } } : e));
+  const { client: c } = client({ "/dashboard/093720000000.json": upper });
+  const r = await getRegionWarnings(c, { ars: "093720000000", details: false, now: NOW });
+  assert.ok(r.status === "ok");
+  if (r.status !== "ok") return;
+  assert.deepEqual(r.cleared.map((x) => x.id), [RODING_WATER, CANCELLED]);
+  assert.deepEqual(r.warnings.map((w) => [w.id, w.severity]), [[DWD_RAIN, "Severe"]]);
+});
+
 // ---- a district
 
 test("district key: 12-digit district as is; AGS, 5-digit code and municipality key taken to the district", () => {

@@ -141,7 +141,7 @@ angeben) wann sie abläuft.
 
 **type (msgType).** Der CAP-Meldungstyp eines Eintrags – `Alert` (neu), `Update`
 (ersetzt eine frühere Meldung) oder `Cancel` (zieht sie zurück). Das Archiv-Mapping
-schreibt ihn groß (`ALERT`, `UPDATE`).
+schreibt ihn groß (`ALERT`, `UPDATE`, `CANCEL`), also ohne Groß- und Kleinschreibung vergleichen.
 
 **Severity.** Die CAP-Schwerestufe einer Warnung. Der vom Client bereitgestellte
 Wertebereich ist `Minor`, `Moderate`, `Severe`, `Extreme`, `Unknown` (in aufsteigender

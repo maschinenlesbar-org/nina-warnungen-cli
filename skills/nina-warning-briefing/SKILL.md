@@ -75,8 +75,8 @@ Each returns an array of warning **summaries** (`MapWarning`). The fields that m
 
 Two filters, both important:
 
-1. **Drop cancellations.** `type === "Cancel"` is an *Entwarnung* — the warning being
-   withdrawn, not an active hazard. A `Cancel` headline literally reads `Entwarnung: …`.
+1. **Drop cancellations.** `type` `Cancel` (compare without case: `CANCEL` occurs too) is an
+   *Entwarnung* — the warning being withdrawn, not an active hazard. A `Cancel` headline literally reads `Entwarnung: …`.
    Never present these as live warnings; at most mention "N recently cleared".
 2. **Drop expired.** If `expiresDate` is set and in the past relative to now, the
    warning is over — exclude it. Many entries have **no** `expiresDate`, or `null`; treat
@@ -88,7 +88,8 @@ A `Cancel` whose original is the only entry for an area means that area is now c
 
 Sort the surviving (active, non-cancelled) warnings, most serious first:
 
-1. By `severity`: `Extreme` → `Severe` → `Moderate` → `Minor` → `Unknown`.
+1. By `severity`: `Extreme` → `Severe` → `Moderate` → `Minor` → `Unknown` (compare without
+   case: `severe` is `Severe`).
 2. Within equal severity, `urgency === "Immediate"` outranks `Expected`/`Future`/`Unknown`.
 3. Then most recent `startDate` first.
 

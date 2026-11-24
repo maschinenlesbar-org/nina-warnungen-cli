@@ -85,7 +85,8 @@ not assume the summary fields. The fields that matter (checked live on 2026-09-1
 
 Same triage as a national briefing, but scoped to this region:
 
-- **Drop `payload.data.msgType === "Cancel"`** (Entwarnung) — withdrawn, not active.
+- **Drop `payload.data.msgType` `Cancel`** (Entwarnung; compare without case, `CANCEL` occurs
+  too) — withdrawn, not active.
 - **Expiry: use the entry's top-level `expires`.** If it is set and in the past, the warning
   is over — drop it. When it is `null` (MoWaS) and the end time matters, look it up per entry:
   `nina warning get <id>` → `info[].expires`, or the entry's `expiresDate` in

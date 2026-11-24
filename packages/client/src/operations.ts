@@ -42,6 +42,23 @@ function langOf(lang: string | undefined): string {
   return value;
 }
 
+/**
+ * A severity as its CAP name, whatever its case (`severe` is Severe); a value that is none of
+ * them as sent (it ranks after Unknown); a missing one is Unknown.
+ */
+function severityName(value: unknown): string {
+  if (typeof value !== "string") return "Unknown";
+  return SeverityValues.find((s) => s.toLowerCase() === value.trim().toLowerCase()) ?? value;
+}
+
+/**
+ * True for a cancellation (CAP msgType Cancel, an Entwarnung), whatever its case: the map-data
+ * feeds write `Cancel`, NINA's archive `CANCEL`.
+ */
+function isCancel(type: unknown): boolean {
+  return typeof type === "string" && type.trim().toLowerCase() === "cancel";
+}
+
 function rank(severity: string | undefined): number {
   return SEVERITY_RANK[severity ?? ""] ?? 5;
 }
@@ -167,8 +184,9 @@ export interface WarningBriefing {
 
 /**
  * One ranked briefing across the NINA sources (default all six: MoWaS, KATWARN, BIWAPP, DWD,
- * LHP flood, police). Cancellations (`type` Cancel, "Entwarnung: …") are withdrawn warnings, not
- * hazards: counted and listed apart, never as active. An entry whose `expiresDate` has passed is
+ * LHP flood, police). Cancellations (`type` Cancel in any case, "Entwarnung: …") are withdrawn
+ * warnings, not hazards: counted and listed apart, never as active. A severity is read in any case
+ * (`severe` ranks as Severe). An entry whose `expiresDate` has passed is
  * over: counted, dropped; an entry without one stays active (no expiry is guessed). Entries with the
  * same German headline and severity are one item with a count (DWD issues one entry per area;
  * MoWaS mirrors). A source that cannot be read is named in `sources[].error` and the verdict; when
@@ -200,7 +218,7 @@ export async function getWarningBriefing(client: NinaClient, input: WarningBrief
     const summary: SourceSummary = { source, active: 0, cancelled: 0, expired: 0 };
     summaries.push(summary);
     for (const entry of result.value as MapWarning[]) {
-      if (entry.type === "Cancel") {
+      if (isCancel(entry.type)) {
         summary.cancelled += 1;
         clearedTotal += 1;
         if (cleared.length < MAX_CLEARED) cleared.push({ headline: germanTitle(entry.i18nTitle), source, id: entry.id });
@@ -211,7 +229,7 @@ export async function getWarningBriefing(client: NinaClient, input: WarningBrief
         continue;
       }
       summary.active += 1;
-      const severity = typeof entry.severity === "string" ? entry.severity : "Unknown";
+      const severity = severityName(entry.severity);
       if (min !== undefined && rank(severity) > rank(min)) {
         below += 1;
         continue;
@@ -418,8 +436,8 @@ const textOf = (value: JsonValue | undefined): string | undefined => (typeof val
 
 /**
  * The active warnings of one district (the per-region dashboard), ranked like the briefing.
- * Severity, urgency, msgType and provider are under `payload.data`, not on top. Cancellations are
- * dropped and listed apart; an entry whose top-level `expires` has passed is dropped; a null
+ * Severity, urgency, msgType and provider are under `payload.data`, not on top (msgType and severity
+ * read in any case). Cancellations are dropped and listed apart; an entry whose top-level `expires` has passed is dropped; a null
  * `expires` (MoWaS) stays active and is filled from the warning when the details are read. The
  * readable area is the warning's `areaDesc`, never the encoded `payload.data.area`. A district NINA
  * doesn't know (HTTP 404) is `empty` with the reason; no warning at all is `ok`, a real all-clear
@@ -446,7 +464,7 @@ export async function getRegionWarnings(client: NinaClient, input: RegionWarning
   for (const entry of entries) {
     const data = dataOf(entry);
     const titles = headlines(entry.i18nTitle, lang, textOf(data["headline"]));
-    if (data["msgType"] === "Cancel") {
+    if (isCancel(data["msgType"])) {
       cleared.push({ id: entry.id, headline: titles.headline });
       continue;
     }
@@ -458,7 +476,7 @@ export async function getRegionWarnings(client: NinaClient, input: RegionWarning
     active.push({
       id: entry.id,
       ...titles,
-      severity: textOf(data["severity"]) ?? "Unknown",
+      severity: severityName(data["severity"]),
       ...pick("urgency"),
       ...pick("msgType"),
       ...pick("provider"),

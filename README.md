@@ -198,9 +198,9 @@ nina --log-format jsonl dashboard 059990000000 2>log.jsonl   # {"ts":"…","leve
 
 ```bash
 # Count warnings for a region. With pipefail a failed run (exit 1 or 4) fails the
-# pipeline instead of jq printing nothing; a `Cancel` entry is an all-clear, not a warning.
+# pipeline instead of jq printing nothing; a `Cancel` entry (any case) is an all-clear, not a warning.
 set -o pipefail
-nina dashboard 055150000000 | jq '[.[] | select(.payload.data.msgType != "Cancel")] | length'
+nina dashboard 055150000000 | jq '[.[] | select((.payload.data.msgType // "" | ascii_downcase) != "cancel")] | length'
 
 # Extract severity + headline from all DWD entries
 nina map-data dwd | jq '.[] | {severity, title: .i18nTitle.de}'
