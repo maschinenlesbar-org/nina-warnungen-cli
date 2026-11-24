@@ -236,7 +236,8 @@ An identifier that begins with `-` would be parsed as an option; pass it after a
   expired. Re-fetch it from a fresh `map-data` or `dashboard` result; identifiers
   change as warnings are issued and cancelled. For a warning that is no longer live
   (expired, updated, cancelled, or never issued) the API does not answer `404`: it
-  redirects to its archive (`/api31/archive/alerts/<id>`). The CLI does not follow
+  redirects to its archive (`/api31/archive/alerts/<id>` on the same host; a redirect to
+  another host is an error like any other redirect). The CLI does not follow
   the redirect; it prints `… is not a live warning …` with that archive URL and exits `4`.
   The API redirects a mistyped id the same way, and ids are case-sensitive, so exit `4`
   does not prove that a warning ended. Whitespace and quotes around an id and a

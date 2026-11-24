@@ -224,8 +224,9 @@ reason out of a log record), for a timeout, the size cap, a refused connection, 
 a reset alike, and the transport's own error is its `cause`), `NinaParseError` (bad JSON), `NinaIOError` (local write
 failure) and `NinaValidationError` (an input the library rejects before any
 request), all extending `NinaError`, plus `NinaNotFoundError` (a warning id that is
-no longer live: NINA answers it with a `302` to `/api31/archive/alerts/<id>`, which
-`warnings.get`/`geojson` turn into this error, carrying `identifier`, `location` and
+no longer live: NINA answers it with a `302` to `/api31/archive/alerts/<id>` on its own
+host, which `warnings.get`/`geojson` turn into this error (a redirect to that path on another
+origin stays a `NinaApiError`), carrying `identifier`, `location` and
 the `NinaApiError` as `cause`). For any other `3xx`, `NinaApiError.location` holds the
 redirect target (the base URL's credentials scrubbed, resolved, userinfo redacted, sanitised). The CLI maps a `404` and a
 `NinaNotFoundError` to exit code `4`,

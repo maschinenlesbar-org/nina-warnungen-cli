@@ -117,6 +117,13 @@ test("warnings.get/geojson turn the archive redirect into NinaNotFoundError", as
     () => clientWith(other).warnings.get("x"),
     (err) => err instanceof NinaApiError && err.status === 302,
   );
+  // An archive path on another host is not NINA's archive: never handed on as the warning's archive address.
+  for (const location of ["https://evil.example/api31/archive/alerts/see-https-evil.example-phish", "http://warnung.bund.de/api31/archive/alerts/x"]) {
+    const foreign = makeMockTransport(() => ({ status: 302, headers: { location }, body: Buffer.alloc(0) }));
+    for (const call of [() => clientWith(foreign).warnings.get("x"), () => clientWith(foreign).warnings.geojson("x")]) {
+      await assert.rejects(call, (err) => err instanceof NinaApiError && err.status === 302 && !(err instanceof NinaNotFoundError), location);
+    }
+  }
 });
 
 test("dashboard rejects a state-level key for library callers too", async () => {

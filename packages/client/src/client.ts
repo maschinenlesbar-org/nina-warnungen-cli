@@ -133,18 +133,22 @@ function expectGeoJson(engine: RequestEngine, path: string, response: RawRespons
 
 /**
  * NINA answers a warning id that is not live (expired, updated, cancelled, or
- * never issued) with a redirect to `/api31/archive/alerts/<id>`, not a 404. Turn
- * exactly that redirect into a `NinaNotFoundError`; any other error passes through.
+ * never issued) with a redirect to `/api31/archive/alerts/<id>` on its own host, not a
+ * 404. Turn exactly that redirect into a `NinaNotFoundError`; any other error passes
+ * through, a redirect to another origin's archive path included (it is not NINA's
+ * archive, and its address must not be handed on as the warning's).
  */
 function notLive(identifier: string, err: unknown): unknown {
   if (!(err instanceof NinaApiError) || err.status < 300 || err.status >= 400) return err;
-  let path = "";
+  let target: URL;
+  let origin = "";
   try {
-    path = new URL(err.location ?? "").pathname;
+    target = new URL(err.location ?? "", err.url);
+    origin = new URL(err.url).origin;
   } catch {
     return err;
   }
-  if (!path.includes("/archive/alerts/")) return err;
+  if (!target.pathname.includes("/archive/alerts/") || target.origin !== origin) return err;
   return new NinaNotFoundError(identifier, err.location, { cause: err });
 }
 
