@@ -79,7 +79,9 @@ For scripts and shared configs, pin a release and its digest from the
 
 Every tool only reads. An answer is JSON (`structuredContent` and the same as text), with the
 `source` it came from (whole, never cut like the data) and the data licence. A text over 2000
-characters is cut and ends in `…[cut, N characters in all]`, and the answer says `truncated`. An
+characters is cut and ends in `…[cut, N characters in all]`, and the answer says `truncated`; a
+warning's own texts (`getRegionWarnings`, `getWarningDetail`, `getWarningHistory`: a description
+lists the affected places and ends in the hotlines) are kept up to 20 000 characters instead. An
 answer over `--max-result-chars` first loses entries from the end of its page (then `nextOffset`
 says where to go on), then has its longest texts cut further (each with that mark) or, when that
 isn't enough, its other lists shortened (`reason` names them); a list keeps its first entry, `notes`

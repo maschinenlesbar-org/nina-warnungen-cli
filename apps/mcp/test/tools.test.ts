@@ -9,7 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
 import { connect } from "./harness.js";
-import { CANCELLED, DWD_RAIN, HH_BOMB, RODING_WATER, STALE, makeMockTransport, ninaApiNow } from "./helpers.js";
+import { CANCELLED, DWD_RAIN, HH_BOMB, RODING_WATER, STALE, makeMockTransport, ninaApiNow, rodingDetail } from "./helpers.js";
 
 const BASE = "https://warnung.bund.de/api31";
 const upstream = () => makeMockTransport(ninaApiNow());
@@ -115,4 +115,21 @@ test("getWarningHistory: the revisions of a MoWaS id; another source's id is emp
   assert.equal(answer["source"], `${BASE}/archive.mowas/${HH_BOMB}-mapping.json`);
   const other = await call("getWarningHistory", { id: DWD_RAIN });
   assert.match(String(other.answer["reason"]), /MoWaS warnings only/);
+});
+
+test("a warning's description is passed whole, not cut at the server's 2000 characters: detail, region and archive", async () => {
+  // As the live Severe drinking-water warning of Lkr. Cham: the affected places, then the hotlines at the end.
+  const description = `${"In der Gemeinde Zell sind betroffen die Ortschaften Oberpoign, Wirtswies, Unterpoign. ".repeat(30)}Hotlines: Kreiswerke Cham +49 9971 78-190, Gesundheitsamt Cham +49 9971 78-450.`;
+  assert.ok(description.length > 2600);
+  const detail = { ...rodingDetail, info: [{ ...rodingDetail.info[0], description }] };
+  const revision = `${RODING_WATER}_20261118182345`;
+  const transport = () => makeMockTransport(ninaApiNow(Date.now(), { [`/warnings/${RODING_WATER}.json`]: detail, [`/archive.mowas/${revision}.json`]: detail }));
+  const one = await call("getWarningDetail", { id: RODING_WATER }, transport());
+  assert.equal((one.answer["warning"] as { description: string }).description, description);
+  assert.equal(one.answer["truncated"], undefined);
+  const region = await call("getRegionWarnings", { ars: "093720000000" }, transport());
+  assert.equal((region.answer["warnings"] as { description?: string }[])[0]?.description, description);
+  assert.equal(region.answer["truncated"], undefined);
+  const archived = await call("getWarningHistory", { revision }, transport());
+  assert.equal((archived.answer["warning"] as { description: string }).description, description);
 });
