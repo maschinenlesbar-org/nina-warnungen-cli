@@ -237,11 +237,29 @@ test("region watch: previous tokens give new, changed and cleared", async () => 
   const first = await getRegionWarnings(c, { ars: "093720000000", details: false, now: NOW });
   assert.ok(first.status === "ok");
   if (first.status !== "ok") return;
-  assert.deepEqual(first.warnings.map((w) => w.watch), [`${RODING_WATER}@e57084d8`, `${DWD_RAIN}@a7f4c5d6`]);
+  assert.deepEqual(first.warnings.map((w) => w.watch), [`093720000000/${RODING_WATER}@e57084d8`, `093720000000/${DWD_RAIN}@a7f4c5d6`]);
   const changed = dashboardCham.map((e) => (e.id === DWD_RAIN ? { ...e, payload: { ...e.payload, hash: "beefbeef" } } : e)).filter((e) => e.id !== RODING_WATER);
   const { client: later } = client({ "/dashboard/093720000000.json": [...changed, { ...dashboardCham[0], id: "dwd.new", payload: { ...dashboardCham[0]?.payload, hash: "n" } }] });
   const second = await getRegionWarnings(later, { ars: "093720000000", details: false, previous: first.warnings.map((w) => w.watch), now: NOW });
   assert.deepEqual(second.status === "ok" ? second.changes : undefined, { new: ["dwd.new"], changed: [DWD_RAIN], cleared: [RODING_WATER], unchanged: 0 });
+});
+
+test("region watch: another district's tokens are left out with a note, never reported as cleared; a token without an id is refused", async () => {
+  const { client: c } = client();
+  const cham = await getRegionWarnings(c, { ars: "093720000000", details: false, now: NOW });
+  assert.ok(cham.status === "ok");
+  if (cham.status !== "ok") return;
+  const hamburg = await getRegionWarnings(c, { ars: "020000000000", details: false, previous: cham.warnings.map((w) => w.watch), now: NOW });
+  assert.ok(hamburg.status === "ok");
+  if (hamburg.status !== "ok") return;
+  assert.deepEqual(hamburg.changes, { new: [HH_BOMB], changed: [], cleared: [], unchanged: 0 });
+  assert.ok(hamburg.notes.includes("2 watch tokens are of another district (093720000000) and were left out: pass the tokens of this district's last answer."), JSON.stringify(hamburg.notes));
+  for (const token of ["@", "@abc", " @x"]) {
+    await assert.rejects(getRegionWarnings(c, { ars: "020000000000", details: false, previous: [token], now: NOW }), (err: Error) => err instanceof NinaValidationError && /has no warning id/.test(err.message));
+  }
+  // A token of an earlier release (no district) is still taken.
+  const old = await getRegionWarnings(c, { ars: "093720000000", details: false, previous: [`${RODING_WATER}@e57084d8`], now: NOW });
+  assert.deepEqual(old.status === "ok" ? old.changes : undefined, { new: [DWD_RAIN], changed: [], cleared: [], unchanged: 1 });
 });
 
 // ---- one warning, the archive

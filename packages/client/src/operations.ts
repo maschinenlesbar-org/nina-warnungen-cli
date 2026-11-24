@@ -380,7 +380,7 @@ export interface RegionWarning {
   onset?: string | null;
   /** The expiry; null when none is given (then it is treated as active). */
   expires: string | null;
-  /** `id@hash`: pass the tokens back as `previous` to learn what changed. */
+  /** `<district>/<id>@<hash>`: pass the tokens back as `previous` (for the same district) to learn what changed. */
   watch: string;
   /** The readable areas (areaDesc of the warning), with details. */
   areas?: string[];
@@ -437,10 +437,16 @@ export function districtKey(value: string): { ars: string; from?: string } {
   return from === undefined ? { ars } : { ars, from };
 }
 
-/** The `watch` token of a dashboard entry. */
-function watchOf(entry: DashboardEntry): string {
+/** The hash of a dashboard entry (it changes when the warning does), if it has one. */
+function hashOf(entry: DashboardEntry): string | undefined {
   const hash = (entry.payload as { hash?: unknown }).hash;
-  return typeof hash === "string" ? `${entry.id}@${hash}` : entry.id;
+  return typeof hash === "string" ? hash : undefined;
+}
+
+/** The `watch` token of a dashboard entry of district `ars`: `<ars>/<id>@<hash>` (no hash: `<ars>/<id>`). */
+function watchOf(ars: string, entry: DashboardEntry): string {
+  const hash = hashOf(entry);
+  return `${ars}/${entry.id}${hash === undefined ? "" : `@${hash}`}`;
 }
 
 /** `payload.data` of a dashboard entry (severity, urgency, msgType, provider are there, not on top). */
@@ -464,7 +470,7 @@ export async function getRegionWarnings(client: NinaClient, input: RegionWarning
   const region = districtKey(input.ars);
   const lang = langOf(input.lang);
   const now = input.now ?? new Date();
-  const previous = previousOf(input.previous);
+  const previous = previousOf(input.previous, region.ars);
   let entries: DashboardEntry[];
   try {
     entries = await client.dashboard(region.ars);
@@ -501,12 +507,13 @@ export async function getRegionWarnings(client: NinaClient, input: RegionWarning
       ...(entry.effective === undefined ? {} : { effective: entry.effective }),
       ...(entry.onset === undefined ? {} : { onset: entry.onset }),
       expires: typeof entry.expires === "string" ? entry.expires : null,
-      watch: watchOf(entry),
+      watch: watchOf(region.ars, entry),
       ...(entry.sent === undefined ? {} : { time: entry.sent }),
     });
   }
   active.sort(compareWarnings);
   const warnings: RegionWarning[] = active.map(({ time: _time, ...warning }) => warning);
+  const hashes = new Map(entries.map((entry) => [entry.id, hashOf(entry)]));
 
   // The warnings read in another language than the one asked, by the language given.
   const otherLanguages = new Map<string, string[]>();
@@ -523,6 +530,10 @@ export async function getRegionWarnings(client: NinaClient, input: RegionWarning
   for (const [given, ids] of otherLanguages) notes.push(`No ${lang} version, given in ${given}: ${ids.join(", ")}.`);
   if (warnings.length > MAX_REGION_DETAILS && input.details !== false) notes.push(`Areas and advice are read for the first ${MAX_REGION_DETAILS} warnings; getWarningDetail has the others.`);
   if (warnings.some((w) => w.expires === null)) notes.push("expires null: no expiry is given (MoWaS); the warning is treated as active, none is guessed.");
+  if (previous !== undefined && previous.foreign.length > 0) {
+    const districts = [...new Set(previous.foreign)].join(", ");
+    notes.push(`${previous.foreign.length} watch token${previous.foreign.length === 1 ? " is" : "s are"} of another district (${districts}) and ${previous.foreign.length === 1 ? "was" : "were"} left out: pass the tokens of this district's last answer.`);
+  }
   const verdict =
     warnings.length === 0
       ? `No active warnings for the district ${region.ars} right now: a real all-clear for this key${cleared.length > 0 ? ` (${cleared.length} cancellation${cleared.length === 1 ? "" : "s"})` : ""}. It is only as right as the key: name the district so the user can check it.`
@@ -535,25 +546,39 @@ export async function getRegionWarnings(client: NinaClient, input: RegionWarning
     warnings,
     cleared,
     expired,
-    ...(previous === undefined ? {} : { changes: changesSince(previous, warnings) }),
+    ...(previous === undefined ? {} : { changes: changesSince(previous.tokens, warnings, hashes) }),
     notes,
   };
 }
 
-/** The ids and hashes of `previous` tokens (`id@hash`; a bare id has no hash). */
-function previousOf(tokens: readonly string[] | undefined): Map<string, string | undefined> | undefined {
+/**
+ * The ids and hashes of the `previous` tokens of district `ars` (`<district>/<id>@<hash>`; no hash:
+ * none; no district, as an earlier release made them: taken as this one's), and the districts of
+ * the tokens of another district, left out (their warnings are not this district's to clear). A
+ * token without an id is refused.
+ */
+function previousOf(tokens: readonly string[] | undefined, ars: string): { tokens: Map<string, string | undefined>; foreign: string[] } | undefined {
   if (tokens === undefined) return undefined;
   const map = new Map<string, string | undefined>();
-  for (const token of tokens) {
-    if (typeof token !== "string" || token.trim() === "") throw new NinaValidationError("Invalid previous: each token is a watch value of an earlier answer (id@hash).");
-    const at = token.lastIndexOf("@");
-    if (at < 0) map.set(token.trim(), undefined);
-    else map.set(token.slice(0, at).trim(), token.slice(at + 1).trim() || undefined);
+  const foreign: string[] = [];
+  for (const raw of tokens) {
+    if (typeof raw !== "string" || raw.trim() === "") throw new NinaValidationError("Invalid previous: each token is a watch value of an earlier answer (district/id@hash).");
+    const token = raw.trim();
+    const district = /^(\d{12})\//.exec(token);
+    const rest = district === null ? token : token.slice(district[0].length);
+    const at = rest.lastIndexOf("@");
+    const id = (at < 0 ? rest : rest.slice(0, at)).trim();
+    if (id === "") throw new NinaValidationError(`Invalid previous: ${quoteValue(raw)} has no warning id; pass the watch values of an earlier answer as they are (district/id@hash).`);
+    if (district !== null && district[1] !== ars) {
+      foreign.push(district[1] as string);
+      continue;
+    }
+    map.set(id, at < 0 ? undefined : rest.slice(at + 1).trim() || undefined);
   }
-  return map;
+  return { tokens: map, foreign };
 }
 
-function changesSince(previous: Map<string, string | undefined>, warnings: RegionWarning[]): RegionChanges {
+function changesSince(previous: Map<string, string | undefined>, warnings: RegionWarning[], hashes: Map<string, string | undefined>): RegionChanges {
   const changes: RegionChanges = { new: [], changed: [], cleared: [], unchanged: 0 };
   const now = new Set<string>();
   for (const warning of warnings) {
@@ -561,8 +586,8 @@ function changesSince(previous: Map<string, string | undefined>, warnings: Regio
     if (!previous.has(warning.id)) changes.new.push(warning.id);
     else {
       const before = previous.get(warning.id);
-      const hash = warning.watch.slice(warning.id.length + 1);
-      if (before !== undefined && hash !== "" && before !== hash) changes.changed.push(warning.id);
+      const hash = hashes.get(warning.id);
+      if (before !== undefined && hash !== undefined && before !== hash) changes.changed.push(warning.id);
       else changes.unchanged += 1;
     }
   }
