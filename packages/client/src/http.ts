@@ -46,6 +46,8 @@ export interface HttpRequest {
    * Aborted when the engine's overall deadline (`timeoutMs`) passes. A transport should stop
    * the request then (`fetch(url, { signal })`); the engine rejects at the deadline either way,
    * and enforces `maxResponseBytes` on the body it gets back, so neither limit depends on it.
+   * The engine aborts it with its timeout error as the reason; a caller may add its own signal
+   * (the MCP server's limiter does), whose abort is no timeout.
    */
   signal?: AbortSignal | undefined;
 }
@@ -205,9 +207,17 @@ export const nodeHttpTransport: Transport = (request) =>
       deadline.unref?.();
     }
 
+    // The engine's overall deadline (HttpRequest.signal, aborted with its timeout error), or a
+    // caller's (a tool call's deadline, a cancellation): stop the request when it fires, and say
+    // which. A caller's abort is no request timeout, whatever timeoutMs was.
     if (request.signal !== undefined) {
       const abort = (): void => {
-        req.destroy(new NinaNetworkError(`Request exceeded the ${timeoutMs ?? 0}ms deadline`));
+        const reason: unknown = request.signal?.reason;
+        req.destroy(
+          reason instanceof NinaNetworkError
+            ? reason
+            : new NinaNetworkError("Request aborted by its caller before it finished"),
+        );
       };
       if (request.signal.aborted) abort();
       else request.signal.addEventListener("abort", abort, { once: true });
