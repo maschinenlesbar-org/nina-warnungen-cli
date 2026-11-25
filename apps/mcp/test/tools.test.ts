@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
-import { TOOLS } from "../src/mcp/tools.js";
+import { SIZE_HINT, TOOLS } from "../src/mcp/tools.js";
 import { limitTransport } from "../src/mcp/limiter.js";
 import { connect } from "./harness.js";
 import { CANCELLED, DWD_RAIN, HH_BOMB, RODING_WATER, STALE, makeMockTransport, ninaApiNow, rodingDetail } from "./helpers.js";
@@ -177,16 +177,18 @@ test("an answer over the size cap says what this tool can ask for less: the regi
   assertHintFits(text, OPTIONS);
 });
 
-test("a feed over the server's download size is not met with advice to lower a limit, which reads the same feed", async () => {
+test("a feed over the server's read limit says that no argument helps, without the result cap's advice to lower a limit", async () => {
   const big = makeMockTransport(() => ({ status: 200, headers: { "content-type": "application/json" }, body: Buffer.alloc(17 * 1024 * 1024, 0x20) }));
   const connection = await connect({ transport: big });
   const result = await connection.call("listSourceWarnings", { source: "mowas", limit: 1 });
   await connection.close();
   const text = result.content[0]?.text ?? "";
   assert.equal(result.isError, true, text);
-  assert.match(text, /larger than this server accepts/);
-  assert.match(text, /read whole whatever the limit/);
-  assertHintFits(text, OPTIONS);
+  assert.match(text, /larger than this server accepts \(16 MiB\)/);
+  assert.match(text, /the source's answer is over the read limit, and narrower options of listSourceWarnings don't help/);
+  assert.doesNotMatch(text, /smaller limit/);
+  // The result cap's advice names options its tools take.
+  assertHintFits(SIZE_HINT, OPTIONS);
 });
 
 test("getWarningBriefing under the size cap keeps every source: its counts, and a failed one's error whole", async () => {

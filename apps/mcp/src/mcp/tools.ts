@@ -51,12 +51,13 @@ export const DEADLINE_HINT =
   "NINA is slow at times: try again shortly. A call can ask for less: fewer sources (getWarningBriefing), details (getRegionWarnings) false to skip the warnings' own requests, fewer ids (getWarningArea), labels (getWarningArea) left out.";
 
 /**
- * An answer over the size cap, or a download over the server's limit, says what to ask instead:
- * each option with the tools that take it. A feed is read whole whatever the limit (the API has
- * no paging), so a feed too large to download is met with "try later", not a smaller limit.
+ * An answer over this server's result cap (--max-result-chars) says what to ask instead: each
+ * option with the tools that take it. A feed over the 16 MiB the server reads gets the kit's own
+ * error, which says that narrower options don't help (a feed is read whole whatever the limit; the
+ * API has no paging).
  */
 export const SIZE_HINT =
-  "Ask for less: a smaller limit (getWarningBriefing, getWarningArea, listSourceWarnings) and offset (getWarningArea, listSourceWarnings) to go on, fewer ids (getWarningArea), or details (getRegionWarnings) false and then getWarningDetail for one warning. A feed is read whole whatever the limit: one too large to read is a problem upstream, so try again later or leave that source out with sources (getWarningBriefing).";
+  "Ask for less: a smaller limit (getWarningBriefing, getWarningArea, listSourceWarnings) and offset (getWarningArea, listSourceWarnings) to go on, fewer ids (getWarningArea), or details (getRegionWarnings) false and then getWarningDetail for one warning.";
 
 /**
  * The longest text the tools that pass a warning's own texts keep (getRegionWarnings,
